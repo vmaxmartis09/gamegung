@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0b0a09;
+  --foreground: #f2efe9;
+  --card: 30 8% 7%;
+  --card-foreground: 40 20% 94%;
+  --border: 30 5% 16%;
+
+  /* Champagne accent: the only chromatic colour in the chrome */
+  --accent: #c9a96e;
+  --accent-rgb: 201 169 110;
+  --accent-soft: rgba(201, 169, 110, 0.12);
+  --accent-ring: rgba(201, 169, 110, 0.5);
+
+  /* Surfaces & lines */
+  --surface-1: rgba(255, 255, 255, 0.025);
+  --surface-2: rgba(255, 255, 255, 0.045);
+  --hairline: rgba(255, 255, 255, 0.075);
+  --hairline-strong: rgba(255, 255, 255, 0.14);
+  --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 48px -24px rgba(0, 0, 0, 0.85);
+
+  /* Motion */
+  --ease-lounge: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 320ms;
+
+  /* Deprecated chromatic variables, muted. Kept so older inline styles still resolve. */
+  --lime: #f2efe9;
+  --violet: #9a8fc7;
+  --pink: #c98a9e;
+  --cyan: #7fb3c4;
+  --orange: #c98f5e;
+  --yellow: #d4b04f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  color: var(--foreground);
+  background-color: var(--background);
+  /* One static champagne glow at the top edge; no grid, no JS, no repaint on scroll */
+  background-image: radial-gradient(64rem 34rem at 50% -14%, rgba(201, 169, 110, 0.07), transparent 68%);
+  background-attachment: fixed;
+  overflow-x: hidden;
+  min-height: 100vh;
+  font-feature-settings: "ss01", "cv11";
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background-color: rgba(201, 169, 110, 0.85);
+  color: #14110a;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+/* Slim dark scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2c2b28;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #403f3b;
+  background-clip: padding-box;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@layer base {
+  /* Serif display headings read as editorial; keep them light and slightly tight. */
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+@layer components {
+  /* ------------------------------ Surfaces ------------------------------ */
+
+  /* Shared modal surface */
+  .modal-shell {
+    @apply relative z-10 flex max-h-[90vh] w-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-ink-900/95 p-6 text-ink-100 backdrop-blur-2xl;
+    box-shadow: var(--shadow-soft), 0 40px 100px -30px rgba(0, 0, 0, 0.95);
+  }
+  /* Solid panel: cheaper than backdrop-blur everywhere, still layered */
+  .panel {
+    @apply rounded-2xl border border-white/[0.075] bg-ink-900/80;
+    box-shadow: var(--shadow-soft);
+  }
+  .panel-soft {
+    @apply rounded-2xl border border-white/[0.06] bg-white/[0.025];
+  }
+  .glass {
+    @apply border border-white/[0.09] bg-ink-900/75 backdrop-blur-xl;
+  }
+  .divider {
+    @apply h-px w-full border-0 bg-white/[0.075];
+  }
+
+  /* ------------------------------ Buttons ------------------------------ */
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium tracking-[0.005em] transition-[transform,background-color,border-color,box-shadow,color] duration-150 ease-standard select-none disabled:pointer-events-none disabled:opacity-40;
+  }
+  .btn:active {
+    transform: translateY(0.5px);
+  }
+  .btn-sm {
+    @apply rounded-lg px-3 py-1.5 text-xs;
+  }
+  .btn-lg {
+    @apply px-6 py-3 text-[0.9375rem];
+  }
+  /* Primary: flat champagne, one hairline highlight, no glow */
+  .btn-accent {
+    @apply btn text-[#17130a] hover:brightness-105;
+    background: linear-gradient(180deg, #d6bb85, #c9a96e);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.28) inset, 0 6px 16px -10px rgba(201, 169, 110, 0.55);
+  }
+  /* Solid: ivory, for the single strongest action on a dark ground */
+  .btn-lime {
+    @apply btn bg-ink-100 text-ink-950 hover:bg-white;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  }
+  .btn-ghost {
+    @apply btn border border-white/10 bg-white/[0.03] text-ink-100 hover:border-white/20 hover:bg-white/[0.07];
+  }
+  .btn-dark {
+    @apply btn border border-white/10 bg-ink-800 text-ink-100 hover:bg-ink-700;
+  }
+  .btn-danger {
+    @apply btn border border-danger/35 bg-danger/10 text-[#e08b8e] hover:bg-danger/20;
+  }
+
+  /* ------------------------------ Small parts ------------------------------ */
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[11px] font-medium text-ink-200;
+  }
+  /* Tag pill. Colour comes from the usage site; keep the type quiet. */
+  .sticker {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-950;
+  }
+  .kbd {
+    @apply inline-flex min-w-[1.5rem] items-center justify-center rounded-md border border-white/15 bg-white/[0.05] px-1.5 py-0.5 font-mono text-[10px] text-ink-200;
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  }
+  .field {
+    @apply w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-sm text-ink-100 placeholder:text-ink-400 outline-none transition-[border-color,background-color,box-shadow] duration-150 focus:border-[color:var(--accent-ring)] focus:bg-ink-800 focus:shadow-focus-accent;
+  }
+  .label {
+    @apply mb-1.5 block text-[11px] font-medium uppercase tracking-[0.1em] text-ink-300;
+  }
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.18em] text-ink-300;
+  }
+}
+
+@layer utilities {
+  .kokonut-ai-wave {
+    animation: kokonut-ai-wave 1.6s ease-in-out infinite both;
+  }
+  /* Selected segment: ivory chip */
+  .seg-active {
+    @apply bg-ink-100 text-ink-950;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  /* Serif display type with numerals that line up */
+  .num {
+    font-family: var(--font-display), Georgia, serif;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 600px;
+  }
+}
+
+@keyframes kokonut-ai-wave {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+html[data-tab-hidden] *,
+html[data-tab-hidden] *::before,
+html[data-tab-hidden] *::after {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

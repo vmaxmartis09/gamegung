@@ -1,0 +1,75 @@
+"use client";
+
+import { memo } from "react";
+import { KokonutFace } from "@/components/ui/kokonut-avatar";
+import { cn } from "@/lib/utils";
+
+export type PresenceStatus = "online" | "away" | "in-game" | "busy" | "offline";
+
+export const STATUS_META: Record<PresenceStatus, { label: string; dot: string; text: string; ring: string }> = {
+  online: { label: "Online", dot: "bg-pop-green", text: "text-pop-green", ring: "ring-pop-green/40" },
+  "in-game": { label: "Đang chơi", dot: "bg-pop-violet", text: "text-pop-violet", ring: "ring-pop-violet/40" },
+  away: { label: "Away", dot: "bg-pop-yellow", text: "text-pop-yellow", ring: "ring-pop-yellow/40" },
+  busy: { label: "Bận", dot: "bg-pop-red", text: "text-pop-red", ring: "ring-pop-red/40" },
+  offline: { label: "Offline", dot: "bg-ink-500", text: "text-ink-400", ring: "ring-ink-500/40" },
+};
+
+export const KOKONUT_PREFIX = "kokonut:";
+
+export function kokonutAvatar(seed: string) {
+  return `${KOKONUT_PREFIX}${seed}`;
+}
+
+/** Bots and legacy avatars get a deterministic Kokonut face, so nothing is fetched over the network. */
+export function avatarSeedFrom(src: string | undefined, name: string) {
+  if (src?.startsWith(KOKONUT_PREFIX)) return src.slice(KOKONUT_PREFIX.length);
+  if (src && src.includes("dicebear.com")) {
+    const m = src.match(/seed=([^&]+)/);
+    return `${decodeURIComponent(m?.[1] ?? name).toLowerCase()}:0`;
+  }
+  return `${name.trim().toLowerCase()}:0`;
+}
+
+interface UserAvatarProps {
+  src?: string;
+  name: string;
+  className?: string;
+  status?: PresenceStatus;
+  /** Tailwind classes for the status dot size/border. */
+  dotClassName?: string;
+  rounded?: "full" | "xl" | "2xl";
+}
+
+export const UserAvatar = memo(function UserAvatar({
+  src,
+  name,
+  className,
+  status,
+  dotClassName,
+  rounded = "full",
+}: UserAvatarProps) {
+  const isImage = !!src && !src.startsWith(KOKONUT_PREFIX) && !src.includes("dicebear.com");
+  const radius = rounded === "full" ? "rounded-full" : rounded === "xl" ? "rounded-xl" : "rounded-2xl";
+  return (
+    <span className={cn("relative inline-block shrink-0", className ?? "size-9")}>
+      <span className={cn("block h-full w-full overflow-hidden bg-ink-700 ring-1 ring-black/20", radius)}>
+        {isImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+        ) : (
+          <KokonutFace seed={avatarSeedFrom(src, name)} title={name} />
+        )}
+      </span>
+      {status && (
+        <span
+          aria-label={STATUS_META[status].label}
+          className={cn(
+            "absolute -bottom-0.5 -right-0.5 block size-3 rounded-full border-2 border-ink-900",
+            STATUS_META[status].dot,
+            dotClassName
+          )}
+        />
+      )}
+    </span>
+  );
+});
