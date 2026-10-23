@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { KeyRound, Loader2, MessageSquare, X } from "lucide-react";
 import { useAuthStore, translateAuthError } from "@/lib/auth";
@@ -43,15 +43,53 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function BlackHoleLoading({ message = "Đang mở sảnh…", subMessage = "Khởi tạo đấu trường Office Arena" }: { message?: string; subMessage?: string }) {
+export function BlackHoleLoading({
+  message = "Đang mở sảnh…",
+  subMessage = "Khởi tạo đấu trường Office Arena",
+  homeCountdown,
+}: {
+  message?: string;
+  subMessage?: string;
+  /** Chỉ dùng cho trang 404: đếm ngược rồi về trang chủ. Màn loading đăng nhập không được tự chuyển trang. */
+  homeCountdown?: { startAfterMs: number; seconds: number };
+}) {
   const blackHoleRef = useRef<BlackHoleRef>(null);
   const skipToGuest = useAuthStore((s) => s.skipToGuest);
+  const router = useRouter();
+  const pathname = usePathname();
   const [showFallback, setShowFallback] = useState(false);
+  const [left, setLeft] = useState<number | null>(null);
+  const [cancelled, setCancelled] = useState(false);
+
+  const goHome = () => {
+    if (pathname !== "/") router.replace("/");
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setShowFallback(true), 3500);
     return () => clearTimeout(timer);
   }, []);
+
+  // Treo quá lâu → đếm ngược rồi về trang chủ
+  useEffect(() => {
+    if (cancelled || !homeCountdown) return;
+    const t = setTimeout(() => setLeft(homeCountdown.seconds), homeCountdown.startAfterMs);
+    return () => clearTimeout(t);
+  }, [cancelled, homeCountdown]);
+
+  useEffect(() => {
+    if (left === null || cancelled) return;
+    if (left <= 0) {
+      goHome();
+      return;
+    }
+    const t = setTimeout(() => setLeft((v) => (v === null ? v : v - 1)), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [left, cancelled]);
+
+  const counting = !!homeCountdown && left !== null && !cancelled;
+  const progress = counting && homeCountdown ? 1 - (left ?? 0) / homeCountdown.seconds : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black overflow-hidden select-none">
@@ -101,10 +139,29 @@ export function BlackHoleLoading({ message = "Đang mở sảnh…", subMessage 
               {message}
             </p>
           </div>
-          <p className="font-mono text-[11px] text-ink-500">
+          <p className="font-mono text-xs text-ink-500">
             {subMessage}
           </p>
         </div>
+
+        {counting && (
+          <div className="flex items-center gap-4 rounded-2xl border border-white/15 bg-black/60 px-4 py-3 backdrop-blur-md">
+            <div className="relative grid size-14 place-items-center">
+              <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90">
+                <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.5" />
+                <circle cx="18" cy="18" r="15.5" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" strokeDasharray={97.4} strokeDashoffset={97.4 * (1 - progress)} className="transition-[stroke-dashoffset] duration-1000 ease-linear" />
+              </svg>
+              <span className="font-display text-xl font-black text-white">{left}</span>
+            </div>
+            <div className="flex flex-col items-start gap-1.5 text-left">
+              <p className="text-xs font-semibold text-white">Về trang chủ</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={goHome} className="rounded-full bg-emerald-400 px-3 py-1 text-xs font-black text-black transition hover:scale-105 active:scale-95">Đi ngay</button>
+                <button type="button" onClick={() => setCancelled(true)} className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white transition hover:bg-white/20 active:scale-95">Ở lại</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Fallback escape options if taking longer than 3.5s */}
         <div

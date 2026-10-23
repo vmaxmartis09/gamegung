@@ -165,25 +165,38 @@ body {
 
   /* ------------------------------ Small parts ------------------------------ */
 
+  /* Square icon-only control. 40px on desktop, 44px on touch (WCAG 2.5.5). One per function per surface. */
+  .icon-btn {
+    @apply relative grid size-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-ink-200 transition-colors duration-150 hover:bg-white/[0.12] hover:text-white disabled:pointer-events-none disabled:opacity-40;
+  }
+  .icon-btn-ghost {
+    @apply icon-btn border-transparent bg-transparent;
+  }
+  @media (pointer: coarse) {
+    .icon-btn {
+      @apply size-11;
+    }
+  }
+
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[11px] font-medium text-ink-200;
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-xs font-medium text-ink-200;
   }
   /* Tag pill. Colour comes from the usage site; keep the type quiet. */
   .sticker {
-    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-950;
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink-950;
   }
   .kbd {
-    @apply inline-flex min-w-[1.5rem] items-center justify-center rounded-md border border-white/15 bg-white/[0.05] px-1.5 py-0.5 font-mono text-[10px] text-ink-200;
+    @apply inline-flex min-w-[1.5rem] items-center justify-center rounded-md border border-white/15 bg-white/[0.05] px-1.5 py-0.5 font-mono text-xs text-ink-200;
     box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.1);
   }
   .field {
     @apply w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-sm text-ink-100 placeholder:text-ink-400 outline-none transition-[border-color,background-color,box-shadow] duration-150 focus:border-[color:var(--accent-ring)] focus:bg-ink-800 focus:shadow-focus-accent;
   }
   .label {
-    @apply mb-1.5 block text-[11px] font-medium uppercase tracking-[0.1em] text-ink-300;
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-[0.1em] text-ink-300;
   }
   .eyebrow {
-    @apply text-[11px] font-medium uppercase tracking-[0.18em] text-ink-300;
+    @apply text-xs font-medium uppercase tracking-[0.18em] text-ink-300;
   }
 }
 
@@ -201,9 +214,9 @@ body {
   .tabular {
     font-variant-numeric: tabular-nums lining-nums;
   }
-  /* Serif display type with numerals that line up */
+  /* Display type with numerals that line up */
   .num {
-    font-family: var(--font-display), Georgia, serif;
+    font-family: var(--font-display), system-ui, sans-serif;
     font-variant-numeric: tabular-nums lining-nums;
   }
   .cv-auto {

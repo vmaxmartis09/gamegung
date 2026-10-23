@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MatchResultModal } from "./match-result-modal";
 import HoldButton from "@/components/kokonut/hold-button";
-import { ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useGameSession, useMatchSettlement, useToast } from "./shared";
+import { ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useGameSession, useMatchOpponent, useMatchSettlement, useToast } from "./shared";
 
 const TIME_CONTROLS = [
   { id: "5+3", base: 300, inc: 3, label: "5+3", kind: "Nhanh" },
@@ -85,6 +85,7 @@ export function XiangqiGame() {
   const { settle, reset: resetSettlement, result, open: resultOpen, setOpen: setResultOpen } = useMatchSettlement("xiangqi");
   const { show: showToast, node: toastNode } = useToast();
   const session = useGameSession<XqSave>("xiangqi");
+  const matchOpp = useMatchOpponent();
 
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   useEffect(() => {
@@ -171,10 +172,10 @@ export function XiangqiGame() {
       setSelected(null);
       sound("end");
       if (rated) {
-        settle(winner === 0 ? "draw" : winner === mySide ? "win" : "loss", { name: `Engine ${level.label}`, elo: level.elo }, stake);
+        settle(winner === 0 ? "draw" : winner === mySide ? "win" : "loss", { name: matchOpp?.name ?? `Engine ${level.label}`, elo: matchOpp?.elo ?? level.elo }, stake);
       } else showToast(winner === 0 ? `Hoà — ${reason}` : `${winner === 1 ? "Đỏ" : "Đen"} thắng — ${reason}`, "info", 4000);
     },
-    [rated, mySide, level, stake, settle, sound, showToast]
+    [rated, mySide, level, stake, settle, sound, showToast, matchOpp]
   );
 
   const applyMove = useCallback(
@@ -436,14 +437,14 @@ export function XiangqiGame() {
   const playerFor = (side: Side) => {
     if (settings.mode === "local") return { name: side === 1 ? "Bên Đỏ" : "Bên Đen", avatar: `kokonut:${side === 1 ? "ben do" : "ben den"}:1`, rating: undefined };
     if (side === mySide) return { name: me.username, avatar: me.avatar, rating: me.elo };
-    return { name: `Engine ${level.label}`, avatar: `kokonut:ky vuong ${settings.level}:5`, rating: level.elo };
+    return { name: matchOpp?.name ?? `Engine ${level.label}`, avatar: matchOpp?.avatar ?? `kokonut:ky vuong ${settings.level}:5`, rating: matchOpp?.elo ?? level.elo };
   };
   const capturedRow = (side: Side) => (
     <span className="flex flex-wrap items-center gap-0.5">
       {captured(side).map((v, i) => (
         <span
           key={i}
-          className={cn("grid size-4 place-items-center rounded-full text-[9px] font-black", v > 0 ? "bg-[#fff1d6] text-[#c8102e]" : "bg-[#fff1d6] text-[#111]")}
+          className={cn("grid size-4 place-items-center rounded-full text-xs font-black", v > 0 ? "bg-[#fff1d6] text-[#c8102e]" : "bg-[#fff1d6] text-[#111]")}
         >
           {(v > 0 ? CHAR_RED : CHAR_BLACK)[Math.abs(v)]}
         </span>
@@ -558,7 +559,7 @@ export function XiangqiGame() {
                           className={cn("rounded-xl border p-2.5 text-left transition-colors", settings.level === k ? "border-lime-400 bg-lime-400/10" : "border-white/[0.07] bg-white/[0.02] hover:border-white/20")}
                         >
                           <p className="text-xs font-bold">{XQ_LEVELS[k].label}</p>
-                          <p className="font-mono text-[10px] text-ink-400">~{XQ_LEVELS[k].elo} ELO</p>
+                          <p className="font-mono text-xs text-ink-400">~{XQ_LEVELS[k].elo} ELO</p>
                         </button>
                       ))}
                     </div>
@@ -588,7 +589,7 @@ export function XiangqiGame() {
                       className={cn("rounded-xl border px-2 py-2 text-center", settings.time === t.id ? "border-lime-400 bg-lime-400/10" : "border-white/[0.07] bg-white/[0.02] hover:border-white/20")}
                     >
                       <p className="font-mono text-xs font-bold">{t.label}</p>
-                      <p className="text-[9px] text-ink-400">{t.kind}</p>
+                      <p className="text-xs text-ink-400">{t.kind}</p>
                     </button>
                   ))}
                 </div>
@@ -616,7 +617,7 @@ export function XiangqiGame() {
                 {phase === "over" && (
                   <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2 text-center">
                     <p className="font-display text-sm font-extrabold">Ván đã kết thúc</p>
-                    <p className="text-[11px] text-ink-300">{overReason}</p>
+                    <p className="text-xs text-ink-300">{overReason}</p>
                   </div>
                 )}
                 <div className="grid grid-cols-3 gap-1.5">
@@ -635,7 +636,7 @@ export function XiangqiGame() {
 
               <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-2">
                 <XqMoveList moves={moves} viewPly={viewPly} onView={setViewPly} total={boards.length - 1} />
-                <div className="panel shrink-0 p-3 text-[11px] leading-relaxed text-ink-300">
+                <div className="panel shrink-0 p-3 text-xs leading-relaxed text-ink-300">
                   <p className="mb-1 font-bold text-ink-100">Cách đọc ký hiệu</p>
                   <p>
                     <b className="text-white">P2-5</b>: Pháo bình · <b className="text-white">M8.7</b>: Mã tiến · <b className="text-white">X1/2</b>: Xe thoái. Cột đếm từ phải→trái.
@@ -885,7 +886,7 @@ function Act({ label, icon, onClick, disabled, danger }: { label: string; icon: 
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex flex-col items-center justify-center gap-1 rounded-2xl border px-1 py-2.5 text-[11px] font-bold transition-colors disabled:opacity-30",
+        "flex flex-col items-center justify-center gap-1 rounded-2xl border px-1 py-2.5 text-xs font-bold transition-colors disabled:opacity-30",
         danger ? "border-pop-red/30 bg-pop-red/10 text-[#ffb3bb] hover:bg-pop-red/20" : "border-white/[0.07] bg-white/[0.03] text-ink-100 hover:bg-white/[0.08]"
       )}
     >
@@ -921,7 +922,7 @@ function XqMoveList({ moves, viewPly, onView, total }: { moves: PlayedMove[]; vi
       </div>
       <div ref={box} className="flex-1 min-h-[100px] no-scrollbar overflow-y-auto rounded-xl bg-black/25 p-1.5 font-mono text-xs">
         {moves.length === 0 ? (
-          <p className="pt-8 text-center text-[11px] text-ink-500">Đỏ đi trước. Phím ← → để xem lại.</p>
+          <p className="pt-8 text-center text-xs text-ink-500">Đỏ đi trước. Phím ← → để xem lại.</p>
         ) : (
           Array.from({ length: rows }, (_, i) => (
             <div key={i} className="grid grid-cols-[2.2rem_1fr_1fr] items-center">

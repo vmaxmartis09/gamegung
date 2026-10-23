@@ -10,6 +10,8 @@ export interface CenterFlowNode {
   angle?: number;
   isAlive?: boolean;
   color?: string;
+  /** Node đang nói / hành động: luồng sáng chạy mạnh từ node về trung tâm. */
+  active?: boolean;
   content: React.ReactNode;
 }
 
@@ -92,11 +94,21 @@ export function CenterFlow({
               <path
                 d={pathD}
                 fill="none"
-                stroke={node.color || `url(#center-flow-grad-${flowId})`}
-                strokeWidth={isAlive ? "1.8" : "1"}
+                stroke={node.active ? "#a3e635" : node.color || `url(#center-flow-grad-${flowId})`}
+                strokeWidth={node.active ? "2.6" : isAlive ? "1.8" : "1"}
                 strokeDasharray={isAlive ? "4 4" : "2 6"}
-                strokeOpacity={isAlive ? (isNight ? 0.45 : 0.4) : 0.15}
+                strokeOpacity={node.active ? 0.95 : isAlive ? (isNight ? 0.45 : 0.4) : 0.15}
+                filter={node.active ? `url(#glow-${flowId})` : undefined}
               />
+              {node.active && (
+                <>
+                  {[0, 0.45, 0.9].map((b) => (
+                    <circle key={b} r="3.4" fill="#d9f99d" filter={`url(#glow-${flowId})`}>
+                      <animateMotion path={`M ${node.x} ${node.y} Q ${ctrlX} ${ctrlY} 50 50`} dur="1.3s" repeatCount="indefinite" begin={`${b}s`} />
+                    </circle>
+                  ))}
+                </>
+              )}
 
               {/* Animated energy pulse traveling along the line if node is alive */}
               {isAlive && (

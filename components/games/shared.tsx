@@ -1,5 +1,6 @@
 "use client";
 
+import { COOLDOWN, useCooldownStore } from "@/lib/cooldown-store";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
@@ -23,7 +24,8 @@ export function GameHeader({ game, subtitle, children }: { game: GameId; subtitl
   const unread = useAppStore((s) => s.unreadCounts[game] || 0);
   const soundEnabled = useAppStore((s) => s.soundEnabled);
   const toggleSound = useAppStore((s) => s.toggleSound);
-  const icon = "relative grid size-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.04] text-ink-100 transition-colors hover:bg-white hover:text-black";
+  const chatShown = useAppStore((s) => s.isChatOpen && !s.isChatCollapsed);
+  const icon = "icon-btn";
   return (
     <div className="mb-2 flex flex-wrap items-center gap-1.5">
       <Link href="/" className={icon} aria-label="Về sảnh" title="Về sảnh (ván được lưu)">
@@ -39,25 +41,50 @@ export function GameHeader({ game, subtitle, children }: { game: GameId; subtitl
         <button type="button" onClick={() => open("rules", { game: game as GameType })} className={icon} aria-label="Luật chơi" title="Luật chơi">
           <BookOpen className="size-4" />
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            useAppStore.getState().setActiveChannel(game);
-            useAppStore.getState().toggleChat(true);
-          }}
-          className={icon}
-          aria-label="Chat bàn này"
-          title="Chat bàn này"
-        >
-          <MessageCircle className="size-4" />
-          {unread > 0 && <span className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-pop-red px-1 text-[9px] font-black text-white">{unread}</span>}
-        </button>
+        {!chatShown && (
+          <button
+            type="button"
+            onClick={() => {
+              useAppStore.getState().setActiveChannel(game);
+              useAppStore.getState().toggleChat(true);
+            }}
+            className={icon}
+            aria-label="Chat bàn này"
+            title="Chat bàn này"
+          >
+            <MessageCircle className="size-4" />
+            {unread > 0 && <span className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-pop-red px-1 text-xs font-black text-white">{unread}</span>}
+          </button>
+        )}
         <button type="button" onClick={toggleSound} className={icon} aria-label={soundEnabled ? "Tắt âm" : "Bật âm"} title={soundEnabled ? "Tắt âm" : "Bật âm"}>
           {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
         </button>
       </span>
     </div>
   );
+}
+
+/* --------------------------- Matchmaking params ---------------------------- */
+
+export interface MatchOpponent {
+  name: string;
+  elo: number | null;
+  avatar: string | null;
+  isBot: boolean;
+  room: string | null;
+}
+
+/** Opponent handed over by the matchmaking modal (`?mode=match&room=…&opp=…`); null for a plain visit. */
+export function useMatchOpponent(): MatchOpponent | null {
+  const [opp, setOpp] = useState<MatchOpponent | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const name = q.get("opp");
+    if (q.get("mode") !== "match" || !name) return;
+    const elo = parseInt(q.get("oppElo") || "", 10);
+    setOpp({ name, elo: Number.isFinite(elo) ? elo : null, avatar: q.get("oppAvatar"), isBot: q.get("isBot") !== "0", room: q.get("room") });
+  }, []);
+  return opp;
 }
 
 /* ------------------------------ Game sessions ------------------------------ */
@@ -125,11 +152,11 @@ export function PlayerCard({
         {icon ?? <UserAvatar src={avatar} name={name} className="size-6 shrink-0" />}
         <div className="min-w-0 flex-1 flex items-center gap-2">
           <p className="truncate text-xs font-bold text-ink-100">{name}</p>
-          {rating !== undefined && <span className="font-mono text-[10px] text-ink-400">({rating})</span>}
+          {rating !== undefined && <span className="font-mono text-xs text-ink-400">({rating})</span>}
           {thinking ? (
-            <TextLoading className="text-[11px] text-white" texts={["Nghĩ…", "Tính…"]} label="Đang nghĩ" />
+            <TextLoading className="text-xs text-white" texts={["Nghĩ…", "Tính…"]} label="Đang nghĩ" />
           ) : (
-            <div className="truncate text-[11px] text-ink-300">{extra}</div>
+            <div className="truncate text-xs text-ink-300">{extra}</div>
           )}
         </div>
         {clockMs !== undefined && (
@@ -264,7 +291,7 @@ export function Segmented<T extends string | number>({
           onClick={() => onChange(o.value)}
           className={cn(
             "flex-1 rounded-xl font-bold transition-colors disabled:opacity-30",
-            size === "sm" ? "px-2 py-1.5 text-[11px]" : "px-3 py-2 text-xs",
+            size === "sm" ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-xs",
             value === o.value ? "seg-active" : "text-ink-300 hover:text-white"
           )}
         >
@@ -281,7 +308,7 @@ export function StakePicker({ value, onChange, disabled }: { value: number; onCh
     <div>
       <div className="mb-1.5 flex items-center justify-between">
         <span className="label mb-0">Cược Lúa</span>
-        <span className="text-[11px] text-ink-400">Ví: {lua.toLocaleString("vi-VN")} 🌾</span>
+        <span className="text-xs text-ink-400">Ví: {lua.toLocaleString("vi-VN")} 🌾</span>
       </div>
       <Segmented
         value={value}
@@ -405,6 +432,7 @@ export function useMatchSettlement(gameType: GameType) {
     (outcome: "win" | "loss" | "draw", opponent: { name: string; elo: number }, stake: number) => {
       if (settled.current) return null;
       settled.current = true;
+      useCooldownStore.getState().start(COOLDOWN.afterMatch, "Vừa kết thúc trận");
       const r = settleMatchResult({ gameType, opponentName: opponent.name, opponentElo: opponent.elo, result: outcome, stake });
       setResult(r);
       setTimeout(() => setOpen(true), 650);

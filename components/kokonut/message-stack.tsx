@@ -311,7 +311,7 @@ export default function MessageStack({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
                         <p className="truncate text-[13px] font-bold text-white">{item.title}</p>
-                        <span className="shrink-0 text-[10px] tabular-nums text-ink-400">{item.time}</span>
+                        <span className="shrink-0 text-xs tabular-nums text-ink-400">{item.time}</span>
                       </div>
                       <p className="line-clamp-2 text-[13px] text-ink-200">{item.body}</p>
                     </div>

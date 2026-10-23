@@ -353,7 +353,7 @@ function Segment({
         ) : null}
         <span className={cn("relative transition-transform duration-200", highlighted && "-translate-y-0.5")}>{icon}</span>
         {badge ? (
-          <span className="absolute -right-1 -top-1 z-10 grid min-w-[18px] place-items-center rounded-full bg-pop-pink px-1 text-[10px] font-black text-black ring-2 ring-ink-900">
+          <span className="absolute -right-1 -top-1 z-10 grid min-w-[18px] place-items-center rounded-full bg-pop-pink px-1 text-xs font-black text-black ring-2 ring-ink-900">
             {badge > 99 ? "99+" : badge}
           </span>
         ) : null}
@@ -366,7 +366,7 @@ function Segment({
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -top-9 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/30 bg-ink-850 px-2 py-1 text-[11px] font-bold text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/seg:opacity-100 sm:block"
+          className="pointer-events-none absolute -top-9 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/30 bg-ink-850 px-2 py-1 text-xs font-bold text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/seg:opacity-100 sm:block"
         >
           {name}
         </span>

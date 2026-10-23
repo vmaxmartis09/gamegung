@@ -82,20 +82,20 @@ export function MatchResultModal({ isOpen, onClose, onPlayAgain, resultData, rea
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-                  <p className="eyebrow text-[10px]">ELO</p>
+                  <p className="eyebrow text-xs">ELO</p>
                   <p className={cn("mt-1 font-display text-3xl font-extrabold tabular", resultData.playerEloChange > 0 ? "text-lime-400" : resultData.playerEloChange < 0 ? "text-pop-red" : "text-white")}>
                     {resultData.playerEloChange > 0 ? "+" : ""}
                     {resultData.playerEloChange}
                   </p>
-                  <p className="text-[11px] text-ink-400">Mới: {resultData.newPlayerElo}</p>
+                  <p className="text-xs text-ink-400">Mới: {resultData.newPlayerElo}</p>
                 </div>
                 <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-                  <p className="eyebrow text-[10px]">Lúa 🌾</p>
+                  <p className="eyebrow text-xs">Lúa 🌾</p>
                   <p className={cn("mt-1 font-display text-3xl font-extrabold tabular", resultData.luaChange > 0 ? "text-white" : resultData.luaChange < 0 ? "text-pop-red" : "text-white")}>
                     {resultData.luaChange > 0 ? "+" : ""}
                     {resultData.luaChange}
                   </p>
-                  <p className="text-[11px] text-ink-400">Ví: {resultData.newLuaBalance.toLocaleString("vi-VN")}</p>
+                  <p className="text-xs text-ink-400">Ví: {resultData.newLuaBalance.toLocaleString("vi-VN")}</p>
                 </div>
               </div>
 

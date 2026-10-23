@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -12,15 +12,18 @@ import {
   RefreshCw,
   Trophy,
   Coins,
+  Camera,
+  Loader2,
+  Trash2,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { getRankTier, GAME_BADGES } from "@/lib/ranking-system";
-import { CharacterCreatorModal } from "@/components/character/character-creator-modal";
-import { ChibiAvatar } from "@/components/character/chibi-avatar";
 import { TiltedCard } from "@/components/reactbits/tilted-card";
 import { SpotlightCard } from "@/components/reactbits/spotlight-card";
 import { CountUp } from "@/components/reactbits/count-up";
-import { UserAvatar } from "@/components/ui/user-avatar";
+import { UserAvatar, kokonutAvatar, KOKONUT_PREFIX } from "@/components/ui/user-avatar";
+import { uploadAvatar, AVATAR_ACCEPT } from "@/lib/avatar-upload";
+import { syncProfileToSupabase } from "@/lib/supabase-game";
 import { cn } from "@/lib/utils";
 
 interface ProfileModalProps {
@@ -56,8 +59,37 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { currentUser, setCurrentUser } = useAppStore();
   const [username, setUsername] = useState(currentUser.username);
   const [selectedTitle, setSelectedTitle] = useState(currentUser.title);
-  const [isCreatorOpen, setIsCreatorOpen] = useState(false);
   const [saved, setSaved] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const hasCustomAvatar = !!currentUser.avatar && !currentUser.avatar.startsWith(KOKONUT_PREFIX) && !currentUser.avatar.includes("dicebear.com");
+
+  const pushAvatar = (avatar: string) => {
+    setCurrentUser({ avatar });
+    const latest = useAppStore.getState().currentUser;
+    syncProfileToSupabase({ ...latest, avatar }).catch(() => {});
+  };
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setAvatarError(null);
+    setUploading(true);
+    try {
+      pushAvatar(await uploadAvatar(file, currentUser.id));
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : "Tải ảnh thất bại.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAvatar = () => {
+    setAvatarError(null);
+    pushAvatar(kokonutAvatar(`${currentUser.username.trim().toLowerCase()}:0`));
+  };
 
   const handleSave = () => {
     setCurrentUser({
@@ -113,26 +145,52 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               <TiltedCard maxTilt={3}>
                 <SpotlightCard className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.015] p-4">
                   <div className="flex items-center gap-4">
-                    <UserAvatar src={currentUser.avatar} name={currentUser.username} className="size-16" />
+                    <div className="relative shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={uploading}
+                        title="Đổi ảnh đại diện"
+                        className="group relative block size-16 overflow-hidden rounded-full transition hover:scale-105 active:scale-95"
+                      >
+                        <UserAvatar src={currentUser.avatar} name={currentUser.username} className="size-16" />
+                        <span className={cn("absolute inset-0 grid place-items-center rounded-full bg-black/55 text-white transition-opacity", uploading ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
+                          {uploading ? <Loader2 className="size-5 animate-spin" /> : <Camera className="size-5" />}
+                        </span>
+                      </button>
+                      {hasCustomAvatar && !uploading && (
+                        <button
+                          type="button"
+                          onClick={removeAvatar}
+                          title="Xoá ảnh"
+                          aria-label="Xoá ảnh"
+                          className="absolute -bottom-1 -right-1 grid size-6 place-items-center rounded-full border border-white/20 bg-ink-900 text-ink-200 transition hover:scale-110 hover:bg-red-500/80 hover:text-white"
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      )}
+                      <input ref={fileRef} type="file" accept={AVATAR_ACCEPT} onChange={handleFile} className="hidden" />
+                    </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-display text-lg font-bold leading-tight">{currentUser.username}</p>
                       <p className="truncate text-xs text-accent">{currentUser.title}</p>
                     </div>
                     <div className="text-right">
-                      <p className="eyebrow text-[10px]">ELO tổng</p>
+                      <p className="eyebrow text-xs">ELO tổng</p>
                       <p className="font-display text-xl font-bold tabular">
                         <CountUp value={currentUser.score} />
                       </p>
                     </div>
                   </div>
                   <div className="mt-4 flex items-center justify-between border-t border-white/[0.08] pt-3">
-                    <span className="eyebrow text-[10px]">Số dư</span>
+                    <span className="eyebrow text-xs">Số dư</span>
                     <span className="font-display text-lg font-bold tabular text-accent">
                       <CountUp value={currentUser.lua} /> <span className="text-sm">🌾</span>
                     </span>
                   </div>
                 </SpotlightCard>
               </TiltedCard>
+              {avatarError && <p className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{avatarError}</p>}
 
               {/* Game Ratings & Tiers Breakdown */}
               <div>
@@ -146,12 +204,12 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   ].map((g) => (
                     <SpotlightCard key={g.name} className="panel-soft space-y-1 p-3 text-center">
                       <span className="block text-xl">{g.icon}</span>
-                      <p className="text-[11px] font-semibold text-ink-100">{g.name}</p>
+                      <p className="text-xs font-semibold text-ink-100">{g.name}</p>
                       <p className="font-mono text-xs font-bold tabular text-ink-200">{g.elo} ELO</p>
-                      <span className={cn("inline-block max-w-full truncate rounded-full border px-1.5 text-[9px] font-medium", g.tier.badgeBg, g.tier.borderColor, g.tier.color)}>
+                      <span className={cn("inline-block max-w-full truncate rounded-full border px-1.5 text-xs font-medium", g.tier.badgeBg, g.tier.borderColor, g.tier.color)}>
                         {g.tier.name.split(" ")[0]}
                       </span>
-                      <p className="pt-1 font-mono text-[9px] text-ink-500">
+                      <p className="pt-1 font-mono text-xs text-ink-500">
                         {g.st?.wins ?? 0}T / {g.st?.losses ?? 0}B
                       </p>
                     </SpotlightCard>
@@ -163,7 +221,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-ink-400 block mb-2 flex items-center justify-between">
                   <span>Huy Hiệu Đang Đeo ({currentUser.equippedBadges.length}/3)</span>
-                  <span className="text-[10px] text-accent lowercase font-mono">
+                  <span className="text-xs text-accent lowercase font-mono">
                     đã mở khóa {currentUser.badges.length} huy hiệu
                   </span>
                 </label>
@@ -189,36 +247,6 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               </div>
 
               {/* Chibi Character & Equipment Showcase */}
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-ink-400 block mb-2.5 flex items-center justify-between">
-                  <span>Nhân Vật Chibi & Ngoại Trang</span>
-                  <span className="text-[10px] text-ink-300 font-mono">Chibi Badass System</span>
-                </label>
-                <div className="p-4 rounded-2xl bg-ink-900/60 border border-ink-800 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-16 h-16 rounded-2xl bg-ink-950 border border-ink-700 flex items-center justify-center overflow-hidden shadow-inner">
-                      <ChibiAvatar character={currentUser.character} size={58} animate={false} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-white">
-                        Hệ Phái: {currentUser.character?.className || "Kỳ Thánh Kiếm Sĩ"}
-                      </p>
-                      <p className="text-[10px] text-ink-400 font-mono mt-0.5">
-                        Phong cách Chibi ngầu lòi • Đồng bộ Supabase
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsCreatorOpen(true)}
-                    className="btn-ghost whitespace-nowrap px-4 py-2 text-xs"
-                  >
-                    🥋 Mở Tủ Đồ
-                  </button>
-                </div>
-              </div>
-
               {/* Username Input */}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-ink-400 block mb-2">
@@ -288,11 +316,6 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         </div>
       )}
 
-      {/* Badass Chibi Character Creator & Wardrobe Modal */}
-      <CharacterCreatorModal
-        isOpen={isCreatorOpen}
-        onClose={() => setIsCreatorOpen(false)}
-      />
     </AnimatePresence>
   );
 }

@@ -378,7 +378,7 @@ export const useAppStore = create<AppState>()(
           base: bonusCalc.base,
           bonus: bonusCalc.bonus,
           tierName: bonusCalc.tierName,
-          message: `Điểm danh thành công! Bạn nhận được +${grantAmount} Lúa 🌾 (500 gốc + thưởng bậc ${bonusCalc.tierName})!`,
+          message: `Điểm danh thành công! Bạn nhận được +${grantAmount} Credit (500 gốc + thưởng bậc ${bonusCalc.tierName})!`,
         };
       },
 
@@ -388,7 +388,7 @@ export const useAppStore = create<AppState>()(
           return {
             success: false,
             amount: 0,
-            message: "Bạn vẫn còn trên 100 Lúa 🌾! Gói cứu trợ chỉ dành cho kỳ thủ dưới 100 Lúa.",
+            message: "Bạn vẫn còn trên 100 Credit! Gói cứu trợ chỉ dành cho kỳ thủ dưới 100 Lúa.",
           };
         }
 
@@ -415,7 +415,7 @@ export const useAppStore = create<AppState>()(
         return {
           success: true,
           amount: reliefAmount,
-          message: `Đã nhận gói cứu trợ khẩn cấp +${reliefAmount} Lúa 🌾! Chúc bạn lội ngược dòng!`,
+          message: `Đã nhận gói cứu trợ khẩn cấp +${reliefAmount} Credit! Chúc bạn lội ngược dòng!`,
         };
       },
 
@@ -779,8 +779,8 @@ export const useAppStore = create<AppState>()(
           ? get().friends.find((f) => f.id === targetId)
           : null;
         const msgText = targetFriend
-          ? `⚔️ Thách đấu @${targetFriend.username} ván ${gameLabels[gameType]} với mức cược ${stake} Lúa 🌾!`
-          : `⚔️ Mở kèo thách đấu ${gameLabels[gameType]} với mức cược ${stake} Lúa 🌾! Ai nhận kèo?`;
+          ? `⚔️ Thách đấu @${targetFriend.username} ván ${gameLabels[gameType]} với mức cược ${stake} Credit!`
+          : `⚔️ Mở kèo thách đấu ${gameLabels[gameType]} với mức cược ${stake} Credit! Ai nhận kèo?`;
 
         set((state) => {
           const currentList = state.messages[channelId] || [];
@@ -873,7 +873,7 @@ export const useAppStore = create<AppState>()(
           senderId: "system",
           senderName: "Hệ Thống Trọng Tài ⚖️",
           senderAvatar: AVATAR_PREFIX + "trong tai:3",
-          content: `🎯 ${user.username} đã chấp nhận kèo đấu ${ch.stake} Lúa 🌾 của ${ch.creatorName}! Tổng giải thưởng bàn cờ là ${ch.stake * 2} Lúa 🌾! Cả hai hãy vào bàn chiến ngay!`,
+          content: `🎯 ${user.username} đã chấp nhận kèo đấu ${ch.stake} Credit của ${ch.creatorName}! Tổng giải thưởng bàn cờ là ${ch.stake * 2} Credit! Cả hai hãy vào bàn chiến ngay!`,
           timestamp: now,
         };
 

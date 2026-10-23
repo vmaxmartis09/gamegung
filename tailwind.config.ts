@@ -19,7 +19,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ["var(--font-body)", "system-ui", "sans-serif"],
-        display: ["var(--font-display)", "Georgia", "serif"],
+        display: ["var(--font-display)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       fontSize: {
@@ -62,11 +62,11 @@ const config: Config = {
           600: "#a3a3a3",
           700: "#737373",
         },
-        // Semantic monochrome status hues
-        success: { DEFAULT: "#ffffff", soft: "rgba(255, 255, 255, 0.12)" },
-        warning: { DEFAULT: "#d4d4d4", soft: "rgba(255, 255, 255, 0.1)" },
-        danger: { DEFAULT: "#ffffff", soft: "rgba(255, 255, 255, 0.15)" },
-        info: { DEFAULT: "#e5e5e5", soft: "rgba(255, 255, 255, 0.1)" },
+        // Semantic status hues: clear but not neon
+        success: { DEFAULT: "#34d399", soft: "rgba(52, 211, 153, 0.14)" },
+        warning: { DEFAULT: "#f5b544", soft: "rgba(245, 181, 68, 0.14)" },
+        danger: { DEFAULT: "#ef5350", soft: "rgba(239, 83, 80, 0.15)" },
+        info: { DEFAULT: "#6aa4ff", soft: "rgba(106, 164, 255, 0.14)" },
         border: "hsl(var(--border))",
         card: {
           DEFAULT: "hsl(var(--card))",

@@ -7,10 +7,10 @@ import { cn } from "@/lib/utils";
 export type PresenceStatus = "online" | "away" | "in-game" | "busy" | "offline";
 
 export const STATUS_META: Record<PresenceStatus, { label: string; dot: string; text: string; ring: string }> = {
-  online: { label: "Online", dot: "bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)]", text: "text-white", ring: "ring-white/40" },
-  "in-game": { label: "Đang chơi", dot: "bg-neutral-300", text: "text-neutral-200", ring: "ring-white/30" },
-  away: { label: "Away", dot: "bg-neutral-500", text: "text-neutral-400", ring: "ring-neutral-500/40" },
-  busy: { label: "Bận", dot: "bg-neutral-400 ring-1 ring-white/50", text: "text-neutral-300", ring: "ring-neutral-400/40" },
+  online: { label: "Online", dot: "bg-success shadow-[0_0_8px_rgba(52,211,153,0.7)]", text: "text-success", ring: "ring-success/40" },
+  "in-game": { label: "Đang chơi", dot: "bg-info", text: "text-info", ring: "ring-info/40" },
+  away: { label: "Away", dot: "bg-warning", text: "text-warning", ring: "ring-warning/40" },
+  busy: { label: "Bận", dot: "bg-danger", text: "text-danger", ring: "ring-danger/40" },
   offline: { label: "Offline", dot: "bg-neutral-700", text: "text-neutral-500", ring: "ring-neutral-700/40" },
 };
 

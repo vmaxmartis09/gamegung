@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { ChessIcon } from "./chess-icons";
 import { MatchResultModal } from "./match-result-modal";
 import HoldButton from "@/components/kokonut/hold-button";
-import { ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useGameSession, useMatchSettlement, useToast } from "./shared";
+import { ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useGameSession, useMatchOpponent, useMatchSettlement, useToast } from "./shared";
 
 /* --------------------------------- Config --------------------------------- */
 
@@ -135,18 +135,12 @@ function loadSettings(): Settings {
 /* ---------------------------------- Game ---------------------------------- */
 
 export function ChessGame() {
-  const me = useAppStore(useShallow((s) => ({ username: s.currentUser.username, avatar: s.currentUser.avatar, elo: s.currentUser.eloChess })));
   const soundEnabled = useAppStore((s) => s.soundEnabled);
-  const { isChatOpen, isChatCollapsed } = useAppStore(
-    useShallow((s) => ({
-      isChatOpen: s.isChatOpen,
-      isChatCollapsed: s.isChatCollapsed,
-    }))
-  );
-  const isChatVisible = isChatOpen && !isChatCollapsed;
+  const me = useAppStore(useShallow((s) => ({ username: s.currentUser.username, avatar: s.currentUser.avatar, elo: s.currentUser.eloChess })));
   const { settle, reset: resetSettlement, result, open: resultOpen, setOpen: setResultOpen } = useMatchSettlement("chess");
   const { show: showToast, node: toastNode } = useToast();
   const session = useGameSession<ChessSave>("chess");
+  const matchOpp = useMatchOpponent();
 
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   useEffect(() => setSettings(loadSettings()), []);
@@ -247,12 +241,12 @@ export function ChessGame() {
       play("end");
       if (rated) {
         const outcome = winner === null ? "draw" : winner === myColor ? "win" : "loss";
-        settle(outcome, { name: `Engine ${level.label}`, elo: level.elo }, stake);
+        settle(outcome, { name: matchOpp?.name ?? `Engine ${level.label}`, elo: matchOpp?.elo ?? level.elo }, stake);
       } else {
         showToast(winner === null ? `Hoà — ${reason}` : `${winner === "w" ? "Trắng" : "Đen"} thắng — ${reason}`, "info", 4000);
       }
     },
-    [rated, myColor, level, stake, settle, play, showToast]
+    [rated, myColor, level, stake, settle, play, showToast, matchOpp]
   );
 
   const checkGameEnd = useCallback(() => {
@@ -566,7 +560,7 @@ export function ChessGame() {
   const playerFor = (color: "w" | "b") => {
     if (settings.mode === "local") return { name: color === "w" ? "Trắng" : "Đen", avatar: `kokonut:${color === "w" ? "quan trang" : "quan den"}:2`, rating: undefined };
     if (color === myColor) return { name: me.username, avatar: me.avatar, rating: me.elo };
-    return { name: `Engine ${level.label}`, avatar: `kokonut:engine ${settings.level}:4`, rating: level.elo };
+    return { name: matchOpp?.name ?? `Engine ${level.label}`, avatar: matchOpp?.avatar ?? `kokonut:engine ${settings.level}:4`, rating: matchOpp?.elo ?? level.elo };
   };
   const capturedRow = (color: "w" | "b") => {
     const caps = color === "w" ? material.capturedByWhite : material.capturedByBlack;
@@ -576,7 +570,7 @@ export function ChessGame() {
         {caps.map((t, i) => (
           <ChessIcon key={i} type={t} color={color === "w" ? "b" : "w"} className="-mr-1.5 size-4" />
         ))}
-        {adv > 0 && <span className="ml-2 font-mono text-[11px] font-bold text-ink-200">+{adv}</span>}
+        {adv > 0 && <span className="ml-2 font-mono text-xs font-bold text-ink-200">+{adv}</span>}
       </span>
     );
   };
@@ -584,8 +578,7 @@ export function ChessGame() {
   return (
     <div
       className={cn(
-        "flex-1 min-h-0 relative flex flex-col w-full overflow-hidden px-2 sm:px-4 lg:px-6 py-2 transition-[padding] duration-300",
-        isChatVisible ? "lg:pr-[395px] xl:pr-[435px]" : ""
+        "flex-1 min-h-0 relative flex flex-col w-full overflow-hidden px-2 sm:px-4 lg:px-6 py-2"
       )}
     >
       <GameHeader game="chess" subtitle={opening ? `📖 ${opening}` : "Luật FIDE · Engine 4 cấp · Đồng hồ có cộng giờ"}>
@@ -721,7 +714,7 @@ export function ChessGame() {
                           )}
                         >
                           <p className="text-xs font-bold">{ENGINE_LEVELS[k].label}</p>
-                          <p className="font-mono text-[10px] text-ink-400">~{ENGINE_LEVELS[k].elo} ELO</p>
+                          <p className="font-mono text-xs text-ink-400">~{ENGINE_LEVELS[k].elo} ELO</p>
                         </button>
                       ))}
                     </div>
@@ -754,7 +747,7 @@ export function ChessGame() {
                       )}
                     >
                       <p className="font-mono text-xs font-bold">{t.label}</p>
-                      <p className="text-[9px] text-ink-400">{t.kind}</p>
+                      <p className="text-xs text-ink-400">{t.kind}</p>
                     </button>
                   ))}
                 </div>
@@ -804,7 +797,7 @@ export function ChessGame() {
                 {phase === "over" && (
                   <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2 text-center">
                     <p className="font-display text-sm font-extrabold">Ván đã kết thúc</p>
-                    <p className="text-[11px] text-ink-300">{overReason}</p>
+                    <p className="text-xs text-ink-300">{overReason}</p>
                   </div>
                 )}
                 <div className="grid grid-cols-3 gap-1.5">
@@ -1028,12 +1021,12 @@ const Board = memo(function Board({
                 {isSel && <div className="absolute inset-0" style={{ background: theme.hlSel }} />}
                 {checkSquare === sq && <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(239,68,68,0.95)_0%,rgba(239,68,68,0.5)_45%,transparent_72%)] animate-pulse" />}
                 {ci === 0 && (
-                  <span className="absolute left-1 top-0.5 text-[10px] font-bold sm:text-xs select-none pointer-events-none" style={{ color: dark ? theme.light : theme.dark }}>
+                  <span className="absolute left-1 top-0.5 text-xs font-bold sm:text-xs select-none pointer-events-none" style={{ color: dark ? theme.light : theme.dark }}>
                     {rank + 1}
                   </span>
                 )}
                 {ri === 7 && (
-                  <span className="absolute bottom-0.5 right-1 text-[10px] font-bold sm:text-xs select-none pointer-events-none" style={{ color: dark ? theme.light : theme.dark }}>
+                  <span className="absolute bottom-0.5 right-1 text-xs font-bold sm:text-xs select-none pointer-events-none" style={{ color: dark ? theme.light : theme.dark }}>
                     {"abcdefgh"[file]}
                   </span>
                 )}
@@ -1123,7 +1116,7 @@ function EvalBar({ cp, orientation }: { cp: number; orientation: "w" | "b" }) {
   return (
     <div className={cn("relative w-3 shrink-0 overflow-hidden rounded-full border border-black bg-ink-800 sm:w-4", orientation === "b" && "rotate-180")} title={`Đánh giá: ${cp > 0 ? "+" : ""}${(cp / 100).toFixed(2)}`}>
       <div className="absolute inset-x-0 bottom-0 bg-white transition-[height] duration-500" style={{ height: `${whitePct}%` }} />
-      <span className={cn("absolute inset-x-0 text-center text-[8px] font-bold", cp >= 0 ? "bottom-1 text-black" : "top-1 text-white", orientation === "b" && "rotate-180")}>{label}</span>
+      <span className={cn("absolute inset-x-0 text-center text-xs font-bold", cp >= 0 ? "bottom-1 text-black" : "top-1 text-white", orientation === "b" && "rotate-180")}>{label}</span>
     </div>
   );
 }
@@ -1135,7 +1128,7 @@ function IconAction({ label, icon, onClick, disabled, danger, wide }: { label: s
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex flex-col items-center justify-center gap-1 rounded-2xl border px-1 py-2.5 text-[11px] font-bold transition-colors disabled:opacity-30",
+        "flex flex-col items-center justify-center gap-1 rounded-2xl border px-1 py-2.5 text-xs font-bold transition-colors disabled:opacity-30",
         danger ? "border-pop-red/30 bg-pop-red/10 text-[#ffb3bb] hover:bg-pop-red/20" : "border-white/[0.07] bg-white/[0.03] text-ink-100 hover:bg-white/[0.08]",
         wide && "col-span-1"
       )}
@@ -1166,7 +1159,7 @@ function MoveList({ moves, viewPly, onView, total }: { moves: Move[]; viewPly: n
       </div>
       <div ref={boxRef} className="flex-1 min-h-[120px] no-scrollbar overflow-y-auto rounded-xl bg-black/25 p-1.5 font-mono text-xs">
         {moves.length === 0 ? (
-          <p className="pt-8 text-center text-[11px] text-ink-500">Chưa có nước nào. Phím ← → để xem lại.</p>
+          <p className="pt-8 text-center text-xs text-ink-500">Chưa có nước nào. Phím ← → để xem lại.</p>
         ) : (
           Array.from({ length: rows }, (_, i) => (
             <div key={i} className="grid grid-cols-[2.2rem_1fr_1fr] items-center">

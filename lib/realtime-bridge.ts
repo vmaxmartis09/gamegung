@@ -211,7 +211,9 @@ class RealtimeBridge {
         if (evt.id !== myId) usePresenceStore.getState().removePeer(evt.id);
         break;
       case "CHAT_MESSAGE":
-        if (evt.payload?.senderId !== myId) this.receiveMessage(evt.payload);
+        // No sender filter: the same account in another tab or device must see it too.
+        // receiveMessage drops duplicates by id, so echoes of my own message are harmless.
+        if (evt.payload?.id) this.receiveMessage(evt.payload);
         break;
       case "CHAT_REACTION":
         if (evt.payload.userId !== myId) {

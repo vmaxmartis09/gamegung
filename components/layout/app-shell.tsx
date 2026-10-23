@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { useShallow } from "zustand/react/shallow";
-import { MessageCircle, Trophy, UserRound, Wallet, Wand2, X } from "lucide-react";
+import { MessageCircle, Trophy, UserRound, Wallet, X } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { useAuthStore } from "@/lib/auth";
 import { usePresenceStore } from "@/lib/presence";
@@ -25,15 +25,20 @@ const DailyBackground = dynamic(
 );
 
 const ChatDrawer = dynamic(() => import("@/components/social/chat-drawer").then((m) => m.ChatDrawer), { ssr: false });
+const GameRoomDock = dynamic(() => import("@/components/social/game-room-dock").then((m) => m.GameRoomDock), { ssr: false });
 const WalletModal = dynamic(() => import("@/components/social/wallet-modal").then((m) => m.WalletModal), { ssr: false });
 const RankingModal = dynamic(() => import("@/components/social/ranking-modal").then((m) => m.RankingModal), { ssr: false });
 const ProfileModal = dynamic(() => import("@/components/social/profile-modal").then((m) => m.ProfileModal), { ssr: false });
 const MatchmakingModal = dynamic(() => import("@/components/matchmaking/matchmaking-modal").then((m) => m.MatchmakingModal), { ssr: false });
-const CharacterCreatorModal = dynamic(() => import("@/components/character/character-creator-modal").then((m) => m.CharacterCreatorModal), { ssr: false });
 const RulesModal = dynamic(() => import("@/components/games/rules-modal").then((m) => m.RulesModal), { ssr: false });
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const inGame = (usePathname() || "").startsWith("/games");
+  const pathname = usePathname() || "";
+  const inGame = pathname.startsWith("/games");
+  const gameId = pathname.match(/^\/games\/([^/]+)/)?.[1];
+  // Khi khung chat mở, nội dung nhường chỗ (đẩy sang trái) thay vì bị chat đè lên.
+  const chatShown = useAppStore((st) => st.isChatOpen && !st.isChatCollapsed);
+  const chatPad = chatShown ? "sm:pr-[392px] xl:pr-[432px]" : "";
   // Freeze looping CSS animations while the tab is hidden.
   useEffect(() => {
     const sync = () => document.documentElement.toggleAttribute("data-tab-hidden", document.hidden);
@@ -41,16 +46,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("visibilitychange", sync);
   }, []);
   return (
-    <>
+    <MotionConfig reducedMotion="user">
       <DailyBackground />
       {inGame ? (
-        <main className="relative z-10 h-dvh w-full overflow-hidden flex flex-col">{children}</main>
+        <main className={cn("relative z-10 flex h-dvh w-full flex-col overflow-hidden transition-[padding] duration-300 ease-out", chatPad)}>{children}</main>
       ) : (
-        <main className="relative z-10 pb-20 pt-4 sm:pt-6">{children}</main>
+        <main className={cn("relative z-10 pb-20 pt-4 transition-[padding] duration-300 ease-out sm:pt-6", chatPad)}>{children}</main>
       )}
+      {gameId && <GameRoomDock key={gameId} game={gameId} />}
       <ChatBubble />
       <GlobalModals />
-    </>
+    </MotionConfig>
   );
 }
 
@@ -78,8 +84,6 @@ function GlobalModals() {
       return <ProfileModal isOpen onClose={close} />;
     case "matchmaking":
       return <MatchmakingModal isOpen onClose={close} initialGame={matchmakingGame} />;
-    case "creator":
-      return <CharacterCreatorModal isOpen onClose={close} />;
     case "rules":
       return <RulesModal isOpen onClose={close} gameType={rulesGame} />;
     default:

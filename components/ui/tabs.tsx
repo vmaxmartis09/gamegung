@@ -87,7 +87,7 @@ export function Tabs<T extends string = string>({ items, value, onChange, varian
             <span className="relative flex items-center gap-2">
               {item.icon}
               {item.label}
-              {item.badge != null && <span className="rounded-full bg-white/[0.08] px-1.5 text-[10px] font-medium tabular text-ink-200">{item.badge}</span>}
+              {item.badge != null && <span className="rounded-full bg-white/[0.08] px-1.5 text-xs font-medium tabular text-ink-200">{item.badge}</span>}
             </span>
           </button>
         );

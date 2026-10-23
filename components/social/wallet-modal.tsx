@@ -108,11 +108,11 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                     Ví Lúa
                   </h3>
                   <div className="flex items-center gap-2">
-                    <p className="text-[11px] font-mono text-ink-400">
+                    <p className="text-xs font-mono text-ink-400">
                       Số dư, điểm danh và lịch sử giao dịch
                     </p>
                     {isSupabaseConfigured && (
-                      <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/10 text-white border border-white/20">
+                      <span className="flex items-center gap-1 text-xs font-mono px-1.5 py-0.2 rounded bg-white/10 text-white border border-white/20">
                         <Database className="w-2.5 h-2.5" /> Supabase Trigger
                       </span>
                     )}
@@ -170,10 +170,10 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-accent/20 text-accent border border-accent/30">
+                    <span className="text-xs uppercase font-mono px-2 py-0.5 rounded-full bg-accent/20 text-accent border border-accent/30">
                       Cấp bậc: {bonusInfo.tierName.split(" ")[0]}
                     </span>
-                    <p className="text-[11px] font-mono text-ink-400 mt-2">
+                    <p className="text-xs font-mono text-ink-400 mt-2">
                       ELO tính thưởng: <span className="text-white font-bold">{highestElo}</span>
                     </p>
                   </div>
@@ -189,7 +189,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                         +{bonusInfo.total} Lúa 🌾
                       </span>
                     </p>
-                    <p className="text-[10px] text-ink-500 font-mono mt-0.5">
+                    <p className="text-xs text-ink-500 font-mono mt-0.5">
                       Cơ bản 500 🌾 {bonusInfo.bonus > 0 ? `+ Thưởng ELO ${bonusInfo.bonus} 🌾` : "(Rank Tập Sự)"}
                     </p>
                   </div>
@@ -197,7 +197,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                   <button
                     type="button"
                     onClick={() => setShowTierTable(!showTierTable)}
-                    className="text-[10px] font-mono text-accent hover:text-accent underline"
+                    className="text-xs font-mono text-accent hover:text-accent underline"
                   >
                     {showTierTable ? "Ẩn bảng" : "Xem mốc ELO"}
                   </button>
@@ -206,7 +206,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                 {/* Expandable ELO Tier Table */}
                 {showTierTable && (
                   <div className="mt-3 p-3 rounded-xl bg-ink-950 border border-ink-800 space-y-1.5 text-xs font-mono">
-                    <p className="text-[10px] text-ink-400 uppercase font-semibold mb-1">
+                    <p className="text-xs text-ink-400 uppercase font-semibold mb-1">
                       Bảng Thưởng Lúa Điểm Danh Hàng Ngày Theo ELO
                     </p>
                     {DAILY_BONUS_TIERS.map((tier) => {
@@ -215,7 +215,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                         <div
                           key={tier.name}
                           className={cn(
-                            "flex items-center justify-between py-1 px-2 rounded-lg text-[11px] transition-colors",
+                            "flex items-center justify-between py-1 px-2 rounded-lg text-xs transition-colors",
                             isCurrent
                               ? "bg-accent/20 text-accent border border-accent/30 font-bold"
                               : "text-ink-400"
@@ -275,7 +275,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                     <History className="w-3.5 h-3.5 text-ink-400" />
                     Nhật Ký Giao Dịch ({transactions.length})
                   </h4>
-                  <span className="text-[10px] font-mono text-ink-500">
+                  <span className="text-xs font-mono text-ink-500">
                     Minh bạch & Tự động
                   </span>
                 </div>
@@ -305,7 +305,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                           </div>
                           <div className="truncate">
                             <p className="font-medium text-white truncate">{tx.description}</p>
-                            <p className="text-[10px] font-mono text-ink-500">
+                            <p className="text-xs font-mono text-ink-500">
                               {new Date(tx.timestamp).toLocaleString("vi-VN", {
                                 hour: "2-digit",
                                 minute: "2-digit",
@@ -325,7 +325,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                           >
                             {isPositive ? `+${tx.amount}` : tx.amount} 🌾
                           </span>
-                          <p className="text-[10px] font-mono text-ink-400">
+                          <p className="text-xs font-mono text-ink-400">
                             Dư: {tx.balanceAfter.toLocaleString()} 🌾
                           </p>
                         </div>
@@ -337,7 +337,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
             </div>
 
             {/* Footer */}
-            <div className="pt-4 border-t border-ink-800/80 flex items-center justify-between text-[11px] font-mono text-ink-400">
+            <div className="pt-4 border-t border-ink-800/80 flex items-center justify-between text-xs font-mono text-ink-400">
               <span>🌾 Khởi điểm: 1,000 Lúa • Điểm danh: 500+ Lúa</span>
               <button
                 type="button"

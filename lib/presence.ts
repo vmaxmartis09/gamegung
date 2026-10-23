@@ -133,7 +133,6 @@ export function locationFromPath(pathname: string | null): { label: string; inGa
   if (p.startsWith("/games/chess")) return { label: "Cờ Vua", inGame: true };
   if (p.startsWith("/games/xiangqi")) return { label: "Cờ Tướng", inGame: true };
   if (p.startsWith("/games/werewolf")) return { label: "Ma Sói", inGame: true };
-  if (p.startsWith("/games/arcade")) return { label: "Cyber Slash", inGame: true };
   if (p.startsWith("/games/uno")) return { label: "Deadline Rush", inGame: true };
   if (p.startsWith("/games/typing")) return { label: "Typing Battle", inGame: true };
   return { label: "Sảnh chờ", inGame: false };

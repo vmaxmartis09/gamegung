@@ -120,7 +120,7 @@ export function MatchSettlementModal({
             <div className="grid grid-cols-2 gap-3 my-6">
               {/* ELO Change Card */}
               <div className="p-4 rounded-2xl bg-ink-900/80 border border-ink-800 flex flex-col justify-between">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-400">
+                <span className="text-xs font-mono uppercase tracking-wider text-ink-400">
                   Biến Động ELO
                 </span>
                 <div className="flex items-center justify-center gap-1.5 my-1">
@@ -142,7 +142,7 @@ export function MatchSettlementModal({
                     {playerEloChange > 0 ? `+${playerEloChange}` : playerEloChange}
                   </span>
                 </div>
-                <div className="text-[11px] font-mono text-ink-300 flex items-center justify-center gap-1">
+                <div className="text-xs font-mono text-ink-300 flex items-center justify-center gap-1">
                   <span>Mới:</span>
                   <span className="font-bold text-white">{newPlayerElo}</span>
                   <span className="text-xs">{currentTier.icon}</span>
@@ -151,7 +151,7 @@ export function MatchSettlementModal({
 
               {/* Lúa Coins Change Card */}
               <div className="p-4 rounded-2xl bg-ink-900/80 border border-ink-800 flex flex-col justify-between">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-400">
+                <span className="text-xs font-mono uppercase tracking-wider text-ink-400">
                   Tiền Cược Lúa 🌾
                 </span>
                 <div className="flex items-center justify-center gap-1.5 my-1">
@@ -168,7 +168,7 @@ export function MatchSettlementModal({
                     {luaChange > 0 ? `+${luaChange}` : luaChange}
                   </span>
                 </div>
-                <div className="text-[11px] font-mono text-ink-300">
+                <div className="text-xs font-mono text-ink-300">
                   Số dư: <span className="font-bold text-amber-300">{newLuaBalance.toLocaleString()} 🌾</span>
                 </div>
               </div>
@@ -190,7 +190,7 @@ export function MatchSettlementModal({
                       <span className="text-2xl">{badge.icon}</span>
                       <div className="flex-1 truncate">
                         <p className="text-xs font-bold text-white truncate">{badge.name}</p>
-                        <p className="text-[10px] text-ink-300 truncate">
+                        <p className="text-xs text-ink-300 truncate">
                           {badge.description}
                         </p>
                       </div>

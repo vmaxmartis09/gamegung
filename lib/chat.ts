@@ -12,7 +12,6 @@ export const PUBLIC_CHANNELS: ChannelMeta[] = [
   { id: "xiangqi", name: "Cờ Tướng", icon: "xiangqi" },
   { id: "werewolf", name: "Ma Sói", icon: "werewolf" },
   { id: "uno", name: "Deadline Rush", icon: "uno" },
-  { id: "arcade", name: "Cyber Slash", icon: "arcade" },
   { id: "typing", name: "Typing Battle", icon: "typing" },
 ];
 
