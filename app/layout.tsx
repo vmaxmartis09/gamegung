@@ -1,19 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Be_Vietnam_Pro, Cormorant_Garamond, JetBrains_Mono } from "next/font/google";
+import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthGate } from "@/components/auth/auth-gate";
 import { AppShell } from "@/components/layout/app-shell";
 
-const body = Be_Vietnam_Pro({
+const body = Inter({
   subsets: ["latin", "vietnamese"],
   weight: ["300", "400", "500", "600", "700"],
   variable: "--font-body",
   display: "swap",
 });
 
-const display = Cormorant_Garamond({
+const display = Plus_Jakarta_Sans({
   subsets: ["latin", "vietnamese"],
-  weight: ["500", "600", "700"],
+  weight: ["500", "600", "700", "800"],
   style: ["normal", "italic"],
   variable: "--font-display",
   display: "swap",
@@ -29,11 +29,11 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Office Arena — Esports giờ nghỉ trưa",
   description:
-    "Cờ Vua, Cờ Tướng, Ma Sói, Deadline Rush, Cyber Slash cho dân văn phòng. Xếp hạng ELO, cược Lúa, chat realtime.",
+    "Cờ Vua, Cờ Tướng, Ma Sói, Deadline Rush cho dân văn phòng. Xếp hạng ELO, cược Lúa, chat realtime.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0a09",
+  themeColor: "#060606",
   width: "device-width",
   initialScale: 1,
 };

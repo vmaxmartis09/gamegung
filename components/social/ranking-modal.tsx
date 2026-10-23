@@ -177,7 +177,7 @@ export function RankingModal({
                   <h3 className="font-display text-base font-bold tracking-tight text-white flex items-center gap-2">
                     Bảng xếp hạng & huy hiệu
                   </h3>
-                  <p className="text-[11px] font-mono text-ink-400">
+                  <p className="text-xs font-mono text-ink-400">
                     Đấu trường công sở • Chuẩn ELO & Quỹ Lúa Văn Phòng
                   </p>
                 </div>
@@ -199,7 +199,6 @@ export function RankingModal({
                 { id: "chess", label: "♟️ Cờ Vua", desc: "FIDE Elo" },
                 { id: "xiangqi", label: "🀄 Cờ Tướng", desc: "Á Đông Elo" },
                 { id: "werewolf", label: "🐺 Ma Sói", desc: "Tâm lý Elo" },
-                { id: "arcade", label: "⚡ Cyber Slash", desc: "Slasher Elo" },
                 { id: "uno", label: "🎴 Uno Battle", desc: "Party Elo" },
                 { id: "badges", label: "🏅 Kho Huy Hiệu", desc: "Thành tựu" },
               ].map((tab) => {
@@ -231,7 +230,7 @@ export function RankingModal({
                     <p className="text-xs font-mono text-ink-400">
                       Bảng xếp hạng tài sản Lúa 🌾 trong toàn công ty
                     </p>
-                    <span className="text-[11px] font-mono text-accent">
+                    <span className="text-xs font-mono text-accent">
                       Đơn vị: Lúa (🌾)
                     </span>
                   </div>
@@ -259,12 +258,12 @@ export function RankingModal({
                                 {player.username}
                               </span>
                               {player.isMe && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-accent text-black">
+                                <span className="px-1.5 py-0.2 rounded text-xs font-bold bg-accent text-black">
                                   BẠN
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] font-mono text-ink-400">
+                            <p className="text-xs font-mono text-ink-400">
                               {player.title}
                             </p>
                           </div>
@@ -275,7 +274,7 @@ export function RankingModal({
                             <span>{player.lua.toLocaleString()}</span>
                             <span className="text-sm">🌾</span>
                           </div>
-                          <span className="text-[10px] font-mono text-ink-500">
+                          <span className="text-xs font-mono text-ink-500">
                             Hạng #{idx + 1}
                           </span>
                         </div>
@@ -328,7 +327,7 @@ export function RankingModal({
                           <p className="text-xs font-mono text-ink-400">
                             Bảng vàng danh vọng môn {gameTitle} (Chuẩn ELO FIDE)
                           </p>
-                          <span className="text-[11px] font-mono text-ink-300">
+                          <span className="text-xs font-mono text-ink-300">
                             Tính điểm theo thuật toán Arpad Elo
                           </span>
                         </div>
@@ -364,7 +363,7 @@ export function RankingModal({
                                         {player.username}
                                       </span>
                                       {player.isMe && (
-                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold seg-active">
+                                        <span className="px-1.5 py-0.2 rounded text-xs font-bold seg-active">
                                           BẠN
                                         </span>
                                       )}
@@ -372,7 +371,7 @@ export function RankingModal({
                                     <div className="flex items-center gap-2 mt-0.5">
                                       <span
                                         className={cn(
-                                          "text-[10px] font-mono font-medium px-2 py-0.2 rounded-full border",
+                                          "text-xs font-mono font-medium px-2 py-0.2 rounded-full border",
                                           tier.badgeBg,
                                           tier.borderColor,
                                           tier.color
@@ -391,7 +390,7 @@ export function RankingModal({
                                       ELO
                                     </span>
                                   </div>
-                                  <p className="text-[10px] font-mono text-ink-500">
+                                  <p className="text-xs font-mono text-ink-500">
                                     Hạng #{idx + 1} • {player.lua} 🌾
                                   </p>
                                 </div>
@@ -416,7 +415,6 @@ export function RankingModal({
                         { id: "chess", label: "♟️ Cờ Vua" },
                         { id: "xiangqi", label: "🀄 Cờ Tướng" },
                         { id: "werewolf", label: "🐺 Ma Sói" },
-                        { id: "arcade", label: "⚡ Cyber Slash" },
                         { id: "uno", label: "🎴 Uno Battle" },
                       ].map((f) => (
                         <button
@@ -451,7 +449,7 @@ export function RankingModal({
                         <Sparkles className="w-3.5 h-3.5 text-accent" />
                         Huy Hiệu Đang Đeo ({currentUser.equippedBadges.length}/3)
                       </p>
-                      <p className="text-[10px] font-mono text-ink-400 mt-0.5">
+                      <p className="text-xs font-mono text-ink-400 mt-0.5">
                         Hiển thị bên cạnh tên bạn trong khung chat và hồ sơ
                       </p>
                     </div>
@@ -466,7 +464,7 @@ export function RankingModal({
                             className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-ink-800 border border-ink-700 text-xs text-white"
                           >
                             <span>{b.icon}</span>
-                            <span className="font-medium text-[11px]">{b.name}</span>
+                            <span className="font-medium text-xs">{b.name}</span>
                             <button
                               type="button"
                               onClick={() => unequipBadge(b.id)}
@@ -503,11 +501,11 @@ export function RankingModal({
                                 {badge.icon}
                               </span>
                               {isUnlocked ? (
-                                <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-white/15 text-white border border-white/30">
+                                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-white/15 text-white border border-white/30">
                                   ĐÃ MỞ KHÓA
                                 </span>
                               ) : (
-                                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono bg-ink-900 text-ink-500 border border-ink-800">
+                                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono bg-ink-900 text-ink-500 border border-ink-800">
                                   <Lock className="w-2.5 h-2.5" /> KHÓA
                                 </span>
                               )}
@@ -517,13 +515,13 @@ export function RankingModal({
                               <h5 className="text-xs font-bold text-white flex items-center gap-1">
                                 {badge.name}
                               </h5>
-                              <p className="text-[10px] text-ink-400 mt-0.5 leading-relaxed">
+                              <p className="text-xs text-ink-400 mt-0.5 leading-relaxed">
                                 {badge.description}
                               </p>
                             </div>
                           </div>
 
-                          <div className="mt-3 pt-2.5 border-t border-ink-800/80 flex items-center justify-between text-[10px] font-mono">
+                          <div className="mt-3 pt-2.5 border-t border-ink-800/80 flex items-center justify-between text-xs font-mono">
                             <span className="text-ink-500 truncate max-w-[130px]">
                               {badge.conditionDescription}
                             </span>
@@ -535,7 +533,7 @@ export function RankingModal({
                                   isEquipped ? unequipBadge(badge.id) : equipBadge(badge.id)
                                 }
                                 className={cn(
-                                  "px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors",
+                                  "px-2 py-1 rounded-lg text-xs font-semibold transition-colors",
                                   isEquipped
                                     ? "bg-accent/20 text-accent border border-accent/40"
                                     : "seg-active hover:bg-ink-200"

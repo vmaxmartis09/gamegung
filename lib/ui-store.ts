@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import type { GameType } from "./ranking-system";
 
-export type ModalId = "wallet" | "ranking" | "profile" | "matchmaking" | "creator" | "rules" | null;
+export type ModalId = "wallet" | "ranking" | "profile" | "matchmaking" | "rules" | null;
 
 interface UiState {
   modal: ModalId;

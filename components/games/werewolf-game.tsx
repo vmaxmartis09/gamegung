@@ -1,8 +1,9 @@
 "use client";
 
+import type React from "react";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Eye, Moon, Play, Send, Skull, Sun, Timer, Users, Vote } from "lucide-react";
+import { Check, Eye, LayoutGrid, Moon, Orbit, Play, Send, Square, Sun, Timer, Users, Vote, X } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/lib/store";
 import { soundManager } from "@/lib/audio";
@@ -31,25 +32,30 @@ import {
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 import { MatchResultModal } from "./match-result-modal";
-import { GameHeader, Segmented, StakePicker, useGameSession, useMatchSettlement } from "./shared";
-import { WerewolfRoleGallery } from "./werewolf-role-gallery";
+import { GameHeader, Segmented, StakePicker, useGameSession, useMatchOpponent, useMatchSettlement } from "./shared";
+import { WerewolfLobby, LobbySetup, defaultSetup } from "./werewolf-lobby";
 import { WerewolfRoleRandomizer } from "./werewolf-role-randomizer";
 import { WerewolfRoundtable } from "./werewolf-roundtable";
 import { WerewolfActionFxOverlay, WerewolfFxEvent } from "./werewolf-action-fx";
 import { useWerewolfVoice, WerewolfMicButton } from "./werewolf-voice";
 import { GradientCarousel, GradientCarouselPicker, VoteCandidate } from "@/components/reactbits/gradient-carousel";
-import { playNarratorVoice } from "@/lib/narrator-audio";
+import { playNarratorVoice, stopNarratorVoice } from "@/lib/narrator-audio";
+import { SeatCard } from "./werewolf-seat";
+import { COOLDOWN, useCooldownStore, useCooldown } from "@/lib/cooldown-store";
 
 const DISCUSS_MS = 60_000;
 const VOTE_MS = 30_000;
 const STEP_LABEL: Record<string, string> = {
-  cupid: "💘 Thần Tình Yêu thức dậy, chọn 2 người để se duyên…",
-  guard: "🛡️ Bảo Vệ thức dậy, chọn người để che chở…",
-  wolves: "🐺 Bầy Sói thức dậy, chọn con mồi…",
-  white_wolf: "🐺⚪ Sói Trắng thức dậy, chọn 1 con sói để trừ khử…",
-  seer: "🔮 Tiên Tri thức dậy, soi một người…",
-  witch: "🧪 Phù Thủy thức dậy, cân nhắc hai bình thuốc…",
+  cupid: "💘 Chọn 2 người se duyên",
+  guard: "🛡️ Chọn người bảo vệ",
+  wolves: "🐺 Chọn con mồi",
+  white_wolf: "⚪ Trừ khử một Sói",
+  seer: "🔮 Soi một người",
+  witch: "🧪 Dùng bình thuốc?",
 };
+
+/** Thời gian không đều để nhịp ván bớt máy móc. */
+const jit = (base: number, spread = 0.5) => base * (1 - spread / 2 + Math.random() * spread);
 
 type Pick = null | { kind: "cupid" | "guard" | "wolf" | "white_wolf" | "seer" | "poison" | "vote" | "hunter" };
 
@@ -58,8 +64,10 @@ export function WerewolfGame() {
   const soundEnabled = useAppStore((s) => s.soundEnabled);
   const { settle, reset: resetSettlement, result, open: resultOpen, setOpen: setResultOpen } = useMatchSettlement("werewolf");
   const session = useGameSession<{ state: WState; stake: number }>("werewolf");
+  const matchOpp = useMatchOpponent();
 
-  const [count, setCount] = useState<8 | 10 | 12>(8);
+  const [setup, setSetup] = useState<LobbySetup>(defaultSetup);
+  const cooldown = useCooldown();
   const [stake, setStake] = useState(0);
   // Game state lives in a ref so bot logic can read/write it synchronously;
   // `rerender` publishes each new immutable snapshot to React.
@@ -226,7 +234,7 @@ export function WerewolfGame() {
             if (soundEnabled) soundManager.playWerewolfDawn();
           }
         });
-      }, 700 * pace);
+      }, jit(700, 0.7) * pace);
       return;
     }
     const roleFor = {
@@ -244,7 +252,7 @@ export function WerewolfGame() {
       return;
     }
     // Pretend-think so roles can't be inferred from timing.
-    later(advanceStep, (actorAlive ? 1100 : 900) * pace);
+    later(advanceStep, jit(actorAlive ? 1100 : 900, 0.9) * pace);
   }, [g?.phase, g?.step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Announce day/night swaps with a short cinematic banner.
@@ -270,7 +278,7 @@ export function WerewolfGame() {
         s.phase = "discussion";
         addLog(s, "narrator", `💬 Ngày ${s.day}: thảo luận ${DISCUSS_MS / 1000}s rồi bỏ phiếu.`);
       });
-    }, 1600 * pace);
+    }, jit(1500, 0.5) * pace);
   }, [g?.phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hunter shot.
@@ -283,7 +291,7 @@ export function WerewolfGame() {
         const target = botHunterShot(s, s.pendingHunter!);
         applyHunter(s, target);
       });
-    }, 1300 * pace);
+    }, jit(1300, 0.7) * pace);
   }, [g?.phase, g?.pendingHunter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyHunter = useCallback(
@@ -391,7 +399,7 @@ export function WerewolfGame() {
             addLog(s, "vote", `🗳️ ${byId(s, voter)!.name} đã bỏ một lá phiếu kín.`);
           });
           if (soundEnabled) soundManager.playWerewolfVote();
-        }, 350 + i * 260)
+        }, 250 + i * jit(240, 1.1))
       );
 
       // Once all secret ballots are in, trigger suspenseful GradientCarousel reveal!
@@ -407,6 +415,7 @@ export function WerewolfGame() {
             name: p.name,
             avatar: p.avatar,
             votes: count.get(p.id) || 0,
+            votedBy: s.players.filter((v) => s.votes[v.id] === p.id).map((v) => ({ name: v.name, avatar: v.avatar })),
             role: executed === p.id ? `${ROLE_INFO[p.role].emoji} ${ROLE_INFO[p.role].name}` : undefined,
           }))
           .sort((a, b) => b.votes - a.votes);
@@ -487,7 +496,7 @@ export function WerewolfGame() {
     clearTimers();
     setDeadline(null);
     const myTeam = teamOf(human(g).role);
-    settle(myTeam === g.winner ? "win" : "loss", { name: "Làng Ma Sói", elo: 1250 }, stake);
+    settle(myTeam === g.winner ? "win" : "loss", { name: matchOpp?.name ?? "Làng Ma Sói", elo: matchOpp?.elo ?? 1250 }, stake);
   }, [g?.phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clock tick only while a deadline exists.
@@ -657,14 +666,37 @@ export function WerewolfGame() {
   };
 
   const start = () => {
+    if (useCooldownStore.getState().until > Date.now()) return;
     clearTimers();
     resetSettlement();
     setWitchChoice(null);
     setSeerReveal(null);
     setDemoRole(null);
-    setG(createGame(count, { id: me.id, name: me.username, avatar: me.avatar }));
+    setG(createGame(setup.roles.length, { id: me.id, name: me.username, avatar: me.avatar }, { roles: setup.roles, myRole: setup.myRole === "random" ? undefined : setup.myRole }));
     setRoleModalMode("roulette");
     setShowRole(true);
+  };
+
+  /** Dừng ván ngay lập tức, quay về phòng chờ (không tính thắng/thua). */
+  const stopGame = () => {
+    // bỏ ngang ván có cược → phạt cooldown dài hơn
+    if (stake > 0 && g && g.phase !== "over") useCooldownStore.getState().start(COOLDOWN.abandon, "Bỏ giữa trận");
+    clearTimers();
+    stopNarratorVoice();
+    resetSettlement();
+    session.clear();
+    setDeadline(null);
+    setVoteRevealState(null);
+    setShowRotatingVoteModal(false);
+    setPickerDismissed(false);
+    setWitchChoice(null);
+    setSeerReveal(null);
+    setShowRole(false);
+    setFxQueue([]);
+    setPhaseBanner(null);
+    setLatestChats({});
+    setChat("");
+    setG(null);
   };
 
   /* --------------------------------- Render --------------------------------- */
@@ -682,24 +714,25 @@ export function WerewolfGame() {
 
   const prompt = (() => {
     if (!g || !meP) return "";
-    if (g.phase === "reveal") return "Xem vai của bạn rồi bắt đầu đêm đầu tiên.";
-    if (g.phase === "over") return g.winner === teamOf(meP.role) ? "Phe bạn thắng! 🎉" : "Phe bạn thua rồi…";
-    if (!meP.alive && g.phase !== "hunter") return "👻 Bạn đã chết — đang xem với góc nhìn hồn ma (thấy mọi vai).";
-    if (pick?.kind === "guard") return `Chọn 1 người để bảo vệ đêm nay${g.lastGuarded ? ` (không được chọn ${byId(g, g.lastGuarded)?.name})` : ""}.`;
-    if (pick?.kind === "wolf") return "Chọn con mồi cho bầy Sói đêm nay.";
-    if (pick?.kind === "seer") return "Chọn 1 người để soi.";
-    if (pick?.kind === "poison") return "Chọn người để đầu độc (hoặc huỷ).";
-    if (pick?.kind === "vote") return "Bấm vào người bạn muốn treo cổ, hoặc bỏ phiếu trắng.";
-    if (pick?.kind === "hunter") return "Bạn là Thợ Săn và vừa chết — chọn 1 người để bắn theo!";
-    if (g.phase === "night") return STEP_LABEL[g.step] ?? "Đêm đang trôi qua…";
-    if (g.phase === "discussion") return "Thảo luận: nhắc tên ai đó + “sói/nghi” để buộc tội, hoặc “tôi là tiên tri”.";
-    if (g.phase === "vote") return "Đang kiểm phiếu…";
-    if (g.phase === "hunter") return "Thợ Săn đang ngắm bắn…";
+    if (g.phase === "reveal") return "Xem vai rồi vào đêm";
+    if (g.phase === "over") return g.winner === teamOf(meP.role) ? "🎉 Phe bạn thắng!" : "Phe bạn thua…";
+    if (!meP.alive && g.phase !== "hunter") return "👻 Hồn ma — thấy mọi vai";
+    if (pick?.kind === "guard") return "🛡️ Chọn người bảo vệ";
+    if (pick?.kind === "wolf") return "🐺 Chọn con mồi";
+    if (pick?.kind === "seer") return "🔮 Chọn người để soi";
+    if (pick?.kind === "poison") return "🧪 Chọn người đầu độc";
+    if (pick?.kind === "vote") return "🗳️ Chọn người treo cổ";
+    if (pick?.kind === "hunter") return "🏹 Bắn theo một người!";
+    if (g.phase === "night") return STEP_LABEL[g.step] ?? "🌙 Đêm đang trôi…";
+    if (g.phase === "discussion") return "💬 Thảo luận — tìm Sói";
+    if (g.phase === "vote") return "🗳️ Đang kiểm phiếu…";
+    if (g.phase === "hunter") return "🏹 Thợ Săn đang ngắm…";
     return "";
   })();
 
   return (
-    <div className="mx-auto max-w-[1360px] px-4 sm:px-6">
+    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+    <div className="mx-auto max-w-[1360px] px-4 pb-10 sm:px-6">
       <GameHeader game="werewolf" subtitle={g ? `Ngày ${g.day} · ${alive(g).length}/${g.players.length} còn sống` : "Sói · Tiên tri · Bảo vệ · Phù thủy · Thợ săn"}>
         {g && g.phase !== "over" && (
           <button
@@ -716,9 +749,9 @@ export function WerewolfGame() {
       </GameHeader>
 
       {!g ? (
-        <Lobby
-          count={count}
-          setCount={setCount}
+        <WerewolfLobby
+          setup={setup}
+          setSetup={setSetup}
           stake={stake}
           setStake={setStake}
           onStart={start}
@@ -732,54 +765,28 @@ export function WerewolfGame() {
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_clamp(300px,28vw,400px)]">
           <div className="space-y-4">
-            {/* Phase banner */}
-            <div
-              className={cn(
-                "relative overflow-hidden rounded-3xl border border-white/10 p-5 transition-colors duration-700",
-                isNight ? "bg-ink-850 text-white" : "bg-white text-black"
-              )}
-            >
-              <div className="flex items-center gap-4">
-                <div className={cn("grid size-14 place-items-center rounded-2xl", isNight ? "bg-white text-black" : "bg-black text-white")}>
-                  {isNight ? <Moon className="size-7" /> : g.phase === "over" ? <span className="text-3xl">🏁</span> : <Sun className="size-7" />}
-                </div>
+            {/* Control dock */}
+            <div className="space-y-2">
+              <div className={cn("flex flex-wrap items-center gap-2 rounded-2xl border p-2 pl-2.5 backdrop-blur-xl transition-colors duration-700", isNight ? "border-violet-400/25 bg-[#120d24]/85" : "border-amber-300/30 bg-[#1f1608]/85")}>
+                <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl", isNight ? "bg-violet-500/25 text-violet-200" : "bg-amber-400/25 text-amber-200")}>
+                  {isNight ? <Moon className="size-5" /> : g.phase === "over" ? <span className="text-xl">🏁</span> : <Sun className="size-5" />}
+                </span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] opacity-75">
-                    {g.phase === "over" ? "Kết thúc" : isNight ? `Đêm ${g.day}` : `Ngày ${g.day}`}
-                  </p>
-                  <p className="font-display text-xl font-extrabold leading-tight sm:text-2xl">{prompt}</p>
+                  <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-white/50">{g.phase === "over" ? "Kết thúc" : isNight ? `Đêm ${g.day}` : `Ngày ${g.day}`}</p>
+                  <p className="truncate text-sm font-extrabold text-white sm:text-base">{prompt}</p>
                 </div>
                 {secondsLeft !== null && (g.phase === "discussion" || g.phase === "vote") && (
-                  <div className="flex items-center gap-1.5 rounded-2xl bg-black/80 px-3 py-2 font-mono text-lg font-extrabold text-white">
-                    <Timer className="size-4" /> {secondsLeft}s
-                  </div>
+                  <span className={cn("flex items-center gap-1 rounded-xl px-2.5 py-1.5 font-mono text-sm font-extrabold", secondsLeft <= 10 ? "animate-pulse bg-red-500/25 text-red-200" : "bg-white/10 text-white")}>
+                    <Timer className="size-4" /> {secondsLeft}
+                  </span>
                 )}
-              </div>
 
-              {/* Contextual actions */}
-              <div className="mt-4 flex flex-wrap gap-2">
-                {g.phase === "reveal" && (
-                  <button
-                    type="button"
-                    className="btn-lime"
-                    onClick={() =>
-                      mutate((s) => {
-                        goNight(s);
-                      })
-                    }
-                  >
-                    <Moon className="size-4" /> Bắt đầu Đêm 1
-                  </button>
-                )}
-                {g.phase === "discussion" && meAlive && (
-                  <button type="button" className="btn-dark" onClick={startVote}>
-                    <Vote className="size-4" /> Bỏ phiếu ngay
-                  </button>
-                )}
+                {g.phase === "reveal" && <DockBtn icon={<Moon className="size-4" />} label="Vào đêm" tone="lime" onClick={() => mutate((s) => goNight(s))} />}
+                {g.phase === "discussion" && meAlive && <DockBtn icon={<Vote className="size-4" />} label="Bỏ phiếu" tone="red" onClick={startVote} />}
                 {pick?.kind === "vote" && (
-                  <button
-                    type="button"
-                    className="btn-dark"
+                  <DockBtn
+                    icon={<Square className="size-4" />}
+                    label="Phiếu trắng"
                     onClick={() => {
                       mutate((s) => {
                         s.votes[human(s).id] = null;
@@ -787,99 +794,81 @@ export function WerewolfGame() {
                       });
                       finalizeVote(null);
                     }}
-                  >
-                    Bỏ phiếu trắng
-                  </button>
-                )}
-                {pick?.kind === "hunter" && (
-                  <button type="button" className="btn-dark" onClick={() => mutate((s) => applyHunter(s, null))}>
-                    Không bắn
-                  </button>
-                )}
-                {witchChoice === "ask" && g.phase === "night" && g.step === "witch" && (
-                  <WitchPanel
-                    state={g}
-                    onHeal={(heal) => {
-                      if (heal) {
-                        if (soundEnabled) soundManager.playWitchHeal();
-                        playFx({ id: Date.now().toString(), type: "heal", targetName: byId(g, g.wolfTarget)?.name });
-                      }
-                      mutate((s) => {
-                        if (heal) {
-                          s.healed = true;
-                          s.healUsed = true;
-                        }
-                      });
-                      setWitchChoice(g.poisonUsed ? null : "poison");
-                      if (g.poisonUsed) advanceStep();
-                    }}
                   />
                 )}
+                {pick?.kind === "hunter" && <DockBtn icon={<X className="size-4" />} label="Không bắn" onClick={() => mutate((s) => applyHunter(s, null))} />}
                 {pick?.kind === "poison" && (
-                  <button
-                    type="button"
-                    className="btn-dark"
+                  <DockBtn
+                    icon={<X className="size-4" />}
+                    label="Bỏ qua"
                     onClick={() => {
                       setWitchChoice(null);
                       advanceStep();
                     }}
-                  >
-                    Không dùng bình Độc
-                  </button>
-                )}
-                {seerReveal && (
-                  <div className={cn("flex items-center gap-3 rounded-2xl border-2 border-black px-4 py-2 font-bold", seerReveal.wolf ? "bg-pop-red text-white" : "bg-ink-900 text-white")}>
-                    🔮 {seerReveal.name} {seerReveal.wolf ? "là SÓI 🐺" : "là người tốt ✅"}
-                    <button
-                      type="button"
-                      className="rounded-xl bg-black px-3 py-1 text-xs text-white"
-                      onClick={() => {
-                        setSeerReveal(null);
-                        advanceStep();
-                      }}
-                    >
-                      Đã nhớ
-                    </button>
-                  </div>
+                  />
                 )}
                 {g.phase === "over" && (
-                  <button type="button" className="btn-dark" onClick={start}>
-                    <Play className="size-4" /> Ván mới
-                  </button>
+                  <DockBtn icon={cooldown.active ? <Timer className="size-4" /> : <Play className="size-4" />} label={cooldown.active ? `${cooldown.seconds}s` : "Ván mới"} tone="lime" disabled={cooldown.active} onClick={start} />
                 )}
-              </div>
-            </div>
 
-            {/* View Mode Toggle: Bàn Tròn Lửa Trại vs Dạng Lưới */}
-            <div className="flex items-center justify-between px-1">
-              <span className="font-mono text-xs font-bold text-ink-300 uppercase tracking-wider">
-                {viewMode === "circle" ? "🔥 Đấu Trường Bàn Tròn Lửa Trại" : "▦ Danh Sách Người Chơi"}
-              </span>
-              <div className="flex rounded-xl bg-white/[0.08] p-1 border border-white/10 text-xs">
+                <span className="mx-0.5 hidden h-6 w-px bg-white/10 sm:block" />
+                <div className="flex rounded-xl border border-white/10 bg-black/30 p-0.5">
+                  <IconToggle active={viewMode === "circle"} title="Bàn tròn" onClick={() => setViewMode("circle")}>
+                    <Orbit className="size-4" />
+                  </IconToggle>
+                  <IconToggle active={viewMode === "grid"} title="Lưới" onClick={() => setViewMode("grid")}>
+                    <LayoutGrid className="size-4" />
+                  </IconToggle>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setViewMode("circle")}
-                  className={cn(
-                    "px-3 py-1 rounded-lg font-bold transition-all",
-                    viewMode === "circle" ? "bg-white text-black shadow-sm" : "text-white/60 hover:text-white"
-                  )}
+                  onClick={stopGame}
+                  title="Dừng game"
+                  className="flex items-center gap-1.5 rounded-xl border border-red-400/40 bg-red-500/15 px-3 py-2 text-xs font-black text-red-200 transition hover:scale-105 hover:bg-red-500/30 active:scale-95"
                 >
-                  Vòng Tròn 3D
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("grid")}
-                  className={cn(
-                    "px-3 py-1 rounded-lg font-bold transition-all",
-                    viewMode === "grid" ? "bg-white text-black shadow-sm" : "text-white/60 hover:text-white"
-                  )}
-                >
-                  Dạng Lưới
+                  <Square className="size-3.5 fill-current" /> Dừng
                 </button>
               </div>
+
+              {witchChoice === "ask" && g.phase === "night" && g.step === "witch" && (
+                <WitchPanel
+                  state={g}
+                  onHeal={(heal) => {
+                    if (heal) {
+                      if (soundEnabled) soundManager.playWitchHeal();
+                      playFx({ id: Date.now().toString(), type: "heal", targetName: byId(g, g.wolfTarget)?.name });
+                    }
+                    mutate((s) => {
+                      if (heal) {
+                        s.healed = true;
+                        s.healUsed = true;
+                      }
+                    });
+                    setWitchChoice(g.poisonUsed ? null : "poison");
+                    if (g.poisonUsed) advanceStep();
+                  }}
+                />
+              )}
+              {seerReveal && (
+                <div className={cn("flex items-center gap-3 rounded-2xl border px-4 py-2.5 font-bold", seerReveal.wolf ? "border-red-400/50 bg-red-500/20 text-red-100" : "border-emerald-400/40 bg-emerald-500/15 text-emerald-100")}>
+                  🔮 {seerReveal.name} {seerReveal.wolf ? "🐺 SÓI" : "✅ Người tốt"}
+                  <button
+                    type="button"
+                    className="ml-auto grid size-8 place-items-center rounded-xl bg-white text-black transition hover:scale-110 active:scale-95"
+                    title="Đã nhớ"
+                    onClick={() => {
+                      setSeerReveal(null);
+                      advanceStep();
+                    }}
+                  >
+                    <Check className="size-4" />
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Players Arena */}
+            {/* Players Arena — mọi hiệu ứng/hành động hiển thị ngay trong khung này */}
+            <div className="relative" style={{ minHeight: showRole || voteRevealState || (pick && (pick.kind !== "vote" || showRotatingVoteModal) && !pickerDismissed) ? "clamp(520px, calc(100dvh - 190px), 680px)" : undefined }}>
             {viewMode === "circle" ? (
               <WerewolfRoundtable
                 state={g}
@@ -890,6 +879,7 @@ export function WerewolfGame() {
                 secondsLeft={secondsLeft}
                 prompt={prompt}
                 isHumanSpeaking={voice.isSpeaking}
+                isHumanMicOn={voice.isMicOn}
                 humanVolume={voice.volume}
                 latestChats={latestChats}
                 onOpenRotatingVote={() => setShowRotatingVoteModal(true)}
@@ -898,49 +888,114 @@ export function WerewolfGame() {
               <div className={cn("grid gap-3", g.players.length > 10 ? "grid-cols-3 sm:grid-cols-4 xl:grid-cols-6" : "grid-cols-2 sm:grid-cols-4")}>
                 {g.players.map((p) => {
                   const role = knownRole(p);
-                  const targetable = canTarget(p);
-                  const mark = seerMark(p);
-                  const votes = voteCount(p.id);
+                  const speaking = p.alive && (p.isHuman ? voice.isSpeaking : !!latestChats[p.id]);
                   return (
-                    <button
+                    <SeatCard
                       key={p.id}
-                      type="button"
-                      disabled={!targetable}
+                      variant="tile"
+                      name={p.name}
+                      avatar={p.avatar}
+                      alive={p.alive}
+                      isMe={p.isHuman}
+                      role={role}
+                      packmate={!role && isWolf(meP?.role || "villager") && isWolf(p.role)}
+                      targetable={canTarget(p)}
+                      speaking={speaking}
+                      micOn={p.alive && (p.isHuman ? voice.isMicOn || voice.isSpeaking : speaking)}
+                      hasVoted={g.phase === "vote" && g.votes[p.id] !== undefined}
+                      lover={!!g.lovers?.includes(p.id)}
+                      votes={voteCount(p.id)}
+                      seerMark={seerMark(p)}
                       onClick={() => onTarget(p)}
-                      className={cn(
-                        "group relative flex flex-col items-center rounded-3xl border-2 p-3 text-center transition-all",
-                        p.alive ? "border-white/[0.08] bg-ink-850" : "border-transparent bg-ink-900/60 opacity-55 grayscale",
-                        targetable && "cursor-pointer border-lime-400/50 hover:-translate-y-1 hover:border-lime-400 hover:bg-lime-400/10",
-                        p.isHuman && "ring-2 ring-pop-violet/60"
-                      )}
-                    >
-                      {votes > 0 && (
-                        <span className="absolute -right-1.5 -top-1.5 z-10 grid size-7 place-items-center rounded-full border-2 border-black bg-white text-xs font-black text-black">{votes}</span>
-                      )}
-                      <div className="relative">
-                        <UserAvatar src={p.avatar} name={p.name} className="size-14" />
-                        {!p.alive && <Skull className="absolute -bottom-1 -right-1 size-6 rounded-full bg-black p-1 text-pop-red" />}
-                        {mark !== undefined && p.alive && <span className="absolute -left-1 -top-1 text-lg">{mark ? "🐺" : "✅"}</span>}
-                      </div>
-                      <p className="mt-2 w-full truncate text-[13px] font-bold">
-                        {p.name}
-                        {p.isHuman && <span className="text-pop-violet"> (bạn)</span>}
-                      </p>
-                      <div className="mt-1 flex min-h-[22px] flex-wrap items-center justify-center gap-1">
-                        {role && (
-                          <span className="rounded-full px-2 py-0.5 text-[10px] font-black text-black" style={{ background: ROLE_INFO[role]?.color || "#fff" }}>
-                            {ROLE_INFO[role]?.emoji} {ROLE_INFO[role]?.name}
-                          </span>
-                        )}
-                        {p.claim === "seer" && p.alive && !role && <span className="rounded-full border border-pop-violet/40 px-2 py-0.5 text-[10px] font-bold text-pop-violet">Nhận Tiên Tri</span>}
-                        {g.phase === "night" && g.step === "wolves" && isWolf(meP?.role || "villager") && meAlive && g.wolfTarget === p.id && <span className="text-[10px] font-bold text-pop-red">Mồi</span>}
-                        {g.lastGuarded === p.id && meP?.role === "guard" && <span className="text-[10px] text-pop-cyan">Đêm trước</span>}
-                      </div>
-                    </button>
+                    />
                   );
                 })}
               </div>
             )}
+              {/* 3D Suspense Gradient Carousel for Vote Reveal */}
+              {voteRevealState && (
+                <GradientCarousel
+                  candidates={voteRevealState.candidates}
+                  eliminatedId={voteRevealState.executed}
+                  isTie={voteRevealState.isTie}
+                  onComplete={onVoteRevealComplete}
+                />
+              )}
+
+              {/* Gradient carousel picker: secret vote and night targets */}
+              {g && meP && pick && (pick.kind !== "vote" || showRotatingVoteModal) && !pickerDismissed && (
+                <GradientCarouselPicker
+                  key={`${pick.kind}-${g.day}-${g.cupidTarget1 ?? ""}`}
+                  title={
+                    pick.kind === "vote" ? "🗳️ BỎ PHIẾU KÍN" : pick.kind === "cupid" ? (g.cupidTarget1 ? "💘 NGƯỜI THỨ 2" : "💘 NGƯỜI THỨ 1") : prompt.toUpperCase()
+                  }
+                  confirmLabel={pick.kind === "vote" ? "Bỏ phiếu kín" : "Chọn"}
+                  items={g.players
+                    .filter((p) => p.alive)
+                    .map((p) => ({
+                      id: p.id,
+                      name: p.name + (p.isHuman ? " (bạn)" : ""),
+                      avatar: p.avatar,
+                      disabled: !canTarget(p),
+                      badge: isWolf(meP.role) && isWolf(p.role) ? "🐺 Bầy Sói" : undefined,
+                    }))}
+                  onConfirm={(id) => {
+                    const p = byId(g, id);
+                    if (p) onTarget(p);
+                  }}
+                  onClose={() => {
+                    setShowRotatingVoteModal(false);
+                    setPickerDismissed(true);
+                  }}
+                  onAbstain={pick.kind === "vote" ? () => castVote(null) : undefined}
+                  abstainLabel="Phiếu trắng"
+                />
+              )}
+
+              <AnimatePresence>
+                {phaseBanner && (
+                  <motion.div
+                    key={phaseBanner.key}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className={cn(
+                      "pointer-events-none absolute inset-0 z-[45] grid place-items-center rounded-[36px] overflow-hidden",
+                      phaseBanner.night ? "bg-[radial-gradient(circle,rgba(30,27,75,0.75),rgba(2,6,23,0.92))]" : "bg-[radial-gradient(circle,rgba(253,230,138,0.55),rgba(251,146,60,0.25))]"
+                    )}
+                  >
+                    <motion.p
+                      initial={{ scale: 0.7, y: 20, opacity: 0 }}
+                      animate={{ scale: 1, y: 0, opacity: 1 }}
+                      exit={{ scale: 1.15, opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 140, damping: 16 }}
+                      className="font-display text-5xl font-black text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.6)] sm:text-7xl"
+                    >
+                      {phaseBanner.text}
+                    </motion.p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Action FX Visual Overlay (Claw, Poison, Heal, Seer, Shield, Cupid, Execution) */}
+              <WerewolfActionFxOverlay currentFx={currentFx} onFinish={popFx} />
+
+              {g && meP && (
+                <WerewolfRoleRandomizer
+                  inline
+                  isOpen={showRole}
+                  role={meP.role}
+                  players={g.players}
+                  initialMode={roleModalMode}
+                  onClose={() => setShowRole(false)}
+                  onStartNight1={() => {
+                    if (g.phase === "reveal") mutate((s) => goNight(s));
+                  }}
+                />
+              )}
+
+            </div>
           </div>
 
           {/* Log + chat */}
@@ -952,14 +1007,14 @@ export function WerewolfGame() {
               </span>
             </div>
             <div ref={logRef} className="flex-1 space-y-2 no-scrollbar overflow-y-auto px-4 py-3">
-              {g.log.map((l) => {
+              {g.log.filter((l) => l.kind !== "vote").map((l) => {
                 if (l.kind === "chat") {
                   const sp = byId(g, l.speaker);
                   return (
                     <motion.div key={l.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className={cn("flex gap-2", sp?.isHuman && "flex-row-reverse")}>
                       <UserAvatar src={sp?.avatar} name={sp?.name ?? "?"} className="size-7" />
                       <div className={cn("max-w-[80%] rounded-2xl px-3 py-2 text-[13px]", sp?.isHuman ? "rounded-tr-md bg-lime-400 text-black" : "rounded-tl-md bg-ink-800")}>
-                        {!sp?.isHuman && <p className="text-[10px] font-bold text-ink-300">{sp?.name}</p>}
+                        {!sp?.isHuman && <p className="text-xs font-bold text-ink-300">{sp?.name}</p>}
                         {l.text}
                       </div>
                     </motion.div>
@@ -975,7 +1030,7 @@ export function WerewolfGame() {
                       "rounded-xl px-3 py-2 text-[12px]",
                       l.kind === "death" && "border border-pop-red/30 bg-pop-red/10 font-semibold text-[#ffb3bb]",
                       l.kind === "narrator" && "bg-white/[0.03] italic text-ink-200",
-                      l.kind === "vote" && "py-1 font-mono text-[11px] text-ink-200"
+                      l.kind === "vote" && "py-1 font-mono text-xs text-ink-200"
                     )}
                   >
                     {l.text}
@@ -995,9 +1050,9 @@ export function WerewolfGame() {
                   placeholder={
                     g.phase === "discussion" && meAlive
                       ? voice.isMicOn
-                        ? "🎤 Đang nghe mic của bạn…"
-                        : "VD: Tuấn Dev nghi là sói…"
-                      : "Chỉ chat được lúc thảo luận ban ngày"
+                        ? "🎤 …"
+                        : "Nói gì đó…"
+                      : "🔒"
                   }
                   className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-[13px] outline-none placeholder:text-ink-500 disabled:opacity-50"
                 />
@@ -1011,91 +1066,16 @@ export function WerewolfGame() {
       )}
 
       {/* High-Impact 3D Tilted Tiles Role Randomizer & Mystery Card Reveal */}
-      {(meP || demoRole) && (
+      {!g && demoRole && (
         <WerewolfRoleRandomizer
           isOpen={showRole}
-          role={meP ? meP.role : (demoRole || "wolf")}
-          players={g ? g.players : []}
+          role={demoRole}
+          players={[]}
           initialMode={roleModalMode}
           onClose={() => setShowRole(false)}
-          onStartNight1={() => {
-            if (g && g.phase === "reveal") {
-              mutate((s) => {
-                goNight(s);
-              });
-            }
-          }}
         />
       )}
 
-      {/* 3D Suspense Gradient Carousel for Vote Reveal */}
-      {voteRevealState && (
-        <GradientCarousel
-          candidates={voteRevealState.candidates}
-          eliminatedId={voteRevealState.executed}
-          isTie={voteRevealState.isTie}
-          onComplete={onVoteRevealComplete}
-        />
-      )}
-
-      {/* Gradient carousel picker: secret vote and night targets */}
-      {g && meP && pick && (pick.kind !== "vote" || showRotatingVoteModal) && !pickerDismissed && (
-        <GradientCarouselPicker
-          key={`${pick.kind}-${g.day}-${g.cupidTarget1 ?? ""}`}
-          title={
-            pick.kind === "vote" ? "🗳️ BỎ PHIẾU BÍ MẬT (KÍN)" : pick.kind === "cupid" ? (g.cupidTarget1 ? "💘 CHỌN NGƯỜI THỨ HAI" : "💘 CHỌN NGƯỜI THỨ NHẤT") : prompt.toUpperCase()
-          }
-          confirmLabel={pick.kind === "vote" ? "Bỏ phiếu kín 🔒" : "Chọn"}
-          items={g.players
-            .filter((p) => p.alive)
-            .map((p) => ({
-              id: p.id,
-              name: p.name + (p.isHuman ? " (bạn)" : ""),
-              avatar: p.avatar,
-              disabled: !canTarget(p),
-              badge: isWolf(meP.role) && isWolf(p.role) ? "🐺 Bầy Sói" : undefined,
-            }))}
-          onConfirm={(id) => {
-            const p = byId(g, id);
-            if (p) onTarget(p);
-          }}
-          onClose={() => {
-            setShowRotatingVoteModal(false);
-            setPickerDismissed(true);
-          }}
-          onAbstain={pick.kind === "vote" ? () => castVote(null) : undefined}
-          abstainLabel="Bỏ phiếu trắng (Abstain)"
-        />
-      )}
-
-      <AnimatePresence>
-        {phaseBanner && (
-          <motion.div
-            key={phaseBanner.key}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            className={cn(
-              "pointer-events-none fixed inset-0 z-[70] grid place-items-center",
-              phaseBanner.night ? "bg-[radial-gradient(circle,rgba(30,27,75,0.75),rgba(2,6,23,0.92))]" : "bg-[radial-gradient(circle,rgba(253,230,138,0.55),rgba(251,146,60,0.25))]"
-            )}
-          >
-            <motion.p
-              initial={{ scale: 0.7, y: 20, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 1.15, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 140, damping: 16 }}
-              className="font-display text-5xl font-black text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.6)] sm:text-7xl"
-            >
-              {phaseBanner.text}
-            </motion.p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Action FX Visual Overlay (Claw, Poison, Heal, Seer, Shield, Cupid, Execution) */}
-      <WerewolfActionFxOverlay currentFx={currentFx} onFinish={popFx} />
 
       <MatchResultModal
         isOpen={resultOpen}
@@ -1105,6 +1085,35 @@ export function WerewolfGame() {
         reason={g?.winner ? (g.winner === "village" ? "Dân làng đã tìm ra tất cả Sói" : "Bầy Sói đã chiếm lấy ngôi làng") : undefined}
       />
     </div>
+    </div>
+  );
+}
+
+function DockBtn({ icon, label, onClick, tone = "neutral", disabled }: { icon: React.ReactNode; label: string; onClick: () => void; tone?: "neutral" | "lime" | "red"; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      className={cn(
+        "flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100",
+        tone === "lime" && "bg-lime-400 text-black shadow-[0_0_18px_-4px_rgba(163,230,53,0.8)]",
+        tone === "red" && "bg-red-500 text-white shadow-[0_0_18px_-4px_rgba(239,68,68,0.8)]",
+        tone === "neutral" && "bg-white/10 text-white hover:bg-white/20"
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function IconToggle({ active, title, onClick, children }: { active: boolean; title: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" title={title} onClick={onClick} className={cn("grid size-8 place-items-center rounded-lg transition hover:scale-110 active:scale-95", active ? "bg-white text-black" : "text-white/55 hover:text-white")}>
+      {children}
+    </button>
   );
 }
 
@@ -1127,70 +1136,6 @@ function WitchPanel({ state, onHeal }: { state: WState; onHeal: (heal: boolean) 
           {state.healUsed ? "Bình Cứu đã dùng — tiếp" : "Tiếp"}
         </button>
       )}
-    </div>
-  );
-}
-
-function Lobby({
-  count,
-  setCount,
-  stake,
-  setStake,
-  onStart,
-  onPreviewRoulette,
-}: {
-  count: 8 | 10 | 12;
-  setCount: (c: 8 | 10 | 12) => void;
-  stake: number;
-  setStake: (v: number) => void;
-  onStart: () => void;
-  onPreviewRoulette?: () => void;
-}) {
-  return (
-    <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
-      <div className="panel p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-2xl font-extrabold">10 vai đa dạng — ai là Sói?</h2>
-          {onPreviewRoulette && (
-            <button
-              type="button"
-              onClick={onPreviewRoulette}
-              className="btn-ghost px-3 py-1.5 text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1.5"
-            >
-              <span>✨</span> Thử Vòng Quay Thẻ
-            </button>
-          )}
-        </div>
-        <p className="mt-1 text-sm text-ink-300">Đêm Sói cắn, các vai đặc biệt hành động. Ngày cả làng ngồi vòng tròn thảo luận (bật mic hoặc chat) và bỏ phiếu treo cổ. Quản trò tự động dẫn dắt từng bước.</p>
-        <div className="mt-5">
-          <WerewolfRoleGallery />
-        </div>
-      </div>
-      <div className="panel space-y-5 p-6">
-        <h2 className="font-display text-xl font-extrabold">Tạo phòng luyện</h2>
-        <div>
-          <span className="label">Số người chơi</span>
-          <Segmented
-            value={count}
-            onChange={setCount}
-            options={[
-              { value: 8 as const, label: "8 · Sói Con & Thợ Săn" },
-              { value: 10 as const, label: "10 · Thêm Cupid & Già Làng" },
-              { value: 12 as const, label: "12 · Thêm Sói Trắng" },
-            ]}
-          />
-        </div>
-        <StakePicker value={stake} onChange={setStake} />
-        <ul className="space-y-1.5 text-xs text-ink-300">
-          <li>• Bàn tròn lửa trại 3D: quan sát toàn bộ người chơi ngồi xoay vòng.</li>
-          <li>• Bật Microphone nói chuyện trực tiếp trong phiên thảo luận.</li>
-          <li>• Quản trò tự động cất giọng dẫn dắt và điều khiển các lượt đêm/ngày.</li>
-          <li>• Hiệu ứng kỹ năng: móng vuốt cào xé, bình thuốc phù thủy, tên tình yêu...</li>
-        </ul>
-        <button type="button" onClick={onStart} className="btn-lime w-full py-3">
-          <Play className="size-4" /> Vào làng
-        </button>
-      </div>
     </div>
   );
 }

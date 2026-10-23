@@ -148,8 +148,21 @@ export function addLog(s: WState, kind: LogEntry["kind"], text: string, speaker?
   s.log = [...s.log, { id: logId++, kind, day: s.day, text, speaker }].slice(-160);
 }
 
-export function createGame(count: number, me: { id: string; name: string; avatar: string }): WState {
-  const roles = shuffle(ROLE_SETS[count] ?? ROLE_SETS[8]);
+export interface GameOptions {
+  /** Bộ vai tuỳ chỉnh (ghi đè ROLE_SETS). */
+  roles?: Role[];
+  /** Ép người chơi nhận vai này (nếu có trong bộ vai). */
+  myRole?: Role;
+}
+
+export function createGame(countArg: number, me: { id: string; name: string; avatar: string }, opts: GameOptions = {}): WState {
+  const base = opts.roles?.length ? opts.roles : ROLE_SETS[countArg] ?? ROLE_SETS[8];
+  const count = base.length;
+  const roles = shuffle(base);
+  if (opts.myRole) {
+    const at = roles.indexOf(opts.myRole);
+    if (at > 0) [roles[0], roles[at]] = [roles[at], roles[0]];
+  }
   const names = shuffle(BOT_NAMES).slice(0, count - 1);
   const players: WPlayer[] = roles.map((role, i) =>
     i === 0

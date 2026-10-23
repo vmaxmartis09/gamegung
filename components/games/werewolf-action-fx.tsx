@@ -41,7 +41,7 @@ export function WerewolfActionFxOverlay({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 pointer-events-none z-[80] grid place-items-center overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none z-[50] grid place-items-center overflow-hidden rounded-[36px]">
         {/* ========================================================= */}
         {/* 1. SÓI CÀO XÉ (CLAW SLASH) */}
         {/* ========================================================= */}

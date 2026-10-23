@@ -361,12 +361,6 @@ export function CardBackArt({ className }: { className?: string }) {
         <span className="text-4xl sm:text-5xl filter drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">🐺</span>
       </div>
 
-      <div className="mt-5 text-center">
-        <p className="font-mono text-[10px] sm:text-xs font-bold tracking-[0.3em] uppercase text-amber-300/80">
-          MA SÓI · BẢN MỆNH
-        </p>
-        <p className="mt-1 text-xs text-ink-400 font-medium">Bí mật tuyệt đối</p>
-      </div>
     </div>
   );
 }
@@ -483,16 +477,15 @@ export function ElderArt({ className }: { className?: string }) {
 }
 
 export const ROLE_CARD_IMAGES: Partial<Record<Role, string>> = {
-  wolf: "/images/werewolf_roles/role_card_01.png",
-  seer: "/images/werewolf_roles/role_card_02.png",
-  hunter: "/images/werewolf_roles/role_card_04.png",
-  guard: "/images/werewolf_roles/role_card_06.png",
-  witch: "/images/werewolf_roles/role_card_08.png",
-  cupid: "/images/werewolf_roles/role_card_10.png",
-  white_wolf: "/images/werewolf_roles/role_card_19.png",
-  wolf_cub: "/images/werewolf_roles/role_card_23.png",
-  elder: "/images/werewolf_roles/role_card_24.png",
-  villager: "/images/werewolf_roles/role_card_22.png",
+  wolf: "/images/werewolf_roles/official/soi-thuong.jpg",
+  seer: "/images/werewolf_roles/official/tien-tri.jpg",
+  hunter: "/images/werewolf_roles/official/tho-san.jpg",
+  guard: "/images/werewolf_roles/official/bao-ve.jpg",
+  witch: "/images/werewolf_roles/official/phu-thuy.jpg",
+  cupid: "/images/werewolf_roles/official/cupid.jpg",
+  white_wolf: "/images/werewolf_roles/official/soi-trang.jpg",
+  elder: "/images/werewolf_roles/official/gia-lang.jpg",
+  villager: "/images/werewolf_roles/official/dan-lang.jpg",
 };
 
 export function RoleCardIllustration({

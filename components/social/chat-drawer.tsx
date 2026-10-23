@@ -3,13 +3,16 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useShallow } from "zustand/react/shallow";
 import {
   ArrowLeft,
   Check,
   Coffee,
   Copy,
+  Camera,
   Dices,
+  Loader2,
   FileText,
   Gamepad2,
   Hash,
@@ -23,21 +26,22 @@ import {
   Trophy,
   UserRound,
   Users,
-  Wand2,
   X,
 } from "lucide-react";
 import { useAppStore, ChatMessage, ChatAttachment } from "@/lib/store";
 import { usePresenceStore, sortPeers, OnlinePeer } from "@/lib/presence";
 import { dmOtherId, isDmChannel, relativeTime } from "@/lib/chat";
 import { GameIcon, GAME_BY_ID, GameId } from "@/components/art/game-art";
-import { UserAvatar, STATUS_META, kokonutAvatar, avatarSeedFrom } from "@/components/ui/user-avatar";
+import { UserAvatar, STATUS_META, kokonutAvatar, avatarSeedFrom, KOKONUT_PREFIX } from "@/components/ui/user-avatar";
+import { uploadAvatar, AVATAR_ACCEPT } from "@/lib/avatar-upload";
 import { soundManager } from "@/lib/audio";
 import { useUiStore } from "@/lib/ui-store";
 import { useAuthStore } from "@/lib/auth";
 import { getRankTier, RANK_TIERS } from "@/lib/ranking-system";
 import { syncProfileToSupabase, uploadAvatarImage } from "@/lib/supabase-game";
 import { cn } from "@/lib/utils";
-import { BetModal } from "./bet-modal";
+import { InvitePanel } from "./invite-panel";
+import { DmBubbles } from "./dm-bubbles";
 
 const REACTIONS = ["🔥", "😂", "👏", "⚔️", "🌾"];
 const QUICK_EMOJIS = ["☕", "♟️", "🐺", "⚔️", "🔥", "🏆", "🌾", "😂", "👏", "🎯", "⚡", "🎲", "😎", "💀", "🫡", "🤝"];
@@ -98,7 +102,6 @@ export function ChatDrawer() {
   const setActiveChannel = useAppStore((s) => s.setActiveChannel);
   const setChatCollapsed = useAppStore((s) => s.setChatCollapsed);
   const [tab, setTab] = useState<Tab>("general");
-  const [betOpen, setBetOpen] = useState(false);
   const totalUnread = useAppStore((s) => Object.values(s.unreadCounts).reduce((a, v) => a + v, 0));
 
   // Only two chat areas: the general room and one-to-one threads.
@@ -120,6 +123,8 @@ export function ChatDrawer() {
   }, [isChatOpen, tab, inDm, unreadHere, activeChannel]);
 
   return (
+    <>
+    <DmBubbles />
     <AnimatePresence>
       {isChatOpen && isChatCollapsed && (
         <motion.button
@@ -134,7 +139,7 @@ export function ChatDrawer() {
         >
           <MessageSquare className="size-6" />
           {totalUnread > 0 && (
-            <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-accent px-1 text-[10px] font-bold text-black">{totalUnread > 99 ? "99+" : totalUnread}</span>
+            <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-accent px-1 text-xs font-bold text-black">{totalUnread > 99 ? "99+" : totalUnread}</span>
           )}
         </motion.button>
       )}
@@ -154,29 +159,23 @@ export function ChatDrawer() {
             {tab === "general" && (
               <>
                 <MessageList channelId="lounge" myId={myId} />
-                <Composer channelId="lounge" onBet={() => setBetOpen(true)} />
+                <Composer channelId="lounge" />
               </>
             )}
             {tab === "private" && inDm && (
               <>
                 <ThreadBar channelId={activeChannel} onBack={() => setActiveChannel("lounge")} />
                 <MessageList channelId={activeChannel} myId={myId} />
-                <Composer channelId={activeChannel} onBet={() => setBetOpen(true)} />
+                <Composer channelId={activeChannel} />
               </>
             )}
             {tab === "private" && !inDm && <PrivateHome myId={myId} />}
             {tab === "profile" && <ProfilePanel />}
           </motion.aside>
-
-          <BetModal
-            isOpen={betOpen}
-            onClose={() => setBetOpen(false)}
-            channelId={activeChannel}
-            defaultTargetId={isDmChannel(activeChannel) ? dmOtherId(activeChannel, myId) : undefined}
-          />
         </>
       )}
     </AnimatePresence>
+    </>
   );
 }
 
@@ -187,6 +186,7 @@ function DrawerHeader({ tab, setTab, onCollapse }: { tab: Tab; setTab: (t: Tab) 
       avatar: s.currentUser.avatar,
       title: s.currentUser.title,
       lua: s.currentUser.lua,
+      score: s.currentUser.score ?? 1200,
     }))
   );
   const myStatus = usePresenceStore((s) => s.myStatus);
@@ -199,41 +199,20 @@ function DrawerHeader({ tab, setTab, onCollapse }: { tab: Tab; setTab: (t: Tab) 
   const tabs: { id: Tab; label: string; icon: React.ReactElement; badge: number }[] = [
     { id: "general", label: "Chung", icon: <Hash className="size-3.5" />, badge: tab === "general" ? 0 : unread.general },
     { id: "private", label: "Riêng", icon: <MessageSquare className="size-3.5" />, badge: unread.dm },
-    { id: "profile", label: "Hồ sơ", icon: <UserRound className="size-3.5" />, badge: 0 },
+    { id: "profile", label: "Chi tiết", icon: <UserRound className="size-3.5" />, badge: 0 },
   ];
   return (
     <div className="border-b border-white/[0.08] p-2.5 bg-black/70 backdrop-blur-xl">
       {/* Integrated Profile Top Strip */}
-      <div className="mb-2 flex items-center justify-between gap-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] p-2 transition-colors hover:border-white/20">
-        <button
-          type="button"
-          onClick={() => setTab("profile")}
-          className="flex min-w-0 flex-1 items-center gap-2.5 text-left group"
-          title="Xem & chỉnh sửa hồ sơ"
-        >
-          <UserAvatar src={me.avatar} name={me.username} status={myStatus} className="size-9 ring-1 ring-white/20" />
+      <div className="mb-2 rounded-xl border border-white/[0.075] bg-white/[0.025] p-3">
+        <div className="flex items-center gap-3">
+          <UserAvatar src={me.avatar} name={me.username} status={myStatus} className="size-10" />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="truncate text-xs font-semibold text-white group-hover:underline">{me.username}</span>
-              <span className="shrink-0 text-[10px] text-neutral-400 font-mono">🌾 {me.lua.toLocaleString("vi-VN")}</span>
-            </div>
-            <p className="truncate text-[10px] text-neutral-400">{me.title}</p>
+            <p className="truncate text-sm font-semibold text-ink-100">{me.username}</p>
+            <p className="truncate text-xs text-ink-400">
+              {me.title} · {me.score} ELO
+            </p>
           </div>
-        </button>
-
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setTab("profile")}
-            className={cn(
-              "rounded-lg px-2 py-1 text-[11px] font-medium transition-colors border",
-              tab === "profile"
-                ? "bg-white text-black border-white"
-                : "bg-white/[0.05] text-neutral-300 border-white/10 hover:bg-white/10 hover:text-white"
-            )}
-          >
-            Hồ sơ
-          </button>
           <button
             type="button"
             onClick={onCollapse}
@@ -269,7 +248,7 @@ function DrawerHeader({ tab, setTab, onCollapse }: { tab: Tab; setTab: (t: Tab) 
             <span className="relative flex items-center gap-1.5">
               {t.icon}
               {t.label}
-              {t.badge > 0 && <span className="grid min-w-4 place-items-center rounded-full bg-white px-1 text-[9px] font-bold text-black">{t.badge}</span>}
+              {t.badge > 0 && <span className="grid min-w-4 place-items-center rounded-full bg-white px-1 text-xs font-bold text-black">{t.badge}</span>}
             </span>
           </button>
         ))}
@@ -301,7 +280,7 @@ function DmTitle({ channelId, fallbackName, fallbackAvatar }: { channelId: strin
       <UserAvatar src={peer?.avatar ?? fallbackAvatar} name={name} status={status} className="size-8" dotClassName="size-2.5" />
       <div className="min-w-0">
         <p className="truncate text-sm font-bold">{name}</p>
-        <p className={cn("text-[11px]", STATUS_META[status].text)}>
+        <p className={cn("text-xs", STATUS_META[status].text)}>
           {STATUS_META[status].label}
           {status === "in-game" && peer?.currentGame ? ` · ${peer.currentGame}` : ""}
         </p>
@@ -385,7 +364,7 @@ const MessageRow = memo(function MessageRow({
   if (msg.senderId === "system") {
     return (
       <div className="my-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-center">
-        <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-ink-300">⚖️ Trọng tài</p>
+        <p className="font-mono text-xs font-bold uppercase tracking-widest text-ink-300">⚖️ Trọng tài</p>
         <p className="mt-1 text-xs text-ink-100">{msg.content}</p>
       </div>
     );
@@ -399,7 +378,7 @@ const MessageRow = memo(function MessageRow({
       <div className="w-8 shrink-0">{!grouped && <UserAvatar src={msg.senderAvatar} name={msg.senderName} className="size-8" />}</div>
       <div className={cn("flex min-w-0 max-w-[82%] flex-col", isMe && "items-end")}>
         {!grouped && (
-          <div className={cn("mb-1 flex items-baseline gap-2 text-[11px]", isMe && "flex-row-reverse")}>
+          <div className={cn("mb-1 flex items-baseline gap-2 text-xs", isMe && "flex-row-reverse")}>
             <span className="font-bold text-ink-100">{isMe ? "Bạn" : msg.senderName}</span>
             <span className="text-ink-500">{time}</span>
           </div>
@@ -455,7 +434,7 @@ const MessageRow = memo(function MessageRow({
                 type="button"
                 onClick={() => toggleReaction(msg.channelId, msg.id, emoji)}
                 className={cn(
-                  "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                  "flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold",
                   users.includes(myId) ? "border-accent/50 bg-accent/10 text-white" : "border-white/10 bg-white/[0.03] text-ink-300"
                 )}
               >
@@ -482,7 +461,7 @@ function Attachment({ att, onPreview }: { att: ChatAttachment; onPreview: (url: 
     <a href={att.url} download={att.name} className="mt-2 flex items-center gap-2 rounded-xl bg-black/20 p-2">
       <FileText className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate text-xs font-semibold">{att.name}</span>
-      <span className="text-[10px] opacity-70">{att.size}</span>
+      <span className="text-xs opacity-70">{att.size}</span>
     </a>
   );
 }
@@ -502,31 +481,31 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
         <GameIcon game={game} className="size-10" />
         <div className="min-w-0 flex-1">
           <p className="font-display text-sm font-extrabold">Kèo {GAME_BY_ID[game].name}</p>
-          <p className="truncate text-[11px] text-ink-400">bởi {bet.creatorName}</p>
+          <p className="truncate text-xs text-ink-400">bởi {bet.creatorName}</p>
         </div>
         <div className="text-right">
-          <p className="font-display text-base font-extrabold text-white">{bet.stake} 🌾</p>
-          <p className="text-[10px] text-ink-400">Thưởng {bet.stake * 2}</p>
+          <p className="num text-base font-medium text-white">{bet.stake} Credit</p>
+          <p className="text-xs text-ink-400">Thưởng {bet.stake * 2}</p>
         </div>
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-white/[0.07] px-3 py-2">
         {bet.status === "pending" && (
           <>
-            <span className="flex items-center gap-1.5 text-[11px] text-ink-300">
+            <span className="flex items-center gap-1.5 text-xs text-ink-300">
               <span className="size-1.5 animate-pulse rounded-full bg-white" /> Đang chờ người nhận
             </span>
             {isMe ? (
-              <button type="button" onClick={() => cancel(bet.id)} className="btn-ghost px-2.5 py-1 text-[11px]">
+              <button type="button" onClick={() => cancel(bet.id)} className="btn-ghost px-2.5 py-1 text-xs">
                 Huỷ kèo
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => {
-                  if (lua < bet.stake) return setErr(`Cần ${bet.stake} 🌾, bạn có ${lua}.`);
+                  if (lua < bet.stake) return setErr(`Cần ${bet.stake} Credit, bạn có ${lua}.`);
                   if (accept(bet.id) && soundEnabled) soundManager.playCoin();
                 }}
-                className="btn-accent px-3 py-1 text-[11px]"
+                className="btn-accent px-3 py-1 text-xs"
               >
                 <Swords className="size-3" /> Nhận kèo
               </button>
@@ -535,25 +514,26 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
         )}
         {bet.status === "accepted" && (
           <>
-            <span className="flex items-center gap-1 text-[11px] text-white font-medium">
+            <span className="flex items-center gap-1 text-xs text-white font-medium">
               <Check className="size-3 text-white" /> Đã chốt: {bet.creatorName} vs {bet.opponentName}
             </span>
-            <Link href={`${GAME_URL[bet.gameType] ?? "/"}?stake=${bet.stake}`} className="btn-accent px-3 py-1 text-[11px]">
+            <Link href={`${GAME_URL[bet.gameType] ?? "/"}?stake=${bet.stake}`} className="btn-accent px-3 py-1 text-xs">
               Vào chơi
             </Link>
           </>
         )}
         {(bet.status === "cancelled" || bet.status === "completed") && (
-          <span className="text-[11px] text-ink-500">{bet.status === "cancelled" ? "Kèo đã huỷ" : "Kèo đã kết thúc"}</span>
+          <span className="text-xs text-ink-500">{bet.status === "cancelled" ? "Kèo đã huỷ" : "Kèo đã kết thúc"}</span>
         )}
       </div>
-      {err && <p className="px-3 pb-2 text-[11px] text-pop-red">{err}</p>}
+      {err && <p className="px-3 pb-2 text-xs text-pop-red">{err}</p>}
     </div>
   );
 }
 
-function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }) {
+function Composer({ channelId }: { channelId: string }) {
   const sendMessage = useAppStore((s) => s.sendMessage);
+  const [invite, setInvite] = useState(false);
   const [text, setText] = useState("");
   const [file, setFile] = useState<ChatAttachment | null>(null);
   const [emoji, setEmoji] = useState(false);
@@ -599,7 +579,7 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
   return (
     <div className="relative border-t border-white/[0.06] bg-ink-950/80 px-3 pb-3 pt-2">
       <div className="no-scrollbar mb-2 flex gap-1.5 overflow-x-auto">
-        <button type="button" onClick={onBet} className="chip shrink-0 hover:text-white">
+        <button type="button" aria-expanded={invite} onClick={() => setInvite((v) => !v)} className={cn("chip shrink-0 hover:text-white", invite && "border-accent/50 text-ink-100")}>
           <Swords className="size-3" /> Mời chơi
         </button>
         <button type="button" onClick={() => quick("☕ Nghỉ tay làm ván cờ không anh em?")} className="chip shrink-0 hover:text-white">
@@ -616,6 +596,8 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
           gg wp
         </button>
       </div>
+
+      {invite && <InvitePanel channelId={channelId} onClose={() => setInvite(false)} />}
 
       {emoji && (
         <div className="mb-2 flex flex-wrap gap-1 rounded-2xl border border-white/[0.06] bg-ink-900 p-2">
@@ -637,14 +619,14 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
           )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold">{file.name}</p>
-            <p className="text-[10px] text-ink-400">{file.size}</p>
+            <p className="text-xs text-ink-400">{file.size}</p>
           </div>
           <button type="button" onClick={() => setFile(null)} className="grid size-7 place-items-center rounded-lg text-ink-400 hover:text-white" aria-label="Bỏ tệp">
             <X className="size-4" />
           </button>
         </div>
       )}
-      {err && <p className="mb-2 text-[11px] text-pop-red">{err}</p>}
+      {err && <p className="mb-2 text-xs text-pop-red">{err}</p>}
 
       <div className="flex items-end gap-1 rounded-2xl border border-white/10 bg-ink-850/80 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-[border-color,box-shadow] duration-200 focus-within:border-accent/50 focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
         <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.txt,.doc,.docx" onChange={onFile} />
@@ -683,7 +665,7 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
         >
           <Send className="size-4" />
         </button>
-        {text.length > 640 && <span className="absolute -top-5 right-4 font-mono text-[10px] text-ink-400">{text.length}/800</span>}
+        {text.length > 640 && <span className="absolute -top-5 right-4 font-mono text-xs text-ink-400">{text.length}/800</span>}
       </div>
     </div>
   );
@@ -699,8 +681,8 @@ function PrivateHome({ myId }: { myId: string }) {
 }
 
 function ProfilePanel() {
+  const inGame = (usePathname() || "").startsWith("/games");
   const me = useAppStore((s) => s.currentUser);
-  const transactions = useAppStore((s) => s.transactions);
   const claimDailyBonus = useAppStore((s) => s.claimDailyBonus);
   const soundEnabled = useAppStore((s) => s.soundEnabled);
   const toggleSound = useAppStore((s) => s.toggleSound);
@@ -720,6 +702,26 @@ function ProfilePanel() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [editSeed, setEditSeed] = useState(() => avatarSeedFrom(me.avatar, me.username));
+  // Ảnh tự tải lên (URL Supabase Storage); null = dùng avatar Kokonut theo seed.
+  const isPhoto = (a?: string) => !!a && !a.startsWith(KOKONUT_PREFIX) && !a.includes("dicebear.com");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(() => (isPhoto(me.avatar) ? me.avatar : null));
+  const [uploading, setUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setPhotoError(null);
+    setUploading(true);
+    try {
+      setPhotoUrl(await uploadAvatar(file, me.id));
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Tải ảnh thất bại.");
+    } finally {
+      setUploading(false);
+    }
+  };
   const setCurrentUser = useAppStore((s) => s.setCurrentUser);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -759,7 +761,6 @@ function ProfilePanel() {
     { label: "Cờ Tướng", elo: me.eloXiangqi ?? 1200, s: st("xiangqi") },
     { label: "Ma Sói", elo: me.eloWerewolf ?? 1200, s: st("werewolf") },
     { label: "Deadline Rush", elo: me.eloUno ?? 1200, s: st("uno") },
-    { label: "Cyber Slash", elo: me.eloArcade ?? 1200, s: st("arcade") },
   ];
   const totalWins = rows.reduce((a, r) => a + r.s.wins, 0);
   const totalGames = rows.reduce((a, r) => a + r.s.games, 0);
@@ -768,20 +769,22 @@ function ProfilePanel() {
     { id: "busy", label: "Bận" },
     { id: "away", label: "Away" },
   ];
-  const card = "rounded-2xl border border-white/[0.08] bg-white/[0.03]";
+  const card = "rounded-xl border border-white/[0.075] bg-white/[0.025]";
+  const sectionTitle = "pb-2 text-xs font-medium uppercase tracking-[0.1em] text-ink-400";
 
   return (
-    <div className="flex-1 space-y-4 overflow-y-auto p-4 no-scrollbar">
-      {/* Profile Header & In-Drawer Edit */}
+    <div className="flex-1 space-y-5 overflow-y-auto p-4 no-scrollbar">
       {isEditing ? (
-        <div className={cn(card, "p-4 space-y-3.5 border-white/20 bg-neutral-900/90")}>
-          <div className="flex items-center justify-between pb-1 border-b border-white/10">
-            <span className="text-xs font-semibold text-white">Chỉnh sửa hồ sơ</span>
-            <button
-              type="button"
-              onClick={() => setIsEditing(false)}
-              className="text-xs text-neutral-400 hover:text-white"
-            >
+        <form
+          className={cn(card, "space-y-4 p-4")}
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSaveProfile();
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-ink-100">Chỉnh sửa hồ sơ</h3>
+            <button type="button" onClick={() => setIsEditing(false)} className="text-xs text-ink-300 hover:text-ink-100">
               Hủy
             </button>
           </div>
@@ -829,176 +832,167 @@ function ProfilePanel() {
             {uploadError && <p className="basis-full rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">{uploadError}</p>}
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">Tên hiển thị</label>
-            <input
-              type="text"
-              value={editName}
-              maxLength={24}
-              onChange={(e) => setEditName(e.target.value)}
-              className="w-full rounded-xl border border-white/15 bg-black/60 px-3 py-2 text-xs text-white outline-none focus:border-white"
-            />
+          <div>
+            <label htmlFor="profile-name" className="label">
+              Tên hiển thị
+            </label>
+            <input id="profile-name" type="text" value={editName} maxLength={24} onChange={(e) => setEditName(e.target.value)} className="field !py-2.5" />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">Danh hiệu</label>
-            <select
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full rounded-xl border border-white/15 bg-black/60 px-3 py-2 text-xs text-white outline-none focus:border-white"
-            >
+          <div>
+            <label htmlFor="profile-title" className="label">
+              Danh hiệu
+            </label>
+            <select id="profile-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="field !py-2.5">
               {TITLES.map((t) => (
-                <option key={t} value={t} className="bg-neutral-900 text-white">
+                <option key={t} value={t} className="bg-ink-900 text-ink-100">
                   {t}
                 </option>
               ))}
             </select>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSaveProfile}
-            disabled={savedSuccess}
-            className="w-full rounded-xl bg-white py-2 text-xs font-semibold text-black hover:bg-neutral-200 transition-colors"
-          >
-            {savedSuccess ? "✓ Đã lưu thành công" : "Lưu thay đổi"}
+          <button type="submit" disabled={savedSuccess} className="btn-accent w-full">
+            {savedSuccess ? "Đã lưu" : "Lưu thay đổi"}
           </button>
-        </div>
+        </form>
       ) : (
-        <div className="flex items-center gap-3.5 p-1">
-          <UserAvatar src={me.avatar} name={me.username} status={myStatus} className="size-16 ring-1 ring-white/20" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-display text-lg font-medium text-white">{me.username}</p>
-            <p className="truncate text-xs text-neutral-400">{me.title}</p>
-            {email && <p className="truncate text-[11px] text-neutral-500 font-mono mt-0.5">{email}</p>}
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="flex items-center gap-1 rounded-xl border border-white/15 bg-white/[0.05] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10 shrink-0"
-          >
-            <Pencil className="size-3" /> Sửa
-          </button>
-        </div>
+        <button type="button" onClick={() => setIsEditing(true)} className="btn-ghost w-full">
+          <Pencil className="size-3.5" /> Chỉnh sửa hồ sơ
+        </button>
       )}
 
-      {/* Credit & Daily Claim Card */}
-      <div className={cn(card, "p-3.5")}>
-        <div className="flex items-center justify-between gap-3">
+      {/* Credit and rank */}
+      <section className={cn(card, "divide-y divide-white/[0.075]")}>
+        <div className="flex items-center justify-between gap-3 p-4">
           <div>
-            <p className="text-[11px] uppercase tracking-wider text-neutral-400">Số dư Credit</p>
-            <p className="font-display text-2xl font-medium tabular text-white">{lua.toLocaleString("vi-VN")} 🌾</p>
+            <p className="text-xs text-ink-400">Credit</p>
+            <p className="num mt-1 text-2xl font-medium leading-none text-ink-100">{lua.toLocaleString("vi-VN")}</p>
           </div>
-          <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => open("wallet")} className="btn-ghost btn-sm">
+              Ví
+            </button>
             <button
               type="button"
               disabled={!canClaim}
               onClick={() => {
                 const r = claimDailyBonus();
-                setClaimMsg(r.success ? `+${r.amount} 🌾` : r.message);
+                setClaimMsg(r.success ? `+${r.amount.toLocaleString("vi-VN")} Credit` : r.message);
               }}
-              className="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-neutral-200 disabled:opacity-40 transition-colors"
+              className="btn-accent btn-sm"
             >
               {canClaim ? "Điểm danh" : "Đã nhận hôm nay"}
             </button>
-            <button type="button" onClick={() => open("wallet")} className="text-[11px] text-neutral-400 underline-offset-4 hover:text-white hover:underline">
-              Mở ví
-            </button>
           </div>
         </div>
-        {claimMsg && <p className="mt-2 text-xs font-semibold text-white">{claimMsg}</p>}
-        {transactions.length > 0 && (
-          <div className="mt-3 divide-y divide-white/[0.06] border-t border-white/[0.06]">
-            {transactions.slice(0, 3).map((t) => (
-              <div key={t.id} className="flex items-center justify-between gap-2 py-1.5 text-xs">
-                <span className="min-w-0 flex-1 truncate text-neutral-300">{(t as { description?: string }).description ?? t.type.replace(/_/g, " ")}</span>
-                <span className="shrink-0 text-[10px] text-neutral-500 font-mono">{relativeTime(t.timestamp)}</span>
-                <span className="w-16 shrink-0 text-right font-mono text-white">
-                  {t.amount >= 0 ? "+" : ""}
-                  {t.amount}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Rank ELO Card */}
-      <div className={cn(card, "p-3.5")}>
-        <div className="flex items-baseline justify-between">
-          <p className={cn("text-sm font-semibold", tier.color)}>
-            {tier.icon} {tier.name}
+        {claimMsg && (
+          <p role="status" className="px-4 py-2.5 text-xs text-accent-300">
+            {claimMsg}
           </p>
-          <p className="font-mono text-xs text-neutral-300">{score} ELO</p>
+        )}
+        <div className="p-4">
+          <div className="flex items-baseline justify-between">
+            <p className="text-sm font-medium text-ink-100">{tier.name}</p>
+            <p className="text-xs tabular text-ink-300">{score} ELO</p>
+          </div>
+          <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+          </div>
+          <div className="mt-2 flex justify-between gap-3 text-xs text-ink-400">
+            <span>{next ? `Còn ${next.minElo - score} ELO để lên ${next.name}` : "Hạng cao nhất"}</span>
+            <span className="shrink-0 tabular">
+              {totalWins} thắng / {totalGames} trận
+            </span>
+          </div>
         </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
-        </div>
-        <div className="mt-1.5 flex justify-between text-[11px] text-neutral-400 font-mono">
-          <span>{next ? `Còn ${next.minElo - score} ELO để lên hạng` : "Hạng cao nhất"}</span>
-          <span>
-            {totalWins} thắng / {totalGames} trận
-          </span>
-        </div>
-      </div>
+      </section>
 
-      {/* Game Breakdown */}
-      <div>
-        <p className="eyebrow pb-1.5 text-[10px] text-neutral-400">Xếp hạng theo game</p>
-        <div className={cn(card, "divide-y divide-white/[0.06]")}>
-          {rows.map((r) => {
-            const t = getRankTier(r.elo);
-            return (
-              <div key={r.label} className="flex items-center gap-2 px-3 py-2 text-xs">
-                <span className="min-w-0 flex-1 truncate font-medium text-white">{r.label}</span>
-                <span className={cn("shrink-0", t.color)}>{t.icon}</span>
-                <span className="w-10 shrink-0 text-right font-mono text-neutral-200">{r.elo}</span>
-                <span className="w-20 shrink-0 text-right font-mono text-[11px] text-neutral-400">
-                  {r.s.wins}T · {r.s.losses}B · {r.s.draws}H
-                </span>
-              </div>
-            );
-          })}
+      {/* Per-game ratings */}
+      <section>
+        <h3 className={sectionTitle}>Xếp hạng theo game</h3>
+        <div className={cn(card, "overflow-hidden")}>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-white/[0.075] text-ink-400">
+                <th scope="col" className="px-3 py-2 text-left font-medium">
+                  Game
+                </th>
+                <th scope="col" className="px-1 py-2 text-right font-medium">
+                  ELO
+                </th>
+                <th scope="col" className="px-1 py-2 text-right font-medium">
+                  Thắng
+                </th>
+                <th scope="col" className="px-1 py-2 text-right font-medium">
+                  Thua
+                </th>
+                <th scope="col" className="py-2 pl-1 pr-3 text-right font-medium">
+                  Hòa
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.06]">
+              {rows.map((r) => (
+                <tr key={r.label}>
+                  <th scope="row" className="px-3 py-2 text-left font-medium text-ink-100">
+                    {r.label}
+                  </th>
+                  <td className="px-1 py-2 text-right tabular text-ink-100">{r.elo}</td>
+                  <td className="px-1 py-2 text-right tabular text-ink-300">{r.s.wins}</td>
+                  <td className="px-1 py-2 text-right tabular text-ink-300">{r.s.losses}</td>
+                  <td className="py-2 pl-1 pr-3 text-right tabular text-ink-300">{r.s.draws}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
+      </section>
 
-      {/* Action shortcuts */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* Shortcuts */}
+      <div className="grid grid-cols-2 gap-2">
         {[
           { label: "Xếp hạng", icon: <Trophy className="size-3.5" />, to: "ranking" as const },
-          { label: "Nhân vật", icon: <Wand2 className="size-3.5" />, to: "creator" as const },
           { label: "Ghép trận", icon: <Swords className="size-3.5" />, to: "matchmaking" as const },
         ].map((b) => (
-          <button key={b.to} type="button" onClick={() => open(b.to)} className={cn(card, "flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium text-neutral-200 hover:bg-white/[0.08] hover:text-white transition-colors")}>
+          <button key={b.to} type="button" onClick={() => open(b.to)} className="btn-ghost btn-sm">
             {b.icon} {b.label}
           </button>
         ))}
       </div>
 
-      {/* Status */}
-      <div>
-        <p className="eyebrow pb-1.5 text-[10px] text-neutral-400">Trạng thái làm việc</p>
-        <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/[0.07] bg-black/50 p-1">
-          {statuses.map((x) => (
-            <button
-              key={x.id}
-              type="button"
-              onClick={() => setManual(x.id === "auto" ? null : x.id)}
-              className={cn("rounded-xl py-1.5 text-xs font-medium transition-colors", (manual ?? "auto") === x.id ? "bg-white text-black font-semibold" : "text-neutral-400 hover:text-white")}
-            >
-              {x.label}
-            </button>
-          ))}
+      {/* Presence */}
+      <section>
+        <h3 className={sectionTitle}>Trạng thái</h3>
+        <div role="group" aria-label="Trạng thái làm việc" className="grid grid-cols-3 gap-1 rounded-xl border border-white/[0.075] bg-white/[0.025] p-1">
+          {statuses.map((x) => {
+            const active = (manual ?? "auto") === x.id;
+            return (
+              <button
+                key={x.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setManual(x.id === "auto" ? null : x.id)}
+                className={cn("rounded-lg py-1.5 text-xs font-medium transition-colors", active ? "bg-white/10 text-ink-100" : "text-ink-400 hover:text-ink-100")}
+              >
+                {x.label}
+              </button>
+            );
+          })}
         </div>
-      </div>
+      </section>
 
-      {/* Sound & Logout */}
-      <div className="flex items-center justify-between gap-2 pt-1 pb-2">
-        <button type="button" onClick={toggleSound} className="chip border-white/10 bg-white/5 text-neutral-300 hover:text-white">
-          Âm thanh: {soundEnabled ? "Bật" : "Tắt"}
-        </button>
-        <button type="button" onClick={() => signOut()} className="chip border-white/10 bg-white/5 text-neutral-300 hover:text-white">
-          <LogOut className="size-3" /> Đăng xuất
+      {/* Sound and sign out */}
+      <div className="flex items-center justify-between gap-2 border-t border-white/[0.075] pt-4">
+        {!inGame ? (
+          <button type="button" onClick={toggleSound} className="btn-ghost btn-sm">
+            Âm thanh: {soundEnabled ? "Bật" : "Tắt"}
+          </button>
+        ) : (
+          <span />
+        )}
+        <button type="button" onClick={() => signOut()} className="btn-ghost btn-sm">
+          <LogOut className="size-3.5" /> Đăng xuất
         </button>
       </div>
     </div>
@@ -1048,14 +1042,14 @@ function DmList({ myId, onOpen }: { myId: string; onOpen: () => void }) {
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="truncate text-sm font-bold">{name}</p>
-                <span className="shrink-0 text-[10px] text-ink-500">{relativeTime(last.timestamp)}</span>
+                <span className="shrink-0 text-xs text-ink-500">{relativeTime(last.timestamp)}</span>
               </div>
               <p className={cn("truncate text-xs", n ? "font-semibold text-white" : "text-ink-400")}>
                 {last.senderId === myId ? "Bạn: " : ""}
                 {last.content || "📎 Tệp đính kèm"}
               </p>
             </div>
-            {n > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1 text-[10px] font-bold text-black">{n}</span>}
+            {n > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1 text-xs font-bold text-black">{n}</span>}
           </button>
         );
       })}
@@ -1075,7 +1069,7 @@ function OnlineList({ onOpenDm }: { onOpenDm: () => void }) {
   ];
   return (
     <div className="p-3">
-      {list.length > 0 && <p className="eyebrow px-2 pb-1.5 pt-1 text-[10px] text-ink-400">Đồng nghiệp</p>}
+      {list.length > 0 && <p className="eyebrow px-2 pb-1.5 pt-1 text-xs text-ink-400">Đồng nghiệp</p>}
       {list.length === 0 && (
         <div className="px-4 py-10 text-center">
           <Users className="mx-auto mb-2 size-8 text-ink-500" />
@@ -1087,7 +1081,7 @@ function OnlineList({ onOpenDm }: { onOpenDm: () => void }) {
         (g) =>
           g.items.length > 0 && (
             <div key={g.label} className="mb-3">
-              <p className={cn("eyebrow px-2 pb-1.5 text-[10px]", g.tone)}>
+              <p className={cn("eyebrow px-2 pb-1.5 text-xs", g.tone)}>
                 {g.label} · {g.items.length}
               </p>
               {g.items.map((p) => (
@@ -1108,7 +1102,7 @@ function OnlineList({ onOpenDm }: { onOpenDm: () => void }) {
                       {p.status === "away" && ` · vắng ${relativeTime(p.awaySince ?? p.lastSeen)}`}
                     </p>
                   </div>
-                  <span className="font-mono text-[11px] text-ink-400">{p.score}</span>
+                  <span className="font-mono text-xs text-ink-400">{p.score}</span>
                 </button>
               ))}
             </div>

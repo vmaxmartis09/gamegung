@@ -34,6 +34,8 @@ export interface WerewolfRoleRandomizerProps {
   onClose: () => void;
   onStartNight1?: () => void;
   initialMode?: "roulette" | "inspect";
+  /** Hiển thị trong khung cha (position: relative) thay vì phủ toàn màn hình. */
+  inline?: boolean;
 }
 
 type Stage = "spinning" | "locking" | "revealed";
@@ -47,6 +49,7 @@ export function WerewolfRoleRandomizer({
   onClose,
   onStartNight1,
   initialMode = "roulette",
+  inline = false,
 }: WerewolfRoleRandomizerProps) {
   const soundEnabled = useAppStore((s) => s.soundEnabled);
   const [stage, setStage] = useState<Stage>(initialMode === "inspect" ? "revealed" : "spinning");
@@ -115,7 +118,7 @@ export function WerewolfRoleRandomizer({
               <div className="size-12 rounded-full border border-amber-600/40 bg-red-950/80 grid place-items-center text-xl">
                 🐺
               </div>
-              <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.2em] text-amber-300/70 font-bold">
+              <p className="mt-2 font-mono text-xs uppercase tracking-[0.2em] text-amber-300/70 font-bold">
                 BẢN MỆNH
               </p>
             </div>
@@ -128,17 +131,17 @@ export function WerewolfRoleRandomizer({
               style={{ borderColor: curTheme.borderGlow }}
             >
               <div className="flex items-center justify-between text-xs font-bold">
-                <span className="flex items-center gap-1 text-[11px]" style={{ color: curTheme.accentColor }}>
+                <span className="flex items-center gap-1 text-xs" style={{ color: curTheme.accentColor }}>
                   {curTheme.emoji} {curTheme.name}
                 </span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/50 text-white/70">
+                <span className="text-xs px-1.5 py-0.5 rounded bg-black/50 text-white/70">
                   {curTheme.teamLabel}
                 </span>
               </div>
               <div className="h-24 w-full my-auto opacity-85 group-hover:opacity-100 transition-opacity">
                 <RoleCardIllustration role={curRole} className="scale-90" />
               </div>
-              <p className="text-[10px] text-white/50 truncate font-mono text-center">
+              <p className="text-xs text-white/50 truncate font-mono text-center">
                 {curTheme.sub}
               </p>
             </div>
@@ -268,7 +271,7 @@ export function WerewolfRoleRandomizer({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[70] overflow-hidden bg-black/90 backdrop-blur-md flex flex-col justify-between"
+        className={inline ? "absolute inset-0 z-[60] overflow-y-auto overflow-x-hidden rounded-[36px] bg-black/90 backdrop-blur-md flex flex-col justify-between no-scrollbar" : "fixed inset-0 z-[70] overflow-hidden bg-black/90 backdrop-blur-md flex flex-col justify-between"}
       >
         {/* Dynamic Atmospheric Fog & Particle Background */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -296,15 +299,8 @@ export function WerewolfRoleRandomizer({
             </span>
             <div>
               <h2 className="font-display text-sm sm:text-base font-extrabold tracking-wide uppercase text-white">
-                Bản Mệnh Ma Sói
+                Vai của bạn
               </h2>
-              <p className="font-mono text-[10px] text-ink-400">
-                {stage === "spinning"
-                  ? "Đang phân định số mệnh…"
-                  : stage === "locking"
-                  ? "Đã khóa số phận!"
-                  : "Bảo mật thông tin vai"}
-              </p>
             </div>
           </div>
 
@@ -320,7 +316,7 @@ export function WerewolfRoleRandomizer({
                     activeTab === "card" ? "bg-white text-black shadow-sm" : "text-white/70 hover:text-white"
                   )}
                 >
-                  Thẻ Bài
+                  Thẻ
                 </button>
                 <button
                   type="button"
@@ -330,7 +326,7 @@ export function WerewolfRoleRandomizer({
                     activeTab === "wall" ? "bg-white text-black shadow-sm" : "text-white/70 hover:text-white"
                   )}
                 >
-                  Tilted Tiles
+                  Tất cả
                 </button>
               </div>
             )}
@@ -366,15 +362,18 @@ export function WerewolfRoleRandomizer({
           {(stage === "spinning" || activeTab === "wall") && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center">
               {/* Tilted Tiles Engine */}
-              <TiltedTiles
-                columns={tileColumns}
-                rotateX={22}
-                rotateY={-16}
-                rotateZ={6}
-                duration={stage === "spinning" ? 14 : 26}
-                speedMultiplier={stage === "spinning" ? 0.6 : 1}
-                className="opacity-80"
-              />
+              <div className="absolute inset-0 overflow-hidden">
+                <TiltedTiles
+                  columns={tileColumns}
+                  rotateX={22}
+                  rotateY={-16}
+                  rotateZ={6}
+                  duration={stage === "spinning" ? 14 : 26}
+                  speedMultiplier={stage === "spinning" ? 0.6 : 1}
+                  className="h-full opacity-80"
+                />
+                {stage === "spinning" && <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,rgba(0,0,0,0.65),transparent_65%)]" />}
+              </div>
 
               {/* Central Destiny Vortex & Crosshair during spinning */}
               {stage === "spinning" && (
@@ -390,19 +389,13 @@ export function WerewolfRoleRandomizer({
                     </div>
                   </div>
 
-                  <p className="mt-4 font-display text-lg sm:text-xl font-black text-white drop-shadow-md">
-                    VÒNG XOÁY ĐỊNH MỆNH
-                  </p>
-                  <p className="text-xs text-white/70 font-mono mt-1">
-                    Bản mệnh của bạn sắp xuất hiện…
-                  </p>
 
                   <button
                     type="button"
                     onClick={lockInCard}
                     className="mt-5 btn-lime px-6 py-2.5 shadow-brutal flex items-center gap-2 text-sm font-black"
                   >
-                    <Zap className="size-4" /> DỪNG & KHÓA THẺ NGAY
+                    <Zap className="size-4" /> KHÓA THẺ
                   </button>
                 </motion.div>
               )}
@@ -419,7 +412,7 @@ export function WerewolfRoleRandomizer({
               transition={{ type: "spring", stiffness: 180, damping: 16 }}
               className="relative z-20 flex flex-col items-center"
             >
-              <div className="relative size-64 sm:size-72 rounded-[28px] overflow-hidden shadow-[0_0_80px_rgba(239,68,68,0.8)] border-[3px] border-amber-500/60">
+              <div className={cn("relative rounded-[28px] overflow-hidden shadow-[0_0_80px_rgba(239,68,68,0.8)] border-[3px] border-amber-500/60", inline ? "size-52" : "size-64 sm:size-72")}>
                 <CardBackArt />
               </div>
               <motion.div
@@ -427,7 +420,7 @@ export function WerewolfRoleRandomizer({
                 animate={{ opacity: 1, y: 0 }}
                 className="mt-6 flex items-center gap-2 rounded-full bg-red-950/90 px-4 py-1.5 border border-red-500/60 text-xs font-bold text-red-200"
               >
-                <Flame className="size-3.5 text-red-400 animate-bounce" /> ĐỊNH MỆNH ĐÃ CHỌN BẠN!
+                <Flame className="size-3.5 text-red-400 animate-bounce" />
               </motion.div>
             </motion.div>
           )}
@@ -438,7 +431,7 @@ export function WerewolfRoleRandomizer({
           {stage === "revealed" && activeTab === "card" && (
             <div className="relative z-20 flex flex-col items-center max-w-md w-full">
               {/* Background Tilted Tiles Subtle blur backdrop */}
-              <div className="fixed inset-0 -z-10 opacity-30 pointer-events-none">
+              <div className="absolute inset-0 -z-10 opacity-30 pointer-events-none">
                 <TiltedTiles
                   columns={tileColumns}
                   rotateX={20}
@@ -453,7 +446,7 @@ export function WerewolfRoleRandomizer({
               {/* 3D Interactive Card with Perspective */}
               <div
                 style={{ perspective: 1200 }}
-                className="w-full max-w-[320px] sm:max-w-[340px] h-[min(450px,66dvh)] sm:h-[min(480px,70dvh)] cursor-pointer"
+                className={cn("w-full cursor-pointer", inline ? "max-w-[240px] h-[340px]" : "max-w-[320px] sm:max-w-[340px] h-[min(450px,66dvh)] sm:h-[min(480px,70dvh)]")}
                 onMouseMove={handleMouseMove}
                 onMouseLeave={handleMouseLeave}
                 onClick={handleFlip}
@@ -483,7 +476,7 @@ export function WerewolfRoleRandomizer({
                     <CardBackArt />
                     <div className="absolute bottom-6 inset-x-6 text-center pointer-events-none">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 backdrop-blur-md px-3.5 py-1 text-xs font-bold text-white border border-white/20">
-                        <Sparkles className="size-3 text-amber-300" /> Chạm để lật thẻ
+                        <Sparkles className="size-3 text-amber-300" /> Lật
                       </span>
                     </div>
                   </div>
@@ -509,13 +502,13 @@ export function WerewolfRoleRandomizer({
                           <h3 className="font-display text-xl font-black text-white leading-tight">
                             {theme.name}
                           </h3>
-                          <p className="text-[11px] font-bold" style={{ color: theme.accentColor }}>
+                          <p className="text-xs font-bold" style={{ color: theme.accentColor }}>
                             {theme.sub}
                           </p>
                         </div>
                       </div>
                       <span
-                        className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider text-black"
+                        className="px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider text-black"
                         style={{ backgroundColor: theme.accentColor }}
                       >
                         {theme.teamLabel}
@@ -533,26 +526,20 @@ export function WerewolfRoleRandomizer({
 
                     {/* Role Flavor Quote & Ability */}
                     <div className="space-y-2.5 bg-black/60 backdrop-blur-md rounded-2xl p-3.5 border border-white/10 text-white">
-                      <p className="text-[11px] italic text-ink-200 leading-snug">
-                        {theme.quote}
-                      </p>
-                      <div className="text-[11px] font-medium text-ink-300 border-t border-white/10 pt-2">
-                        <span className="font-bold text-white">Nhiệm vụ: </span>
-                        {theme.actionHint}
-                      </div>
+                      <p className="text-xs font-medium text-ink-200 leading-snug">{theme.actionHint}</p>
 
                       {/* If Werewolf: reveal wolf teammates! */}
                       {role === "wolf" && (
-                        <div className="border-t border-red-500/30 pt-2 text-[11px]">
+                        <div className="border-t border-red-500/30 pt-2 text-xs">
                           <span className="font-bold text-red-400 flex items-center gap-1">
-                            🐺 Đồng bọn bầy sói:
+                            🐺
                           </span>
                           {wolfAllies.length > 0 ? (
                             <div className="mt-1 flex flex-wrap gap-1.5 items-center">
                               {wolfAllies.map((ally) => (
                                 <span
                                   key={ally.id}
-                                  className="inline-flex items-center gap-1 rounded-lg bg-red-950/80 border border-red-500/40 px-2 py-0.5 text-[10px] text-red-200"
+                                  className="inline-flex items-center gap-1 rounded-lg bg-red-950/80 border border-red-500/40 px-2 py-0.5 text-xs text-red-200"
                                 >
                                   <UserAvatar src={ally.avatar} name={ally.name} className="size-4" />
                                   {ally.name}
@@ -560,7 +547,7 @@ export function WerewolfRoleRandomizer({
                               ))}
                             </div>
                           ) : (
-                            <span className="text-white/60"> (Bạn là Sói duy nhất)</span>
+                            <span className="text-white/60"> —</span>
                           )}
                         </div>
                       )}
@@ -582,17 +569,17 @@ export function WerewolfRoleRandomizer({
                     className="flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/15 px-3 py-2 text-xs font-bold text-white border border-white/10 active:scale-95 transition-all select-none"
                     title="Giữ nút để hé nhìn bài bí mật"
                   >
-                    <Eye className="size-3.5 text-amber-400" /> Giữ để hé nhìn
+                    <Eye className="size-4 text-amber-400" />
                   </button>
 
                   {/* Toggle Flip Button */}
                   <button
                     type="button"
                     onClick={handleFlip}
+                    title={isFlipped ? "Úp thẻ lại" : "Lật mở thẻ"}
                     className="flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/15 px-3 py-2 text-xs font-bold text-white border border-white/10 transition-all"
                   >
-                    <RotateCcw className="size-3.5 text-cyan-400" />
-                    {isFlipped ? "Úp thẻ lại" : "Lật mở thẻ"}
+                    <RotateCcw className="size-4 text-cyan-400" />
                   </button>
 
                   {/* Quick Hide Panic Button */}
@@ -603,18 +590,13 @@ export function WerewolfRoleRandomizer({
                         setIsFlipped(false);
                         setIsPeeking(false);
                       }}
-                      className="flex items-center gap-1.5 rounded-xl bg-red-950/60 hover:bg-red-900/60 px-3 py-2 text-xs font-bold text-red-300 border border-red-500/30 transition-all"
+                      title="Che bài ngay" className="flex items-center gap-1.5 rounded-xl bg-red-950/60 hover:bg-red-900/60 px-3 py-2 text-xs font-bold text-red-300 border border-red-500/30 transition-all"
                     >
-                      <EyeOff className="size-3.5" /> Che bài ngay
+                      <EyeOff className="size-4" />
                     </button>
                   )}
                 </div>
 
-                <p className="text-[11px] text-ink-400 font-medium">
-                  {cardShown
-                    ? "⚠️ Hãy nhớ kỹ vai trước khi vào đêm đầu tiên"
-                    : "💡 Bạn có thể bấm hoặc giữ để lật bài bất cứ lúc nào"}
-                </p>
               </div>
             </div>
           )}
@@ -632,13 +614,9 @@ export function WerewolfRoleRandomizer({
               className="btn-lime w-full py-3.5 text-base font-extrabold shadow-brutal flex items-center justify-center gap-2 group"
             >
               <Moon className="size-5 group-hover:rotate-12 transition-transform" />
-              SẴN SÀNG · BẮT ĐẦU ĐÊM 1
+              VÀO ĐÊM
             </button>
-          ) : (
-            <p className="text-xs font-mono text-ink-500 text-center">
-              Ma Sói Tiệc Văn Phòng · Hệ Thống Bản Mệnh 3D
-            </p>
-          )}
+          ) : null}
         </div>
       </motion.div>
     </AnimatePresence>

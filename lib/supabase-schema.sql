@@ -383,3 +383,27 @@ alter table public.profiles add column if not exists elo_uno integer default 120
 -- create policy "Own profile update" on public.profiles for update using (auth.uid()::text = id) with check (auth.uid()::text = id);
 -- drop policy if exists "Allow insert on match_history" on public.match_history;
 -- create policy "Own match insert" on public.match_history for insert with check (auth.uid()::text = player_id);
+
+-- ====================================================================
+-- MIGRATION 2026-10: ẢNH ĐẠI DIỆN (SUPABASE STORAGE)
+-- Chạy một lần trong SQL Editor. Bucket công khai để mọi người xem được avatar,
+-- nhưng chỉ chủ tài khoản được ghi/xoá trong thư mục <auth.uid()>/.
+-- ====================================================================
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', true, 1048576, array['image/webp', 'image/jpeg', 'image/png'])
+on conflict (id) do update set public = true, file_size_limit = 1048576, allowed_mime_types = array['image/webp', 'image/jpeg', 'image/png'];
+
+drop policy if exists "Avatars are public" on storage.objects;
+create policy "Avatars are public" on storage.objects for select using (bucket_id = 'avatars');
+
+drop policy if exists "Own avatar upload" on storage.objects;
+create policy "Own avatar upload" on storage.objects for insert to authenticated
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "Own avatar update" on storage.objects;
+create policy "Own avatar update" on storage.objects for update to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "Own avatar delete" on storage.objects;
+create policy "Own avatar delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);

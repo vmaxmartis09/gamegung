@@ -204,7 +204,7 @@ export function WerewolfMicButton({
       </button>
 
       {voice.error && (
-        <span className="text-[11px] text-pop-red absolute -bottom-5 left-0 whitespace-nowrap">
+        <span className="text-xs text-pop-red absolute -bottom-5 left-0 whitespace-nowrap">
           {voice.error}
         </span>
       )}

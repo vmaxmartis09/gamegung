@@ -392,13 +392,13 @@ function RunningItemCapsule({ it, g }: RunningItemProps) {
         }}
       >
         {/* Hàng trên: Icon + Tên vật phẩm + Dấu chỉ hướng chạy */}
-        <div className="flex items-center justify-between text-[11px] leading-tight">
+        <div className="flex items-center justify-between text-xs leading-tight">
           <div className="flex items-center gap-1.5">
             <span className="text-base drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]">{def.icon}</span>
             <span className="font-sans font-bold tracking-wide text-slate-200">{def.name}</span>
           </div>
           <span
-            className="flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-mono font-bold"
+            className="flex items-center gap-0.5 rounded px-1 py-0.5 text-xs font-mono font-bold"
             style={{ color: def.col, backgroundColor: `${def.col}18` }}
           >
             {it.dir > 0 ? "▶" : "◀"} {Math.ceil(leftTime)}s
@@ -418,12 +418,12 @@ function RunningItemCapsule({ it, g }: RunningItemProps) {
                 idleCol="#cbd5e1"
               />
             </div>
-            {isP1Locked && <span className="text-[9px] font-bold text-sky-400">P1 KHÓA</span>}
+            {isP1Locked && <span className="text-xs font-bold text-sky-400">P1 KHÓA</span>}
           </div>
 
           {/* P2 Dòng chữ (nếu đấu 2 người hoặc bot) */}
           {(!f1.bot || isP2Locked) && (
-            <div className="flex items-center justify-between font-mono text-[11px] leading-none opacity-85">
+            <div className="flex items-center justify-between font-mono text-xs leading-none opacity-85">
               <div className="flex items-center gap-1 truncate">
                 <span className="size-1.5 rounded-full shrink-0" style={{ background: P_COL[1] }} />
                 <TypedWord
@@ -433,7 +433,7 @@ function RunningItemCapsule({ it, g }: RunningItemProps) {
                   idleCol="#94a3b8"
                 />
               </div>
-              {isP2Locked && <span className="text-[9px] font-bold text-rose-400">P2 KHÓA</span>}
+              {isP2Locked && <span className="text-xs font-bold text-rose-400">P2 KHÓA</span>}
             </div>
           )}
         </div>
@@ -516,17 +516,13 @@ function DuelistStation({
   const col = P_COL[f.id];
   const frac = mode === 3 ? (f.text.length ? f.idx / f.text.length : 0) : f.hp / (f.maxHp || 1);
   const ghost = mode === 3 ? frac : f.ghost / (f.maxHp || 1);
-  const hpCol =
-    frac > 0.5 ? "from-emerald-400 to-teal-500" : frac > 0.25 ? "from-amber-400 to-orange-500" : "from-rose-500 to-red-600";
+  return { frac, ghost };
+}
+
+/** Avatar đứng đúng trục bắn tên lửa — nằm trong sân đấu (canvas). */
+const DuelistAvatar = memo(function DuelistAvatar({ f, isP1, src, chibi }: Omit<DuelistStationProps, "mode" | "opponent">) {
+  const col = P_COL[f.id];
   const shove = f.fireN > 0 ? (isP1 ? "-translate-y-2" : "translate-y-2") : "";
-
-  const badges: [string, string][] = [];
-  if (f.armor > 0) badges.push([`🛡 ${Math.ceil(f.armor)}`, "#7dd3fc"]);
-  if (f.reflectT > 0) badges.push([`🔄 ${f.reflectT.toFixed(1)}s`, "#d8b4fe"]);
-  if (f.lifeT > 0) badges.push([`🩸 ${f.lifeT.toFixed(1)}s`, "#6ee7b7"]);
-  if (f.slowT > 0) badges.push(["🐌 Chậm", "#fcd34d"]);
-  if (f.freezeT > 0) badges.push(["❄️ Băng", "#a5f3fc"]);
-
   return (
     <div
       className={cn(
@@ -576,13 +572,71 @@ function DuelistStation({
           {f.freezeT > 0 && <span className="absolute inset-0 grid place-items-center bg-cyan-400/30 text-3xl">❄️</span>}
         </div>
       </div>
+    </div>
+  );
+});
 
-      {/* Phải: kho thẻ + ô gõ */}
-      <div className="rounded-2xl border bg-slate-950/85 px-3 py-2.5 backdrop-blur-md" style={{ borderColor: col + "33" }}>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] font-bold uppercase text-slate-500">Thẻ</span>
+/** HUD responsive nằm ngoài sân đấu: chữ luôn đọc được ở mọi kích thước màn hình. */
+const DuelistHud = memo(function DuelistHud({ f, isP1, mode }: Pick<DuelistStationProps, "f" | "isP1" | "mode">) {
+  const col = P_COL[f.id];
+  const { frac, ghost } = fighterView(f, mode);
+  const hpCol =
+    frac > 0.5 ? "from-emerald-400 to-teal-500" : frac > 0.25 ? "from-amber-400 to-orange-500" : "from-rose-500 to-red-600";
+
+  const badges: [string, string][] = [];
+  if (f.armor > 0) badges.push([`🛡 ${Math.ceil(f.armor)}`, "#7dd3fc"]);
+  if (f.reflectT > 0) badges.push([`🔄 ${f.reflectT.toFixed(1)}s`, "#d8b4fe"]);
+  if (f.lifeT > 0) badges.push([`🩸 ${f.lifeT.toFixed(1)}s`, "#6ee7b7"]);
+  if (f.slowT > 0) badges.push(["🐌 Chậm", "#fcd34d"]);
+  if (f.freezeT > 0) badges.push(["❄️ Băng", "#a5f3fc"]);
+
+  return (
+    <div className="grid select-none grid-cols-1 gap-2 sm:grid-cols-[1.15fr_1fr]">
+      <SpotlightCard
+        spotlightColor={P_GLOW[f.id]}
+        className={cn(
+          "overflow-hidden rounded-2xl border bg-slate-950/85 px-3.5 py-3 backdrop-blur-md",
+          f.err > 0 && "ring-2 ring-rose-500/70"
+        )}
+        style={{ borderColor: col + "44" }}
+      >
+        <BorderBeam size={120} duration={8} colorFrom={col} colorTo="transparent" />
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="truncate text-sm font-bold sm:text-base" style={{ color: col }}>
+            {f.name}{" "}
+            <span className="text-xs font-normal text-slate-500">{isP1 ? "· Bạn" : f.bot ? "· Máy" : "· P2"}</span>
+          </span>
+          <span className="font-mono text-sm font-bold tabular-nums text-white sm:text-base">
+            {mode === 3 ? `${Math.round(frac * 100)}%` : Math.ceil(f.hp)}
+          </span>
+        </div>
+        <div className="relative mt-2 h-3.5 overflow-hidden rounded-full border border-white/10 bg-slate-900">
+          <div className="absolute inset-y-0 left-0 bg-white/40 transition-[width] duration-300" style={{ width: `${Math.max(frac, ghost) * 100}%` }} />
+          <div className={cn("absolute inset-y-0 left-0 bg-gradient-to-r transition-[width] duration-150", hpCol)} style={{ width: `${frac * 100}%` }} />
+          {f.armor > 0 && (
+            <div className="absolute inset-y-0 left-0 bg-sky-400/70" style={{ width: `${Math.min(100, (f.armor / f.maxHp) * 100)}%` }} />
+          )}
+        </div>
+        <div className="mt-2 flex min-h-[22px] flex-wrap items-center gap-1.5 text-xs font-semibold">
+          {badges.map(([t, c]) => (
+            <span key={t} className="rounded-full border border-white/10 bg-black/40 px-2 py-0.5" style={{ color: c }}>
+              {t}
+            </span>
+          ))}
+          {f.combo > 1 && <span className="text-amber-300">COMBO ×{f.combo}</span>}
+          {mode === 2 && f.ammo > 0 && <span className="text-amber-300">🚀 ×{f.ammo}</span>}
+        </div>
+      </SpotlightCard>
+
+      <SpotlightCard
+        spotlightColor={P_GLOW[f.id]}
+        className="rounded-2xl border bg-slate-950/85 px-3.5 py-3 backdrop-blur-md"
+        style={{ borderColor: col + "33" }}
+      >
+        <div className="flex min-h-[32px] items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Thẻ</span>
           {f.hand.length === 0 ? (
-            <span className="text-[10px] italic text-slate-600">trống</span>
+            <span className="text-xs italic text-slate-600">trống</span>
           ) : (
             f.hand.map((c, i) => {
               const def = ITEMS[c.type];
@@ -590,7 +644,7 @@ function DuelistStation({
               return (
                 <div
                   key={`${c.type}-${i}`}
-                  className={cn("relative grid size-7 place-items-center rounded-md border text-xs", partner && "ring-2 ring-amber-400")}
+                  className={cn("relative grid size-8 place-items-center rounded-lg border text-sm", partner && "ring-2 ring-amber-400")}
                   style={{ borderColor: def.col, backgroundColor: `${def.col}22` }}
                   title={`${def.name} · tự kích hoạt sau ${c.t.toFixed(1)}s`}
                 >
@@ -604,7 +658,7 @@ function DuelistStation({
           )}
         </div>
         {mode === 1 && (
-          <div className="mt-1.5 rounded-lg bg-black/50 px-2 py-1 text-center font-mono text-sm font-bold tracking-widest">
+          <div className="mt-2 rounded-lg bg-black/50 px-2 py-1.5 text-center font-mono text-base font-bold tracking-widest">
             {Array.from(f.word).map((ch, i) => (
               <span key={i} style={{ color: i < f.buf.length ? "#34d399" : "#94a3b8" }}>
                 {ch}
@@ -613,12 +667,12 @@ function DuelistStation({
           </div>
         )}
         {mode === 2 && (
-          <div className="mt-1.5 flex items-center justify-between rounded-lg bg-black/50 px-2 py-1 font-mono text-sm">
+          <div className="mt-2 flex items-center justify-between rounded-lg bg-black/50 px-2.5 py-1.5 font-mono text-base">
             <span className="truncate font-bold text-white">{f.freezeT > 0 ? "❄️ Bị đóng băng" : f.buf || <span className="opacity-30">▍</span>}</span>
-            <span className="ml-2 shrink-0 text-[9px] text-amber-300">{isP1 ? "SPACE" : f.bot ? "" : "ENTER"}</span>
+            <span className="ml-2 shrink-0 text-xs text-amber-300">{isP1 ? "SPACE" : f.bot ? "" : "ENTER"}</span>
           </div>
         )}
-      </div>
+      </SpotlightCard>
     </div>
   );
 }
@@ -761,6 +815,7 @@ export function TypingBattleGame() {
     }))
   );
   const soundEnabled = useAppStore((s) => s.soundEnabled);
+  const matchOpp = useMatchOpponent();
   const { settle, reset: resetSettlement, result, open: resultOpen, setOpen: setResultOpen } =
     useMatchSettlement("typing");
 
@@ -856,7 +911,7 @@ export function TypingBattleGame() {
     gRef.current = createGame({ mode, vsBot, diff, names: [me.username || "P1", opp.name] });
     resetSettlement();
     setPhase("playing");
-  }, [mode, vsBot, diff, me.username, resetSettlement]);
+  }, [mode, vsBot, diff, me.username, resetSettlement, matchOpp]);
 
   // Vòng lặp cập nhật engine + vẽ canvas mượt mà 60fps
   useEffect(() => {
@@ -966,6 +1021,115 @@ export function TypingBattleGame() {
     return () => window.removeEventListener("keydown", onDown);
   }, [hooks]);
 
+  const setupPanel = (
+              <div className={cn("max-h-full overflow-y-auto rounded-3xl border border-white/15 bg-slate-950/95 p-6 shadow-2xl space-y-5", narrow ? "w-full" : "w-[580px]")}>
+                <div className="border-b border-white/10 pb-4">
+                  <div className="flex items-center gap-2 text-sky-400">
+                    <Swords className="size-5" />
+                    <span className="text-xs font-mono font-bold uppercase tracking-widest">
+                      <ShinyText text="Office Arena · Typing Duel" className="!from-sky-400 !via-white !to-sky-400" />
+                    </span>
+                  </div>
+                  <h2 className="mt-1 font-display text-xl font-extrabold tracking-wide text-white sm:text-2xl"><BlurText text="Đấu Trường Gõ Chữ Trực Diện" /></h2>
+                  <p className="mt-1 text-xs text-slate-400 leading-relaxed">
+                    Thiết lập trận đấu đối kháng hai kỳ thủ. Vật phẩm chạy ngang qua màn hình theo từng
+                    làn, gõ đúng từ để khóa mục tiêu, tích trữ đạn và hợp thể kỹ năng.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Chế độ đối kháng
+                  </label>
+                  <Segmented
+                    value={mode}
+                    onChange={setMode}
+                    options={[
+                      { value: 2 as Mode, label: "🃏 Băng chuyền thẻ (Đề xuất)" },
+                      { value: 1 as Mode, label: "🚀 Đọ tên lửa" },
+                      { value: 3 as Mode, label: "🏁 Đua gõ tốc độ" },
+                    ]}
+                  />
+                  <div className="mt-2 text-xs text-slate-300">
+                    {mode === 2 && (
+                      <span>Vật phẩm lướt ngang qua màn hình. Gõ chữ trên vật phẩm để cướp về tay, gom 2 thẻ để hợp thể chiêu thức.</span>
+                    )}
+                    {mode === 1 && (
+                      <span>Gõ đúng từ khóa để nạp tên lửa, bấm Space phóng đòn hạ gục đối thủ trước khi cạn máu.</span>
+                    )}
+                    {mode === 3 && (
+                      <span>Hai đấu thủ đua tốc độ gõ đoạn văn bản chuẩn xác, ai cán đích trước sẽ chiến thắng.</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-300">
+                      Đối thủ
+                    </label>
+                    <Segmented
+                      value={vsBot ? 1 : 0}
+                      onChange={(v) => setVsBot(v === 1)}
+                      options={[
+                        { value: 1, label: "🤖 Đấu với Máy" },
+                        { value: 0, label: "👥 2 Người (1 phím)" },
+                      ]}
+                    />
+                  </div>
+
+                  {vsBot && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-300">
+                        Độ khó AI
+                      </label>
+                      <Segmented
+                        value={diff}
+                        onChange={setDiff}
+                        size="sm"
+                        options={[1, 2, 3, 4, 5].map((v) => ({
+                          value: v,
+                          label: ["Tập sự", "Dễ", "Chuẩn", "Cao thủ", "Kiện tướng"][v - 1],
+                        }))}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {vsBot && <StakePicker value={stake} onChange={setStake} />}
+
+                {/* Bảng hướng dẫn phím gõ tinh tế */}
+                <div className="flex flex-wrap items-center justify-between rounded-xl bg-slate-900/80 border border-white/10 px-3.5 py-2.5 text-xs text-slate-300">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-sky-400">P1 (Bạn):</span>
+                    <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-xs">
+                      Nửa trái phím
+                    </kbd>
+                    <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-xs">
+                      Space: Bắn
+                    </kbd>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-rose-400">P2:</span>
+                    <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-xs">
+                      Nửa phải phím
+                    </kbd>
+                    <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-xs">
+                      Enter: Bắn
+                    </kbd>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:brightness-110 active:scale-[0.99]"
+                  onClick={start}
+                >
+                  <Play className="size-4" /> BẮT ĐẦU ĐỐI ĐẦU
+                </button>
+              </div>
+  );
+
   const g = gRef.current;
   const show = phase !== "setup" && g;
   const opp = botRef.current;
@@ -1008,7 +1172,7 @@ export function TypingBattleGame() {
       <div className={cn("mx-auto w-full max-w-[min(100%,calc((100dvh-8.5rem)*1.774))]", phase === "setup" && "hidden")}>
         <div
           ref={wrapRef}
-          className="relative w-full overflow-hidden rounded-3xl border border-white/10 bg-[#050813] shadow-2xl"
+          className={cn("relative w-full overflow-hidden rounded-3xl border border-white/10 bg-[#050813] shadow-2xl", phase === "setup" && narrow && "hidden")}
           style={{ aspectRatio: `${W}/${H}` }}
         >
           <div
@@ -1022,22 +1186,8 @@ export function TypingBattleGame() {
             {show && g && (
               <>
                 {/* 1. HAI BÊN KỲ THỦ ĐỨNG ĐỐI DIỆN TRỰC TIẾP (NHƯ ĐÁNH CỜ) */}
-                <DuelistStation
-                  f={g.fighters[0]}
-                  opponent={g.fighters[1]}
-                  isP1={true}
-                  src={srcs[0]}
-                  chibi={chibi[0]}
-                  mode={g.mode}
-                />
-                <DuelistStation
-                  f={g.fighters[1]}
-                  opponent={g.fighters[0]}
-                  isP1={false}
-                  src={srcs[1]}
-                  chibi={chibi[1]}
-                  mode={g.mode}
-                />
+                <DuelistAvatar f={g.fighters[0]} isP1={true} src={srcs[0]} chibi={chibi[0]} />
+                <DuelistAvatar f={g.fighters[1]} isP1={false} src={srcs[1]} chibi={chibi[1]} />
 
                 {/* 2. Ở GIỮA: CÁC ITEM CHẠY NGANG QUA MÀN HÌNH VỚI HIỆU ỨNG MƯỢT (MODE 2) */}
                 {g.mode === 2 && (
@@ -1154,7 +1304,9 @@ export function TypingBattleGame() {
           </div>
         </div>
 
-        <p className="mt-2.5 text-center text-xs text-slate-400 font-sans">
+        {show && g && <DuelistHud f={g.fighters[0]} isP1={true} mode={g.mode} />}
+
+        <p className="pt-1 text-center text-xs leading-6 text-slate-400 font-sans">
           P1: Nửa trái bàn phím + <kbd className="rounded bg-slate-800 px-1 py-0.5 border border-slate-700">Space</kbd> bắn · 
           P2: Nửa phải bàn phím + <kbd className="rounded bg-slate-800 px-1 py-0.5 border border-slate-700">Enter</kbd> bắn · 
           <kbd className="rounded bg-slate-800 px-1 py-0.5 border border-slate-700 ml-1">Esc</kbd> về thiết lập

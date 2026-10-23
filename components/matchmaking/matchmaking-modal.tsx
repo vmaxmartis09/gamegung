@@ -1,4 +1,5 @@
 "use client";
+import { useCooldown, useCooldownStore } from "@/lib/cooldown-store";
 import { UserAvatar } from "@/components/ui/user-avatar";
 
 import React, { useState, useEffect, useRef } from "react";
@@ -53,12 +54,6 @@ const GAME_OPTIONS: { id: GameType; name: string; icon: string; desc: string }[]
     name: "Ma Sói",
     icon: "🐺",
     desc: "Ẩn vai suy luận nhóm nghỉ trưa",
-  },
-  {
-    id: "arcade",
-    name: "Cyber Slash",
-    icon: "⚡",
-    desc: "Chém Bug diệt Deadline Chibi 60FPS",
   },
   {
     id: "uno",
@@ -144,7 +139,9 @@ export function MatchmakingModal({
     };
   }, [phase, countdown, matchedOpponent, selectedGame, selectedStake, router, onClose]);
 
+  const cooldown = useCooldown();
   const handleStartSearch = () => {
+    if (useCooldownStore.getState().until > Date.now()) return;
     if (selectedStake > currentUser.lua) {
       setErrorMsg(`Bạn không đủ Lúa (${currentUser.lua} 🌾). Vui lòng chọn mức cược thấp hơn hoặc nhận cứu trợ!`);
       return;
@@ -220,7 +217,7 @@ export function MatchmakingModal({
                   <h3 className="text-base font-bold tracking-wider text-white">
                     GHÉP TRẬN ĐẤU TRÍ REALTIME
                   </h3>
-                  <p className="text-[10px] text-ink-400 font-mono">
+                  <p className="text-xs text-ink-400 font-mono">
                     Hệ thống tự động tìm đối thủ đồng cấp qua Supabase
                   </p>
                 </div>
@@ -264,7 +261,7 @@ export function MatchmakingModal({
                               <p className="text-xs font-bold leading-tight">{g.name}</p>
                               <p
                                 className={cn(
-                                  "text-[9px] mt-0.5 line-clamp-1",
+                                  "text-xs mt-0.5 line-clamp-1",
                                   isSelected ? "text-ink-600" : "text-ink-400"
                                 )}
                               >
@@ -325,13 +322,13 @@ export function MatchmakingModal({
                       </div>
                       <div>
                         <p className="text-xs font-bold text-white">{currentTier.name}</p>
-                        <p className="text-[10px] text-ink-400 font-mono">
+                        <p className="text-xs text-ink-400 font-mono">
                           Trình độ hiện tại: {currentElo} ELO
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] text-ink-400 font-mono uppercase">Tổng Giải Thưởng</p>
+                      <p className="text-xs text-ink-400 font-mono uppercase">Tổng Giải Thưởng</p>
                       <p className="text-sm font-black font-mono text-amber-300">
                         {selectedStake === 0 ? "Giao hữu" : `${selectedStake * 2} Lúa 🌾`}
                       </p>
@@ -349,10 +346,11 @@ export function MatchmakingModal({
                   <button
                     type="button"
                     onClick={handleStartSearch}
-                    className="w-full py-3.5 rounded-2xl seg-active font-extrabold text-xs uppercase tracking-widest hover:bg-ink-200 transition-all shadow-[0_0_25px_rgba(255,255,255,0.25)] hover:scale-[1.02] flex items-center justify-center gap-2"
+                    disabled={cooldown.active}
+                    className="w-full disabled:cursor-not-allowed disabled:opacity-50 py-3.5 rounded-2xl seg-active font-extrabold text-xs uppercase tracking-widest hover:bg-ink-200 transition-all shadow-[0_0_25px_rgba(255,255,255,0.25)] hover:scale-[1.02] flex items-center justify-center gap-2"
                   >
                     <Zap className="w-4 h-4 fill-black" />
-                    <span>Bắt Đầu Dò Tìm Đối Thủ</span>
+                    <span>{cooldown.active ? `Chờ ${cooldown.seconds}s` : "Bắt Đầu Dò Tìm Đối Thủ"}</span>
                   </button>
                 </div>
               )}
@@ -382,7 +380,7 @@ export function MatchmakingModal({
                     </p>
                   </div>
 
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ink-900 border border-ink-800 text-[10px] font-mono text-ink-400">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ink-900 border border-ink-800 text-xs font-mono text-ink-400">
                     <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
                     <span>Supabase Realtime Channel: Đang lắng nghe kỳ thủ...</span>
                   </div>
@@ -413,7 +411,7 @@ export function MatchmakingModal({
                       <p className="text-xs font-bold text-white mt-2 truncate max-w-[120px]">
                         {currentUser.username}
                       </p>
-                      <p className="text-[10px] text-ink-400 font-mono">
+                      <p className="text-xs text-ink-400 font-mono">
                         {currentElo} ELO
                       </p>
                     </div>
@@ -431,7 +429,7 @@ export function MatchmakingModal({
                       <p className="text-xs font-bold text-white mt-2 truncate max-w-[120px]">
                         {matchedOpponent.username}
                       </p>
-                      <p className="text-[10px] text-amber-300 font-mono">
+                      <p className="text-xs text-amber-300 font-mono">
                         {matchedOpponent.elo} ELO
                       </p>
                     </div>
@@ -440,14 +438,14 @@ export function MatchmakingModal({
                   {/* Pot Summary */}
                   <div className="p-3 rounded-2xl bg-ink-900 border border-ink-800 flex items-center justify-around text-xs font-mono">
                     <div>
-                      <span className="text-ink-400 block text-[10px]">MỨC CƯỢC</span>
+                      <span className="text-ink-400 block text-xs">MỨC CƯỢC</span>
                       <span className="font-bold text-white">
                         {selectedStake === 0 ? "Giao hữu" : `${selectedStake} 🌾`}
                       </span>
                     </div>
                     <div className="h-6 w-px bg-ink-800" />
                     <div>
-                      <span className="text-ink-400 block text-[10px]">TỔNG GIẢI THƯỞNG</span>
+                      <span className="text-ink-400 block text-xs">TỔNG GIẢI THƯỞNG</span>
                       <span className="font-bold text-amber-300">
                         {selectedStake === 0 ? "Vinh quang" : `${selectedStake * 2} 🌾`}
                       </span>

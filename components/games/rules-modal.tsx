@@ -131,9 +131,6 @@ export function RulesModal({ isOpen, onClose, gameType }: RulesModalProps) {
                 ))}
               </div>
             )}
-            <button type="button" onClick={onClose} className="btn-lime w-full">
-              Đã hiểu
-            </button>
           </motion.div>
         </motion.div>
       )}

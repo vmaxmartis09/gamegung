@@ -87,7 +87,7 @@ export function BetModal({
                   <h3 className="text-sm font-bold tracking-wider text-white font-mono flex items-center gap-1.5">
                     <span>MỜI CHƠI</span>
                   </h3>
-                  <p className="text-[10px] font-mono text-ink-400">
+                  <p className="text-xs font-mono text-ink-400">
                     Đối kháng trực tiếp & thưởng Lúa 🌾
                   </p>
                 </div>
@@ -104,7 +104,7 @@ export function BetModal({
             <form onSubmit={handleCreate} className="py-4 space-y-4">
               {/* Game Selector */}
               <div>
-                <label className="text-[11px] font-mono font-semibold uppercase tracking-wider text-ink-400 block mb-2">
+                <label className="text-xs font-mono font-semibold uppercase tracking-wider text-ink-400 block mb-2">
                   Bộ Môn Thi Đấu
                 </label>
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
@@ -112,7 +112,6 @@ export function BetModal({
                     { id: "chess", label: "Cờ Vua", icon: "♟️" },
                     { id: "xiangqi", label: "Cờ Tướng", icon: "🀄" },
                     { id: "werewolf", label: "Ma Sói", icon: "🐺" },
-                    { id: "arcade", label: "Cyber Slash", icon: "⚡" },
                     { id: "uno", label: "Uno Battle", icon: "🎴" },
                   ].map((g) => (
                     <button
@@ -127,7 +126,7 @@ export function BetModal({
                       )}
                     >
                       <span className="text-xl">{g.icon}</span>
-                      <span className="text-[11px] font-mono">{g.label}</span>
+                      <span className="text-xs font-mono">{g.label}</span>
                     </button>
                   ))}
                 </div>
@@ -136,7 +135,7 @@ export function BetModal({
               {/* Stake Amount */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-[11px] font-mono font-semibold uppercase tracking-wider text-ink-400">
+                  <label className="text-xs font-mono font-semibold uppercase tracking-wider text-ink-400">
                     Mức Cược Lúa 🌾
                   </label>
                   <span className="text-xs font-mono text-accent font-bold">
@@ -186,7 +185,7 @@ export function BetModal({
 
               {/* Target Opponent */}
               <div>
-                <label className="text-[11px] font-mono font-semibold uppercase tracking-wider text-ink-400 block mb-2">
+                <label className="text-xs font-mono font-semibold uppercase tracking-wider text-ink-400 block mb-2">
                   Đối Thủ
                 </label>
                 <select
@@ -205,7 +204,7 @@ export function BetModal({
               </div>
 
               {/* Escrow Note (Compact) */}
-              <div className="p-2.5 rounded-xl bg-accent/5 border border-accent/20 text-[10px] font-mono text-ink-300 flex items-center gap-2">
+              <div className="p-2.5 rounded-xl bg-accent/5 border border-accent/20 text-xs font-mono text-ink-300 flex items-center gap-2">
                 <span className="text-accent">⚖️</span>
                 <span>
                   Trọng tài tạm giữ <strong>{stake} 🌾</strong>. Hoàn trả 100% nếu hủy kèo.

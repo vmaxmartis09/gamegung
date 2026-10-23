@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useShallow } from "zustand/react/shallow";
-import { ArrowUpRight, BookOpen, Clock, Trophy, Users, X } from "lucide-react";
+import { BookOpen, Clock, Flame, Users, X } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { usePresenceStore, sortPeers } from "@/lib/presence";
 import { useUiStore } from "@/lib/ui-store";
@@ -14,7 +14,7 @@ import { StatusIsland, type IslandTask } from "@/components/kokonut/status-islan
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { TextReveal3D, CountUp, BorderBeam } from "@/components/reactbits";
+import { CountUp } from "@/components/reactbits";
 
 export default function HomePage() {
   const router = useRouter();
@@ -27,6 +27,16 @@ export default function HomePage() {
 
   const playing = (label: string) => peerList.filter((p) => p.status === "in-game" && p.currentGame === label).length;
   const inMatch = peerList.filter((p) => p.status === "in-game").length;
+
+  // Độ phổ biến: người đang chơi (presence) + số ván mình đã chơi. Hoà điểm → xáo ngẫu nhiên mỗi lần tải.
+  const myStats = useAppStore((s) => s.currentUser.stats) as unknown as Record<string, { games?: number } | undefined>;
+  const jitter = useMemo(() => Object.fromEntries(GAMES.map((g) => [g.id, Math.random()])), []);
+  const ranked = useMemo(() => {
+    const score = (g: GameMeta) => playing(g.name) * 10 + (myStats[g.id]?.games ?? 0) + jitter[g.id] * 0.5;
+    return [...GAMES].sort((a, b) => score(b) - score(a));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peers, myStats, jitter]);
+  const hotId = ranked[0] && playing(ranked[0].name) + (myStats[ranked[0].id]?.games ?? 0) > 0 ? ranked[0].id : null;
 
   const tasks: IslandTask[] = useMemo(
     () =>
@@ -45,7 +55,7 @@ export default function HomePage() {
   );
 
   return (
-    <div className="mx-auto max-w-[1360px] px-4 sm:px-6">
+    <div className="mx-auto flex max-w-[1360px] flex-col px-4 sm:px-6">
       {/* Floating "resume" island */}
       {tasks.length > 0 && (
         <div className="pointer-events-none sticky top-3 z-30 mb-2 flex justify-center">
@@ -55,180 +65,132 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Luxury Editorial Arena Header - Clean & Monochrome */}
-      <section className="flex flex-col gap-6 border-b border-white/[0.08] pb-8 pt-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1 text-[11px] font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
-            <span className="size-1.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)] shrink-0" />
-            <TextReveal3D
-              items={[
-                "Office Arena · Private Lounge",
-                "Typing Battle · Esports Realtime",
-                "Cờ Vua & Cờ Tướng · Chuẩn Quốc Tế",
-                "Ma Sói & Uno · Đấu Trí Đỉnh Cao",
-              ]}
-              interval={3200}
-              cylinderRadius={20}
-              className="h-4 w-72"
-              itemClassName="text-[11px] font-mono tracking-[0.16em] text-neutral-300"
-            />
-          </div>
-          <h1 className="font-display text-3xl font-light tracking-tight text-white sm:text-4xl lg:text-5xl">
-            Đấu Trường <span className="italic font-normal text-white">Nghỉ Trưa</span>
+      <section className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 pb-6 pt-2 sm:pb-8">
+        <div className="min-w-0">
+          <h1 className="font-display text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+            Đấu Trường <span className="font-normal italic text-ink-200">Nghỉ Trưa</span>
           </h1>
-          <p className="mt-2 text-sm text-neutral-400 max-w-xl leading-relaxed">
-            Không gian thi đấu trí tuệ và giải trí văn phòng chuẩn quốc tế. Cờ vua, cờ tướng, ma sói và các môn giải trí đối kháng realtime.
-          </p>
+          <p className="mt-2 max-w-xl text-sm text-ink-300 sm:text-base">Cờ Vua, Cờ Tướng, Ma Sói, Uno và Typing Battle. Chọn một môn, ghép trận với đồng nghiệp.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="panel flex divide-x divide-white/[0.08] bg-black/60 border border-white/10">
-            <div className="flex min-w-[6.5rem] flex-col gap-1 px-4 py-3 text-left">
-              <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-neutral-400">Danh mục</span>
-              <span className="num text-xl font-medium text-white">
-                <CountUp value={GAMES.length} duration={1} /> môn
-              </span>
-            </div>
-            <div className="flex min-w-[6.5rem] flex-col gap-1 px-4 py-3 text-left">
-              <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-neutral-400">Trực tuyến</span>
-              <span className="num text-xl font-medium text-white">
-                <CountUp value={peerList.length + 1} duration={1.2} /> người
-              </span>
-            </div>
-            {inMatch > 0 && (
-              <div className="flex min-w-[6.5rem] flex-col gap-1 px-4 py-3 text-left">
-                <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-neutral-400">Đang đấu</span>
-                <span className="num text-xl font-medium text-white">
-                  <CountUp value={inMatch} duration={1} /> bàn
-                </span>
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => open("ranking")}
-            className="group relative btn border border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.1] hover:border-white/30 text-xs px-4 py-3 rounded-2xl flex items-center gap-2 self-stretch overflow-hidden shadow-lg transition-all"
-          >
-            <BorderBeam size={90} duration={8} colorFrom="#ffffff" colorTo="transparent" />
-            <Trophy className="size-4 text-amber-300" /> Xếp hạng
-          </button>
-        </div>
+        <dl className="flex items-center gap-6 text-left">
+          <Stat label="Môn" value={<CountUp value={GAMES.length} duration={1} />} />
+          <Stat label="Online" value={<CountUp value={peerList.length + 1} duration={1.2} />} />
+          {inMatch > 0 && <Stat label="Đang đấu" value={<CountUp value={inMatch} duration={1} />} />}
+        </dl>
       </section>
 
-      {/* Games */}
-      <section className="pt-8">
-        <div className="mb-5 flex items-end justify-between gap-4">
-          <h2 className="font-display text-2xl font-medium tracking-tight">Phòng chơi</h2>
-          <p className="text-sm text-ink-400">{GAMES.length} trò chơi</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {GAMES.map((g, i) => (
-            <GameCard
-              key={g.id}
-              game={g}
-              index={i}
-              playing={playing(g.name)}
-              resumable={tasks.some((t) => t.id === g.id)}
-              onDiscard={() => clearSession(g.id)}
-              featured={i < 2}
-            />
-          ))}
-        </div>
+      <section className="grid auto-rows-[280px] gap-3 sm:grid-cols-2 lg:auto-rows-[300px] lg:grid-cols-12">
+        {ranked.map((g, i) => (
+          <GameCard key={g.id} game={g} index={i} hot={g.id === hotId} playing={playing(g.name)} resumable={tasks.some((t) => t.id === g.id)} onDiscard={() => clearSession(g.id)} />
+        ))}
       </section>
     </div>
   );
 }
 
+function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex flex-col">
+      <dd className="num order-1 text-2xl font-medium leading-tight text-white">{value}</dd>
+      <dt className="order-2 text-xs font-medium uppercase tracking-[0.12em] text-ink-300">{label}</dt>
+    </div>
+  );
+}
+
+/** Hạng càng cao → ô càng rộng (7 / 5 / 4 / 4 / 4 trên lưới 12 cột). */
+const RANK_SPAN = ["lg:col-span-7", "lg:col-span-5", "lg:col-span-4", "lg:col-span-4", "lg:col-span-4"];
+
 function GameCard({
   game,
   index,
+  hot,
   playing,
   resumable,
   onDiscard,
-  featured,
 }: {
   game: GameMeta;
   index: number;
+  hot?: boolean;
   playing: number;
   resumable: boolean;
   onDiscard: () => void;
-  featured?: boolean;
 }) {
   const open = useUiStore((s) => s.open);
+  // Bỏ ván dở là thao tác phá huỷ: bấm lần 1 để xác nhận, tự huỷ sau 4 giây.
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    if (!confirming) return;
+    const t = setTimeout(() => setConfirming(false), 4000);
+    return () => clearTimeout(t);
+  }, [confirming]);
+
   return (
     <article
-      className={cn(
-        "group panel relative flex animate-fade-up flex-col overflow-hidden transition-[border-color,background-color] duration-200 ease-standard hover:border-white/20 hover:bg-ink-850/80",
-        featured && "sm:col-span-2"
-      )}
+      className={cn("group relative flex h-full min-h-0 animate-fade-up flex-col rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-2.5 shadow-[0_18px_40px_-20px_rgba(0,0,0,0.9)] transition-colors duration-200 hover:border-white/30 sm:max-lg:[&:nth-child(odd):last-child]:col-span-2", RANK_SPAN[index] ?? "lg:col-span-4")}
       style={{ animationDelay: `${index * 60}ms` }}
     >
-      {featured && (
-        <BorderBeam size={280} duration={12} colorFrom="#38bdf8" colorTo="transparent" />
-      )}
-      <div className={cn("relative overflow-hidden", featured ? "aspect-[16/7]" : "aspect-[16/10]")}>
-        {/* Interim toning until the covers are redrawn (Phase 3) */}
-        <GameCover game={game.id} className="saturate-[0.45] brightness-[0.8] transition duration-500 ease-lounge group-hover:scale-[1.03] group-hover:saturate-[0.6]" />
-        <div className="absolute inset-0 bg-gradient-to-t from-ink-900 via-ink-900/10 to-transparent" />
+      <Link href={game.href} aria-label={`Chơi ${game.name}`} className="absolute inset-0 z-[1] rounded-[28px] outline-none focus-visible:ring-2 focus-visible:ring-white/60" />
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-[20px] ring-1 ring-white/10">
+        <GameCover game={game.id} className="transition duration-500 ease-lounge group-hover:scale-[1.04]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/20" />
         <div className="absolute inset-x-3 top-3 flex items-start justify-between">
-          {resumable ? (
-            <Badge tone="accent" className="bg-ink-950/70 backdrop-blur">
-              <span className="size-1.5 rounded-full bg-accent" /> Ván dở
-            </Badge>
-          ) : (
-            <span />
-          )}
+          <span className="flex gap-1.5">
+            {hot && (
+              <Badge className="bg-white text-black">
+                <Flame className="size-3" aria-hidden /> Hot
+              </Badge>
+            )}
+            {resumable && (
+              <Badge tone="accent" className="bg-ink-950/70 backdrop-blur">
+                <span className="size-1.5 rounded-full bg-accent" /> Ván dở
+              </Badge>
+            )}
+          </span>
           {playing > 0 && (
-            <Badge className="bg-ink-950/70 backdrop-blur">
+            <Badge className="bg-ink-950/70 backdrop-blur" aria-label={`${playing} người đang chơi`}>
               <span className="size-1.5 rounded-full bg-success" /> {playing} đang chơi
             </Badge>
           )}
         </div>
+        <div className="absolute inset-x-4 bottom-4">
+          <h3 className="font-display text-2xl font-semibold leading-tight tracking-tight text-white drop-shadow">{game.name}</h3>
+          <p className="mt-1 flex items-center gap-3 text-sm text-white/85">
+            <span className="flex items-center gap-1 whitespace-nowrap"><Users className="size-3.5" aria-hidden />{game.players}</span>
+            <span className="flex items-center gap-1 whitespace-nowrap"><Clock className="size-3.5" aria-hidden />{game.duration}</span>
+          </p>
+        </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-5 pt-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <GameIcon game={game.id} className="size-9 shrink-0" />
-            <div className="min-w-0">
-              <h3 className="truncate font-display text-xl font-medium leading-tight tracking-tight">
-                {/* The stretched link makes the whole card clickable without nesting buttons in an anchor. */}
-                <Link href={game.href} className="outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-2xl focus-visible:after:ring-2 focus-visible:after:ring-accent/60">
-                  {game.name}
-                </Link>
-              </h3>
-              <p className="text-xs text-ink-400">{game.mode}</p>
-            </div>
-          </div>
-          <ArrowUpRight className="mt-1 size-4 shrink-0 text-ink-400 transition-[color,transform] duration-200 ease-lounge group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-accent" aria-hidden />
-        </div>
-
-        <p className="line-clamp-2 text-sm leading-relaxed text-ink-300">{game.tagline}</p>
-
-        <div className="mt-auto flex items-center gap-3 pt-1 text-xs text-ink-400">
-          <span className="flex items-center gap-1.5">
-            <Users className="size-3.5" aria-hidden /> <span className="sr-only">Số người:</span>
-            {game.players}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Clock className="size-3.5" aria-hidden /> <span className="sr-only">Thời lượng:</span>
-            {game.duration}
-          </span>
-          <span className="relative z-10 ml-auto flex items-center gap-0.5">
-            {resumable && (
-              <Tooltip content="Bỏ ván dở">
-                <button type="button" onClick={onDiscard} aria-label={`Bỏ ván dở ${game.name}`} className="grid size-8 place-items-center rounded-lg text-ink-400 transition-colors hover:bg-white/[0.06] hover:text-ink-100">
-                  <X className="size-4" />
-                </button>
-              </Tooltip>
-            )}
-            <Tooltip content="Luật chơi">
-              <button type="button" onClick={() => open("rules", { game: game.id })} aria-label={`Luật ${game.name}`} className="grid size-8 place-items-center rounded-lg text-ink-400 transition-colors hover:bg-white/[0.06] hover:text-ink-100">
-                <BookOpen className="size-4" />
+      <div className="relative z-10 flex items-center gap-2.5 px-1 pb-0.5 pt-2.5">
+        <GameIcon game={game.id} className="size-9 shrink-0" />
+        <span className="min-w-0 flex-1 truncate text-sm text-ink-200">{game.tagline}</span>
+        {resumable &&
+          (confirming ? (
+            <button
+              type="button"
+              onClick={() => {
+                onDiscard();
+                setConfirming(false);
+              }}
+              onBlur={() => setConfirming(false)}
+              autoFocus
+              className="btn-danger btn-sm h-10"
+            >
+              Xoá ván?
+            </button>
+          ) : (
+            <Tooltip content="Bỏ ván dở">
+              <button type="button" onClick={() => setConfirming(true)} aria-label={`Bỏ ván dở ${game.name}`} className="icon-btn">
+                <X className="size-4" />
               </button>
             </Tooltip>
-          </span>
-        </div>
+          ))}
+        <Tooltip content="Luật chơi">
+          <button type="button" onClick={() => open("rules", { game: game.id })} aria-label={`Luật ${game.name}`} className="icon-btn">
+            <BookOpen className="size-4" />
+          </button>
+        </Tooltip>
       </div>
     </article>
   );

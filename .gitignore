@@ -9,3 +9,5 @@ repos/
 screenshot_*.png
 screen_*.png
 chatgpt_share.png
+
+scripts/test-accounts.local.json

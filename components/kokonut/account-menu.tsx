@@ -350,7 +350,7 @@ export default function AccountMenu({
                 <motion.span className="flex min-w-0 flex-col pt-0.5" style={{ opacity: bodyOpacity }}>
                   <span className="truncate font-display text-[15px] font-bold leading-5 text-white">{name}</span>
                   {email && <span className="truncate text-xs leading-4 text-ink-300">{email}</span>}
-                  {plan && <span className="mt-1 truncate text-[11px] font-semibold text-lime-300">{plan}</span>}
+                  {plan && <span className="mt-1 truncate text-xs font-semibold text-lime-300">{plan}</span>}
                 </motion.span>
               </div>
               <motion.div aria-label={name} className="outline-none" id={menuId} role="menu" style={{ opacity: bodyOpacity }} tabIndex={-1}>
