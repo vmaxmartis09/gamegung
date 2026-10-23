@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Crosshair, Play, RotateCcw, Shield, Sparkles, Swords, Trophy, Zap } from "lucide-react";
+import { Crosshair, Play, RotateCcw, Shield, Sparkles, Trophy, Zap } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/lib/store";
 import { soundManager } from "@/lib/audio";
@@ -36,7 +36,8 @@ import {
   update,
 } from "@/lib/games/typing-battle-engine";
 import { MatchResultModal } from "./match-result-modal";
-import { GameHeader, Segmented, StakePicker, useMatchSettlement } from "./shared";
+import { GameFxOverlay, MatchIntro, NarratorButton, useFxQueue, useNarrator } from "./game-fx";
+import { GameHeader, Segmented, useMatchSettlement } from "./shared";
 import type { AsciiRippleRef } from "@/components/reactbits";
 
 /* --------------------------------- Hằng số --------------------------------- */
@@ -330,7 +331,7 @@ interface RunningItemProps {
   g: Game;
 }
 
-const RunningItemCapsule = memo(function RunningItemCapsule({ it, g }: RunningItemProps) {
+function RunningItemCapsule({ it, g }: RunningItemProps) {
   const [f0, f1] = g.fighters;
   const def = ITEMS[it.type];
   const isP1Locked = f0.lock === it;
@@ -451,7 +452,7 @@ const RunningItemCapsule = memo(function RunningItemCapsule({ it, g }: RunningIt
       </div>
     </div>
   );
-});
+}
 
 function TypedWord({
   text,
@@ -505,7 +506,7 @@ interface DuelistStationProps {
   mode: Mode;
 }
 
-const DuelistStation = memo(function DuelistStation({
+function DuelistStation({
   f,
   isP1,
   src,
@@ -540,7 +541,7 @@ const DuelistStation = memo(function DuelistStation({
       >
         <div className="flex items-baseline justify-between">
           <span className="text-xs font-bold" style={{ color: col }}>
-            {f.name} <span className="font-normal text-slate-500">{isP1 ? "· Bạn" : f.bot ? "· Máy" : "· P2"}</span>
+            {f.name} <span className="font-normal text-slate-500">{isP1 ? "· P1" : "· P2"}</span>
           </span>
           <span className="font-mono text-xs font-bold text-white">
             {mode === 3 ? `${Math.round(frac * 100)}%` : `${Math.ceil(f.hp)}`}
@@ -620,7 +621,7 @@ const DuelistStation = memo(function DuelistStation({
       </div>
     </div>
   );
-});
+}
 
 /* ------------------ Banner Hợp Thể & Kích Hoạt Tinh Tế ------------------ */
 
@@ -766,10 +767,17 @@ export function TypingBattleGame() {
   const [phase, setPhase] = useState<"setup" | "playing" | "over">("setup");
   // Mặc định chọn chế độ 2: Tranh thẻ & Băng chuyền chữ chạy ngang theo yêu cầu người dùng
   const [mode, setMode] = useState<Mode>(2);
-  const [vsBot, setVsBot] = useState(true);
-  const [diff, setDiff] = useState(3);
+  const vsBot = false;
+  const diff = 3;
   const [stake, setStake] = useState(0);
   const [scale, setScale] = useState(1);
+  const [intro, setIntro] = useState(false);
+  const fx = useFxQueue();
+  const narrator = useNarrator();
+  const pushFxRef = useRef(fx.push);
+  pushFxRef.current = fx.push;
+  const sayRef = useRef(narrator.say);
+  sayRef.current = narrator.say;
   const [, force] = useReducer((x: number) => x + 1, 0);
 
   const gRef = useRef<Game | null>(null);
@@ -788,6 +796,15 @@ export function TypingBattleGame() {
 
   const hooks = useRef<Hooks>({
     sfx: (n) => {
+      if (n === "count") sayRef.current("Chuẩn bị!");
+      else if (n === "go") sayRef.current("Bắt đầu gõ!");
+      else if (n === "fuse") {
+        pushFxRef.current({ title: "HỢP THỂ", subtitle: "Kỹ năng hợp nhất được kích hoạt", tone: "gold", icon: "⚡" });
+        sayRef.current("Hợp thể!");
+      } else if (n === "win") {
+        pushFxRef.current({ title: "HẠ GỤC!", subtitle: "Trận đấu kết thúc", tone: "red", icon: "💥" });
+        sayRef.current("Hạ gục! Trận đấu kết thúc.");
+      }
       if (n === "hit") asciiRef.current?.triggerRipple(0.5, 0.5, 2.0);
       else if (n === "fuse") asciiRef.current?.triggerRipple(0.5, 0.5, 2.5);
       else if (n === "win") asciiRef.current?.triggerRipple(0.5, 0.5, 3.0);
@@ -824,8 +841,17 @@ export function TypingBattleGame() {
     return () => ro.disconnect();
   }, []);
 
+  const pendingOpp = useRef(BOTS[0]);
   const start = useCallback(() => {
-    const opp = vsBot ? BOTS[Math.floor(Math.random() * BOTS.length)] : { name: "P2", seed: "player two:0", title: "Đấu Thủ" };
+    pendingOpp.current = vsBot ? BOTS[Math.floor(Math.random() * BOTS.length)] : { name: "P2", seed: "player two:0", title: "Đấu Thủ" };
+    setIntro(true);
+    sayRef.current(`${me.username || "Người chơi một"} đối đầu ${pendingOpp.current.name}!`);
+  }, [vsBot, me.username]);
+
+  // After the VS intro, the duel actually begins.
+  const beginDuel = useCallback(() => {
+    setIntro(false);
+    const opp = pendingOpp.current;
     botRef.current = opp;
     gRef.current = createGame({ mode, vsBot, diff, names: [me.username || "P1", opp.name] });
     resetSettlement();
@@ -950,6 +976,17 @@ export function TypingBattleGame() {
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 sm:px-6 py-2">
+      <GameFxOverlay fx={fx.current} onDone={fx.pop} />
+      <MatchIntro
+        open={intro}
+        title="Typing Battle"
+        subtitle="Đấu trường gõ phím"
+        players={[
+          { name: me.username || "P1", avatar: me.avatar },
+          { name: pendingOpp.current.name, avatar: `kokonut:${pendingOpp.current.seed}` },
+        ]}
+        onDone={beginDuel}
+      />
       <GameHeader
         game="typing"
         subtitle={
@@ -961,10 +998,14 @@ export function TypingBattleGame() {
             ? "Đọ tên lửa động năng · 5000 HP"
             : "Đua gõ đoạn văn"
         }
-      />
+      >
+        <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
+      </GameHeader>
 
 
-      <div className="mx-auto w-full max-w-[min(100%,calc((100dvh-8.5rem)*1.774))]">
+      {phase === "setup" && <TypingLobby mode={mode} setMode={setMode} onStart={start} />}
+
+      <div className={cn("mx-auto w-full max-w-[min(100%,calc((100dvh-8.5rem)*1.774))]", phase === "setup" && "hidden")}>
         <div
           ref={wrapRef}
           className="relative w-full overflow-hidden rounded-3xl border border-white/10 bg-[#050813] shadow-2xl"
@@ -1068,117 +1109,6 @@ export function TypingBattleGame() {
               </>
             )}
 
-            {/* MÀN HÌNH THIẾT LẬP (SETUP) TRƯỞNG THÀNH, TINH TẾ */}
-            {phase === "setup" && (
-              <div className="absolute inset-0 z-50 grid place-items-center bg-black/75 backdrop-blur-md p-6">
-                <div className="w-[min(580px,92vw)] rounded-3xl border border-white/15 bg-slate-950/95 p-6 shadow-2xl space-y-5">
-                  <div className="border-b border-white/10 pb-4">
-                    <div className="flex items-center gap-2 text-sky-400">
-                      <Swords className="size-5" />
-                      <span className="text-xs font-mono font-bold uppercase tracking-widest">
-                        Office Arena · Typing Duel
-                      </span>
-                    </div>
-                    <h2 className="mt-1 font-display text-2xl font-extrabold text-white tracking-wide">Đấu Trường Gõ Chữ Trực Diện</h2>
-                    <p className="mt-1 text-xs text-slate-400 leading-relaxed">
-                      Thiết lập trận đấu đối kháng hai kỳ thủ. Vật phẩm chạy ngang qua màn hình theo từng
-                      làn, gõ đúng từ để khóa mục tiêu, tích trữ đạn và hợp thể kỹ năng.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-300">
-                      Chế độ đối kháng
-                    </label>
-                    <Segmented
-                      value={mode}
-                      onChange={setMode}
-                      options={[
-                        { value: 2 as Mode, label: "🃏 Băng chuyền thẻ (Đề xuất)" },
-                        { value: 1 as Mode, label: "🚀 Đọ tên lửa" },
-                        { value: 3 as Mode, label: "🏁 Đua gõ tốc độ" },
-                      ]}
-                    />
-                    <div className="mt-2 text-xs text-slate-300">
-                      {mode === 2 && (
-                        <span>Vật phẩm lướt ngang qua màn hình. Gõ chữ trên vật phẩm để cướp về tay, gom 2 thẻ để hợp thể chiêu thức.</span>
-                      )}
-                      {mode === 1 && (
-                        <span>Gõ đúng từ khóa để nạp tên lửa, bấm Space phóng đòn hạ gục đối thủ trước khi cạn máu.</span>
-                      )}
-                      {mode === 3 && (
-                        <span>Hai đấu thủ đua tốc độ gõ đoạn văn bản chuẩn xác, ai cán đích trước sẽ chiến thắng.</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-300">
-                        Đối thủ
-                      </label>
-                      <Segmented
-                        value={vsBot ? 1 : 0}
-                        onChange={(v) => setVsBot(v === 1)}
-                        options={[
-                          { value: 1, label: "🤖 Đấu với Máy" },
-                          { value: 0, label: "👥 2 Người (1 phím)" },
-                        ]}
-                      />
-                    </div>
-
-                    {vsBot && (
-                      <div>
-                        <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-300">
-                          Độ khó AI
-                        </label>
-                        <Segmented
-                          value={diff}
-                          onChange={setDiff}
-                          size="sm"
-                          options={[1, 2, 3, 4, 5].map((v) => ({
-                            value: v,
-                            label: ["Tập sự", "Dễ", "Chuẩn", "Cao thủ", "Kiện tướng"][v - 1],
-                          }))}
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {vsBot && <StakePicker value={stake} onChange={setStake} />}
-
-                  {/* Bảng hướng dẫn phím gõ tinh tế */}
-                  <div className="flex flex-wrap items-center justify-between rounded-xl bg-slate-900/80 border border-white/10 px-3.5 py-2.5 text-xs text-slate-300">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-sky-400">P1 (Bạn):</span>
-                      <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-[11px]">
-                        Nửa trái phím
-                      </kbd>
-                      <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-[11px]">
-                        Space: Bắn
-                      </kbd>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-rose-400">P2:</span>
-                      <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-[11px]">
-                        Nửa phải phím
-                      </kbd>
-                      <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-[11px]">
-                        Enter: Bắn
-                      </kbd>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:brightness-110 active:scale-[0.99]"
-                    onClick={start}
-                  >
-                    <Play className="size-4" /> BẮT ĐẦU ĐỐI ĐẦU
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* MÀN HÌNH KẾT QUẢ KHI KẾT THÚC VÁN */}
             {phase === "over" && winner && (
@@ -1238,6 +1168,59 @@ export function TypingBattleGame() {
         resultData={result}
         reason={g?.mode === 3 ? "Về đích đầu tiên" : "Hạ gục đối thủ bằng tên lửa động năng"}
       />
+    </div>
+  );
+}
+
+const MODES: { value: Mode; icon: typeof Zap; name: string; desc: string }[] = [
+  { value: 2, icon: Sparkles, name: "Băng chuyền thẻ", desc: "Gõ chữ trên vật phẩm lướt ngang để cướp về tay, gom 2 thẻ để hợp thể." },
+  { value: 1, icon: Crosshair, name: "Đọ tên lửa", desc: "Gõ đúng từ khóa để nạp tên lửa, bấm phím bắn hạ đối thủ trước khi cạn máu." },
+  { value: 3, icon: Trophy, name: "Đua gõ", desc: "Cùng gõ một đoạn văn, ai cán đích trước sẽ thắng." },
+];
+
+function TypingLobby({ mode, setMode, onStart }: { mode: Mode; setMode: (m: Mode) => void; onStart: () => void }) {
+  return (
+    <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+      <div className="panel p-6">
+        <h2 className="font-display text-2xl font-extrabold">3 chế độ — ai nhanh tay hơn?</h2>
+        <p className="mt-1 text-sm text-ink-300">Hai kỳ thủ cùng một bàn phím, mỗi người một nửa. Gõ chuẩn để ra đòn, hợp thể kỹ năng và hạ gục đối thủ.</p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          {MODES.map((m) => {
+            const I = m.icon;
+            const on = m.value === mode;
+            return (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setMode(m.value)}
+                className={cn("flex flex-col items-start gap-2 rounded-3xl border p-4 text-left transition-colors", on ? "border-white bg-white/[0.08]" : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05]")}
+              >
+                <span className={cn("grid size-10 place-items-center rounded-2xl", on ? "bg-white text-black" : "bg-white/10 text-white")}>
+                  <I className="size-5" />
+                </span>
+                <span className="font-display text-base font-bold">{m.name}</span>
+                <span className="text-xs text-ink-300">{m.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="panel space-y-5 p-6">
+        <h2 className="font-display text-xl font-extrabold">Tạo phòng đấu</h2>
+        <div>
+          <span className="label">Chế độ</span>
+          <Segmented value={mode} onChange={setMode} options={MODES.map((m) => ({ value: m.value, label: m.name }))} />
+        </div>
+        <ul className="space-y-1.5 text-xs text-ink-300">
+          <li>• P1 gõ nửa trái bàn phím, bắn bằng Space.</li>
+          <li>• P2 gõ nửa phải bàn phím, bắn bằng Enter.</li>
+          <li>• Esc để quay về phòng chờ.</li>
+          <li>• Hiệu ứng hợp thể, giọng dẫn và màn VS như Ma Sói.</li>
+        </ul>
+        <button type="button" onClick={onStart} className="btn-lime w-full py-3">
+          <Play className="size-4" /> Vào đấu
+        </button>
+      </div>
     </div>
   );
 }

@@ -130,7 +130,7 @@ export function MatchmakingModal({
       }, 1000);
     } else if (phase === "matched" && countdown === 0 && matchedOpponent) {
       // Navigate to game
-      const url = `/games/${selectedGame}?mode=match&stake=${selectedStake}&room=${matchedOpponent.roomCode}&opp=${encodeURIComponent(
+      const url = `/games/${selectedGame}?mode=match&stake=${selectedStake}&room=${matchedOpponent.roomCode}&oppId=${encodeURIComponent(matchedOpponent.id)}&opp=${encodeURIComponent(
         matchedOpponent.username
       )}&oppElo=${matchedOpponent.elo}&oppAvatar=${encodeURIComponent(
         matchedOpponent.avatar

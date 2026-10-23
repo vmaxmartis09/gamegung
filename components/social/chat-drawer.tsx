@@ -35,7 +35,7 @@ import { soundManager } from "@/lib/audio";
 import { useUiStore } from "@/lib/ui-store";
 import { useAuthStore } from "@/lib/auth";
 import { getRankTier, RANK_TIERS } from "@/lib/ranking-system";
-import { syncProfileToSupabase } from "@/lib/supabase-game";
+import { syncProfileToSupabase, uploadAvatarImage } from "@/lib/supabase-game";
 import { cn } from "@/lib/utils";
 import { BetModal } from "./bet-modal";
 
@@ -715,6 +715,10 @@ function ProfilePanel() {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(me.username);
   const [editTitle, setEditTitle] = useState(me.title);
+  const [editPhoto, setEditPhoto] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [editSeed, setEditSeed] = useState(() => avatarSeedFrom(me.avatar, me.username));
   const setCurrentUser = useAppStore((s) => s.setCurrentUser);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -739,7 +743,7 @@ function ProfilePanel() {
 
   const handleSaveProfile = () => {
     const newName = editName.trim() || me.username;
-    const newAvatar = kokonutAvatar(editSeed);
+    const newAvatar = editPhoto ?? kokonutAvatar(editSeed);
     setCurrentUser({ username: newName, title: editTitle, avatar: newAvatar });
     syncProfileToSupabase({ ...me, username: newName, title: editTitle, avatar: newAvatar });
     setSavedSuccess(true);
@@ -782,15 +786,47 @@ function ProfilePanel() {
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
-            <UserAvatar src={kokonutAvatar(editSeed)} name={editName} className="size-14 ring-1 ring-white/30" />
+          <div className="flex flex-wrap items-center gap-3">
+            <UserAvatar src={editPhoto ?? kokonutAvatar(editSeed)} name={editName} className="size-14 ring-1 ring-white/30" />
             <button
               type="button"
-              onClick={() => setEditSeed(Math.random().toString(36).substring(2, 8) + ":0")}
+              onClick={() => {
+                setEditPhoto(null);
+                setEditSeed(Math.random().toString(36).substring(2, 8) + ":0");
+              }}
               className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs text-white hover:bg-white/10"
             >
               <Dices className="size-3.5" /> Đổi avatar
             </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                setUploading(true);
+                setUploadError(null);
+                try {
+                  setEditPhoto(await uploadAvatarImage(me.id, f));
+                } catch (err) {
+                  setUploadError(err instanceof Error ? err.message : "Tải ảnh thất bại.");
+                } finally {
+                  setUploading(false);
+                }
+              }}
+            />
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs text-white hover:bg-white/10 disabled:opacity-50"
+            >
+              {uploading ? "Đang tải…" : "Tải ảnh"}
+            </button>
+            {uploadError && <p className="basis-full rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">{uploadError}</p>}
           </div>
 
           <div className="space-y-1">

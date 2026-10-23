@@ -452,3 +452,22 @@ export async function claimDailyLuaFromSupabase(userId: string): Promise<{
     return null;
   }
 }
+
+/** Shrink to 256px JPEG and upload to the public "avatars" bucket; returns the public URL. */
+export async function uploadAvatarImage(userId: string, file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error("File không phải ảnh.");
+  if (file.size > 10 * 1024 * 1024) throw new Error("Ảnh quá lớn (tối đa 10MB).");
+  const bmp = await createImageBitmap(file);
+  const side = Math.min(bmp.width, bmp.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 256;
+  canvas.getContext("2d")!.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 256, 256);
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+  if (!blob) throw new Error("Không xử lý được ảnh.");
+  const path = `${userId}/avatar-${Date.now()}.jpg`;
+  const { error } = await supabase.storage.from("avatars").upload(path, blob, { contentType: "image/jpeg", upsert: true });
+  if (error) {
+    throw new Error(/bucket not found/i.test(error.message) ? 'Chưa tạo bucket "avatars" trên Supabase (chạy db/setup.sql).' : error.message);
+  }
+  return supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+}

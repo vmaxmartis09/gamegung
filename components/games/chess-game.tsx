@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/lib/store";
+import { realtimeBridge } from "@/lib/realtime-bridge";
 import { soundManager } from "@/lib/audio";
 import { EngineClient } from "@/lib/engines/engine-client";
 import { ENGINE_LEVELS, EngineLevel, SearchOptions, SearchResult } from "@/lib/engines/chess-engine";
@@ -111,7 +112,17 @@ interface ChessSave {
   hintsLeft: number;
   takebacksLeft: number;
 }
-type Mode = "ai" | "local";
+type Mode = "ai" | "local" | "pvp";
+
+interface PvpInfo {
+  room: string;
+  oppId: string;
+  name: string;
+  avatar: string;
+  elo: number;
+}
+
+type PvpMove = { from: string; to: string; promotion?: string };
 
 interface Settings {
   mode: Mode;
@@ -165,6 +176,11 @@ export function ChessGame() {
     if (s > 0) setStake(s);
   }, []);
 
+  const [pvp, setPvp] = useState<PvpInfo | null>(null);
+  const pvpRef = useRef<PvpInfo | null>(null);
+  pvpRef.current = pvp;
+  const myId = useAppStore((s) => s.currentUser.id);
+
   const chessRef = useRef(new Chess());
   const [fens, setFens] = useState<string[]>([chessRef.current.fen()]);
   const [moves, setMoves] = useState<Move[]>([]);
@@ -193,7 +209,8 @@ export function ChessGame() {
 
   const level = ENGINE_LEVELS[settings.level];
   const isAi = settings.mode === "ai";
-  const rated = isAi && settings.ranked;
+  const isPvp = settings.mode === "pvp";
+  const rated = (isAi && settings.ranked) || isPvp;
 
   const chess = chessRef.current;
   const liveFen = fens[fens.length - 1];
@@ -247,12 +264,12 @@ export function ChessGame() {
       play("end");
       if (rated) {
         const outcome = winner === null ? "draw" : winner === myColor ? "win" : "loss";
-        settle(outcome, { name: `Engine ${level.label}`, elo: level.elo }, stake);
+        settle(outcome, pvp ? { name: pvp.name, elo: pvp.elo } : { name: `Engine ${level.label}`, elo: level.elo }, stake);
       } else {
         showToast(winner === null ? `Hoà — ${reason}` : `${winner === "w" ? "Trắng" : "Đen"} thắng — ${reason}`, "info", 4000);
       }
     },
-    [rated, myColor, level, stake, settle, play, showToast]
+    [rated, myColor, level, stake, pvp, settle, play, showToast]
   );
 
   const checkGameEnd = useCallback(() => {
@@ -269,7 +286,7 @@ export function ChessGame() {
   /* ------------------------------ Moves ------------------------------ */
 
   const applyMove = useCallback(
-    (from: string, to: string, promo?: string, viaDrag = false) => {
+    (from: string, to: string, promo?: string, viaDrag = false, remote = false) => {
       const c = chessRef.current;
       let mv: Move;
       try {
@@ -278,6 +295,10 @@ export function ChessGame() {
         return false;
       }
       const mover = mv.color;
+      const room = pvpRef.current;
+      if (room && !remote) {
+        realtimeBridge.sendRoomEvent({ event: "move", roomId: room.room, data: { by: myId, from, to, promotion: promo } });
+      }
       if (tc.base && tc.inc) {
         clockRef.current[mover] += tc.inc * 1000;
         syncClock();
@@ -297,7 +318,7 @@ export function ChessGame() {
       checkGameEnd();
       return true;
     },
-    [checkGameEnd, play, tc, syncClock]
+    [checkGameEnd, play, tc, syncClock, myId]
   );
 
   const tryUserMove = useCallback(
@@ -387,11 +408,67 @@ export function ChessGame() {
 
   /* ------------------------------ Session ------------------------------ */
 
+  // Online match: the matchmaking modal passes ?mode=match&room=…&oppId=…; two real players only.
+  const initPvpFromUrl = useCallback(() => {
+    const q = new URLSearchParams(window.location.search);
+    const room = q.get("room");
+    const oppId = q.get("oppId");
+    if (q.get("mode") !== "match" || q.get("isBot") === "1" || !room || !oppId) return false;
+    const info: PvpInfo = {
+      room,
+      oppId,
+      name: q.get("opp") || "Đối thủ",
+      avatar: q.get("oppAvatar") || "",
+      elo: parseInt(q.get("oppElo") || "", 10) || 1200,
+    };
+    session.clear();
+    const c = new Chess();
+    chessRef.current = c;
+    setPvp(info);
+    setSettings((s) => ({ ...s, mode: "pvp", time: "10+0" }));
+    setMyColor(myId < oppId ? "w" : "b");
+    setFens([c.fen()]);
+    setMoves([]);
+    clockRef.current = { w: 600000, b: 600000 };
+    syncClock();
+    resetSettlement();
+    setPhase("playing");
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myId, syncClock]);
+
+  // Receive the opponent's moves / resignation; replay history for a late joiner.
+  useEffect(() => {
+    if (!pvp) return;
+    const sendHistory = () =>
+      realtimeBridge.sendRoomEvent({
+        event: "sync",
+        roomId: pvp.room,
+        data: { by: myId, moves: chessRef.current.history({ verbose: true }).map((m) => ({ from: m.from, to: m.to, promotion: m.promotion })) },
+      });
+    const off = realtimeBridge.onRoomEvent((e) => {
+      const d = e.data as { by?: string; from?: string; to?: string; promotion?: string; moves?: PvpMove[] } | undefined;
+      if (e.roomId !== pvp.room || !d || d.by !== pvp.oppId) return;
+      if (e.event === "move" && d.from && d.to) {
+        if (chessRef.current.turn() !== myColor) applyMove(d.from, d.to, d.promotion, false, true);
+      } else if (e.event === "resign") {
+        finish(myColor, "Đối thủ xin thua");
+      } else if (e.event === "hello") {
+        sendHistory();
+      } else if (e.event === "sync" && d.moves && d.moves.length > chessRef.current.history().length) {
+        for (const m of d.moves.slice(chessRef.current.history().length)) applyMove(m.from, m.to, m.promotion, false, true);
+      }
+    });
+    realtimeBridge.sendRoomEvent({ event: "hello", roomId: pvp.room, data: { by: myId } });
+    return off;
+  }, [pvp, myId, myColor, applyMove, finish]);
+
   // Resume a game left unfinished (once, on mount).
   const restored = useRef(false);
   useEffect(() => {
     if (restored.current) return;
     restored.current = true;
+    if (initPvpFromUrl()) return;
     const saved = session.load();
     if (!saved) return;
     const p = saved.payload;
@@ -419,11 +496,11 @@ export function ChessGame() {
     setTakebacksLeft(p.takebacksLeft);
     setPhase("playing");
     showToast("Đã khôi phục ván đang dở ♟", "good");
-  }, [session, syncClock, showToast]);
+  }, [session, syncClock, showToast, initPvpFromUrl]);
 
   const persistRef = useRef<() => void>(() => {});
   persistRef.current = () => {
-    if (phase !== "playing") return;
+    if (phase !== "playing" || pvpRef.current) return;
     const finite = (v: number) => (v === Infinity ? null : Math.round(v));
     session.save(
       {
@@ -484,6 +561,7 @@ export function ChessGame() {
   const resign = () => {
     setConfirm(null);
     if (phase !== "playing") return;
+    if (pvp) realtimeBridge.sendRoomEvent({ event: "resign", roomId: pvp.room, data: { by: myId } });
     const loser = settings.mode === "local" ? turn : myColor;
     finish(loser === "w" ? "b" : "w", settings.mode === "local" ? `${loser === "w" ? "Trắng" : "Đen"} xin thua` : "Bạn xin thua");
   };
@@ -491,6 +569,7 @@ export function ChessGame() {
   const offerDraw = async () => {
     if (phase !== "playing") return;
     if (settings.mode === "local") return finish(null, "Hai bên thoả thuận hoà");
+    if (isPvp) return showToast("Ván online chưa hỗ trợ cầu hoà", "info");
     if (!analyst) return;
     showToast("Đã gửi lời cầu hoà…");
     const r = await analyst.request({ fen: liveFen, opts: { maxDepth: 4, timeMs: 400 } });
@@ -566,6 +645,7 @@ export function ChessGame() {
   const playerFor = (color: "w" | "b") => {
     if (settings.mode === "local") return { name: color === "w" ? "Trắng" : "Đen", avatar: `kokonut:${color === "w" ? "quan trang" : "quan den"}:2`, rating: undefined };
     if (color === myColor) return { name: me.username, avatar: me.avatar, rating: me.elo };
+    if (pvp) return { name: pvp.name, avatar: pvp.avatar, rating: pvp.elo };
     return { name: `Engine ${level.label}`, avatar: `kokonut:engine ${settings.level}:4`, rating: level.elo };
   };
   const capturedRow = (color: "w" | "b") => {

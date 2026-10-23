@@ -29,6 +29,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import TextLoading from "@/components/kokonut/text-loading";
 import { cn } from "@/lib/utils";
 import { MatchResultModal } from "./match-result-modal";
+import { GameFxOverlay, MatchIntro, NarratorButton, useFxQueue, useNarrator } from "./game-fx";
 import { GameHeader, Segmented, StakePicker, useGameSession, useMatchSettlement } from "./shared";
 
 const DEPT_ICON: Record<Dept, typeof Code2> = { tech: Code2, sales: TrendingUp, hr: Heart, design: PenTool };
@@ -148,6 +149,10 @@ export function DeadlineGame() {
   const [turnStart, setTurnStart] = useState(Date.now());
   const [now, setNow] = useState(Date.now());
   const [flash, setFlash] = useState<string | null>(null);
+  const [intro, setIntro] = useState(false);
+  const fx = useFxQueue();
+  const narrator = useNarrator();
+  const prevTop = useRef<{ round: number; id: string | null }>({ round: 0, id: null });
 
   const commit = useCallback((next: DState | null) => {
     sRef.current = next;
@@ -208,6 +213,8 @@ export function DeadlineGame() {
     ];
     commit(newRound(players, target));
     setTurnStart(Date.now());
+    setIntro(true);
+    narrator.say("Chia bài! Ai hết bài trước sẽ thắng.");
   };
 
   const nextRound = () => {
@@ -227,6 +234,43 @@ export function DeadlineGame() {
     setTurnStart(Date.now());
     setSelected([]);
   }, [s?.turn, s?.round]);
+
+  // Announce special cards like Werewolf's action FX (skipped on the opening card / a fresh round).
+  const topId = s ? top(s).id : null;
+  useEffect(() => {
+    if (!s || !topId) return;
+    const prev = prevTop.current;
+    prevTop.current = { round: s.round, id: topId };
+    if (prev.round !== s.round || prev.id === topId || prev.id === null) return;
+    const c = top(s);
+    const who = s.players[(((s.turn - s.dir) % s.players.length) + s.players.length) % s.players.length]?.name ?? "";
+    const line =
+      c.kind === "plus4" ? { title: "SẾP GIAO +4", subtitle: `${who} đẩy ${s.pending} lá phạt`, tone: "red" as const, icon: "📈", say: "Sếp giao thêm bốn việc!" }
+      : c.kind === "plus2" ? { title: "ĐẨY VIỆC +2", subtitle: `${who} đẩy ${s.pending} lá phạt`, tone: "red" as const, icon: "📥", say: "Đẩy việc! Cộng hai." }
+      : c.kind === "skip" ? { title: "NGHỈ PHÉP", subtitle: `${who} cho người kế mất lượt`, tone: "blue" as const, icon: "☕", say: "Nghỉ phép, mất lượt." }
+      : c.kind === "reverse" ? { title: "ĐỔI CA", subtitle: "Vòng chơi đảo chiều", tone: "gold" as const, icon: "🔄", say: "Đổi ca, đảo chiều." }
+      : c.kind === "wild" ? { title: "CHUYỂN PHÒNG", subtitle: `Sang ${DEPT_INFO[s.dept].name}`, tone: "white" as const, icon: "🏢", say: `Chuyển sang phòng ${DEPT_INFO[s.dept].name}.` }
+      : null;
+    if (line) {
+      fx.push(line);
+      narrator.say(line.say);
+    }
+  }, [topId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const lastLog = s?.log[s.log.length - 1] ?? "";
+  useEffect(() => {
+    if (/CHỐT/.test(lastLog) && !/quên/.test(lastLog)) {
+      fx.push({ title: "CHỐT!", subtitle: lastLog, tone: "gold", icon: "📣" });
+      narrator.say("Chốt!");
+    }
+  }, [lastLog, s?.log.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (s?.winner == null) return;
+    const name = s.players[s.winner].name;
+    fx.push({ title: s.winner === 0 ? "BẠN THẮNG!" : "HẾT BÀI!", subtitle: `${name} chốt đơn sạch bài`, tone: s.winner === 0 ? "gold" : "red", icon: s.winner === 0 ? "🏆" : "🏁" });
+    narrator.say(`${name} đã hết bài!`);
+  }, [s?.winner, s?.round]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bot turns.
   useEffect(() => {
@@ -382,7 +426,10 @@ export function DeadlineGame() {
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
+      <GameFxOverlay fx={fx.current} onDone={fx.pop} />
+      <MatchIntro open={intro} title="Deadline Rush" subtitle="Bàn đã chia bài" players={s.players.map((p) => ({ name: p.name, avatar: p.avatar }))} onDone={() => setIntro(false)} />
       <GameHeader game="uno" subtitle={`Ván ${s.round}${s.target ? ` · đến ${s.target}` : ""}`}>
+        <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
         {stake > 0 && <span className="chip">{stake} 🌾</span>}
       </GameHeader>
 
@@ -394,7 +441,7 @@ export function DeadlineGame() {
               const idx = i + 1;
               const active = s.turn === idx && !roundOver;
               return (
-                <div key={p.id} className={cn("flex min-w-[150px] items-center gap-3 rounded-3xl border p-2.5 pr-4 transition-colors", active ? "border-white bg-white/[0.08]" : "border-white/10 bg-white/[0.02]")}>
+                <div key={p.id} className={cn("flex min-w-[150px] items-center gap-3 rounded-3xl border p-2.5 pr-4 transition-colors", active ? "border-white bg-white/[0.08] shadow-[0_0_28px_rgba(255,255,255,0.35)]" : "border-white/10 bg-white/[0.02]")}>
                   <div className="relative">
                     <UserAvatar src={p.avatar} name={p.name} className={cn("size-11", active && "ring-2 ring-white")} />
                     {p.hand.length === 1 && <span className="absolute -right-2 -top-2 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black text-black">{p.called ? "CHỐT" : "1!"}</span>}
@@ -418,7 +465,13 @@ export function DeadlineGame() {
           </div>
 
           {/* Center table */}
-          <div className="my-6 flex flex-wrap items-center justify-center gap-6 sm:gap-10">
+          <div className="relative my-6 flex flex-wrap items-center justify-center gap-6 rounded-[50%] border border-white/10 px-8 py-8 sm:gap-10" style={{ background: `radial-gradient(ellipse at center, ${DEPT_INFO[s.dept].tone}22 0%, transparent 70%)`, boxShadow: `inset 0 0 60px ${DEPT_INFO[s.dept].tone}18` }}>
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute inset-2 rounded-[50%] border border-dashed border-white/20"
+              animate={{ rotate: s.dir === 1 ? 360 : -360 }}
+              transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
+            />
             <button type="button" onClick={humanDraw} disabled={!myTurn} className="relative transition-transform enabled:hover:-translate-y-1 disabled:opacity-60" aria-label={s.pending ? `Nhận ${s.pending} lá phạt` : "Rút bài"}>
               <div className="absolute left-1.5 top-1.5">
                 <DCard faceDown size="lg" />
