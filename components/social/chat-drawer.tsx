@@ -47,6 +47,7 @@ const GAME_URL: Record<string, string> = {
   werewolf: "/games/werewolf",
   uno: "/games/uno",
   arcade: "/games/arcade",
+  typing: "/games/typing",
 };
 const GAME_LABEL: Record<string, string> = {
   chess: "Cờ Vua",
@@ -494,7 +495,7 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
   const accept = useAppStore((s) => s.acceptBetChallenge);
   const cancel = useAppStore((s) => s.cancelBetChallenge);
   const [err, setErr] = useState<string | null>(null);
-  const game = (["chess", "xiangqi", "werewolf", "arcade", "uno"].includes(bet.gameType) ? bet.gameType : "chess") as GameId;
+  const game = (["chess", "xiangqi", "werewolf", "arcade", "uno", "typing"].includes(bet.gameType) ? bet.gameType : "chess") as GameId;
 
   return (
     <div className="mt-2 overflow-hidden rounded-2xl border border-black/20 bg-ink-950 text-white">

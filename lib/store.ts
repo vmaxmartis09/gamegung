@@ -688,6 +688,28 @@ export const useAppStore = create<AppState>()(
         realtimeBridge.sendReaction(channelId, messageId, emoji);
       },
       applyBetUpdate: (challenge) => {
+        const cur = get();
+        const me = cur.currentUser;
+        const existing = cur.messages[challenge.channelId]?.find((m) => m.betChallenge?.id === challenge.id)?.betChallenge;
+        if (existing && existing.status === "accepted" && challenge.status === "accepted" && existing.opponentId !== challenge.opponentId) {
+          // Two people accepted at once: the creator's first acceptance stands.
+          if (existing.creatorId === me.id) {
+            realtimeBridge.sendBetUpdate(existing);
+            return;
+          }
+          // I accepted too but lost the race: give the stake back, then show the winner.
+          if (existing.opponentId === me.id) {
+            const now = Date.now();
+            const balanceAfter = me.lua + existing.stake;
+            set((state) => ({
+              currentUser: { ...state.currentUser, lua: balanceAfter },
+              transactions: [
+                { id: "tx-refund-" + now, timestamp: now, amount: existing.stake, type: "bet_refund", description: `Hoàn tiền cược: kèo đã có người nhận trước (+${existing.stake} 🌾)`, balanceAfter },
+                ...state.transactions,
+              ],
+            }));
+          }
+        }
         set((state) => {
           const list = state.messages[challenge.channelId];
           if (!list || !list.some((m) => m.betChallenge?.id === challenge.id)) return state;
@@ -795,7 +817,6 @@ export const useAppStore = create<AppState>()(
             timestamp: now,
           };
 
-          realtimeBridge.sendChatMessage(newMessage);
           return {
             currentUser: {
               ...user,
@@ -808,6 +829,7 @@ export const useAppStore = create<AppState>()(
             },
           };
         });
+        realtimeBridge.sendChatMessage(get().messages[channelId]?.find((m) => m.betChallenge?.id === challengeId) as ChatMessage);
 
         return challenge;
       },
@@ -834,6 +856,7 @@ export const useAppStore = create<AppState>()(
 
         if (ch.status !== "pending") return false;
         if (ch.creatorId === user.id) return false; // cannot accept own challenge
+        if (ch.targetId && ch.targetId !== user.id) return false; // private challenge for someone else
         if (user.lua < ch.stake) return false; // not enough Lúa
 
         const now = Date.now();

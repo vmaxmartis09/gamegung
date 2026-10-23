@@ -6,7 +6,7 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, BookOpen, MessageCircle, Volume2, VolumeX } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
-import { useAppStore, MatchSettlementResult } from "@/lib/store";
+import { useAppStore, MatchSettlementResult, type BetChallenge } from "@/lib/store";
 import { useUiStore } from "@/lib/ui-store";
 import { recordMatchToSupabase, syncProfileToSupabase } from "@/lib/supabase-game";
 import { useSessionStore } from "@/lib/session-store";
@@ -318,6 +318,61 @@ export function StakePicker({ value, onChange, disabled }: { value: number; onCh
       />
     </div>
   );
+}
+
+/* ------------------------------- Friend bet -------------------------------- */
+
+export interface FriendOpp {
+  id: string;
+  name: string;
+  avatar: string;
+  betId: string;
+}
+
+/** Bet challenge sent through the table chat: the game may only start once the friend has accepted it. */
+export function useFriendBet(game: GameType) {
+  const meId = useAppStore((s) => s.currentUser.id);
+  const bet = useAppStore((s) => {
+    // Invites may come from the lounge or any private thread; newest wins.
+    let found: BetChallenge | null = null;
+    for (const list of Object.values(s.messages)) {
+      for (let i = list.length - 1; i >= 0; i--) {
+        const b = list[i].betChallenge;
+        if (b && b.gameType === game && (b.creatorId === s.currentUser.id || b.opponentId === s.currentUser.id) && (b.status === "pending" || b.status === "accepted")) {
+          if (!found || b.createdAt > found.createdAt) found = b;
+          break;
+        }
+      }
+    }
+    return found;
+  });
+  const createBet = useAppStore((s) => s.createBetChallenge);
+  const cancelBet = useAppStore((s) => s.cancelBetChallenge);
+
+  const friend: FriendOpp | null =
+    bet?.status === "accepted"
+      ? bet.creatorId === meId
+        ? { id: bet.opponentId ?? "", name: bet.opponentName ?? "Bạn bè", avatar: bet.opponentAvatar ?? "", betId: bet.id }
+        : { id: bet.creatorId, name: bet.creatorName, avatar: bet.creatorAvatar, betId: bet.id }
+      : null;
+  const pending = bet?.status === "pending" && bet.creatorId === meId ? bet : null;
+
+  /** Returns an error message, or null when the challenge was posted to the table chat. */
+  const invite = useCallback(
+    (stake: number): string | null => {
+      const lua = useAppStore.getState().currentUser.lua;
+      if (stake < 10) return "Chọn mức cược từ 50 Lúa để gửi kèo.";
+      if (stake > lua) return "Số dư không đủ để cược.";
+      if (!createBet("lounge", game, stake)) return "Không thể gửi kèo. Kiểm tra lại số dư.";
+      const st = useAppStore.getState();
+      st.setActiveChannel("lounge");
+      st.toggleChat(true);
+      return null;
+    },
+    [createBet, game]
+  );
+
+  return { bet, friend, pending, invite, cancel: cancelBet };
 }
 
 /* ------------------------------ Confirm dialog ----------------------------- */

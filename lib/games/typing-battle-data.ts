@@ -43,7 +43,7 @@ export const ITEM_BAG: ItemType[] = ITEM_TYPES.flatMap((k) => Array<ItemType>(IT
 
 /** Thời gian thẻ hiệu ứng nằm trên tay chờ hợp thể trước khi tự kích hoạt. */
 export const HAND_HOLD = 5;
-export const HAND_MAX = 3;
+export const HAND_MAX = 4;
 
 export type FusionId = "mirror" | "seal" | "bloodarmor" | "thunder" | "venom";
 

@@ -18,9 +18,10 @@ import {
   Side,
 } from "@/lib/engines/xiangqi-engine";
 import { cn } from "@/lib/utils";
+import { realtimeBridge } from "@/lib/realtime-bridge";
 import { MatchResultModal } from "./match-result-modal";
 import HoldButton from "@/components/kokonut/hold-button";
-import { ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useGameSession, useMatchOpponent, useMatchSettlement, useToast } from "./shared";
+import { ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchOpponent, useMatchSettlement, useToast } from "./shared";
 
 const TIME_CONTROLS = [
   { id: "5+3", base: 300, inc: 3, label: "5+3", kind: "Nhanh" },
@@ -52,7 +53,7 @@ const engine = makeEngine();
 const analyst = makeEngine();
 
 interface Settings {
-  mode: "ai" | "local";
+  mode: "ai" | "local" | "friend" | "pvp";
   level: XqLevel;
   color: Side | 0;
   time: TimeId;
@@ -60,6 +61,13 @@ interface Settings {
   theme: ThemeId;
 }
 const DEFAULTS: Settings = { mode: "ai", level: "medium", color: 1, time: "10+5", ranked: true, theme: "wood" };
+
+interface PvpInfo {
+  room: string;
+  oppId: string;
+  name: string;
+  avatar: string;
+}
 
 interface XqSave {
   settings: Settings;
@@ -108,9 +116,24 @@ export function XiangqiGame() {
     if (s > 0) setStake(s);
   }, []);
 
+  const myId = useAppStore((s) => s.currentUser.id);
+  const isFriend = settings.mode === "friend";
+  const fb = useFriendBet("xiangqi");
+  const [inviteErr, setInviteErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (isFriend && fb.bet && fb.bet.stake !== stake) setStake(fb.bet.stake);
+  }, [isFriend, fb.bet, stake]);
+  // A bet needs a ready opponent: friend mode starts only after the challenge is accepted.
+  const waitingOpp = isFriend && !fb.friend;
+  const [pvp, setPvp] = useState<PvpInfo | null>(null);
+  const pvpRef = useRef<PvpInfo | null>(null);
+  pvpRef.current = pvp;
+
   const posRef = useRef(new XiangqiPosition());
   const [boards, setBoards] = useState<Int8Array[]>([posRef.current.b.slice()]);
   const [moves, setMoves] = useState<PlayedMove[]>([]);
+  const movesRef = useRef<PlayedMove[]>([]);
+  movesRef.current = moves;
   const [phase, setPhase] = useState<"setup" | "playing" | "over">("setup");
   const [mySide, setMySide] = useState<Side>(1);
   const [flipped, setFlipped] = useState(false);
@@ -132,11 +155,12 @@ export function XiangqiGame() {
 
   const level = XQ_LEVELS[settings.level];
   const isAi = settings.mode === "ai";
-  const rated = isAi && settings.ranked;
+  const isPvp = settings.mode === "pvp";
+  const rated = (isAi && settings.ranked) || isPvp;
   const viewing = viewPly !== null && viewPly !== boards.length - 1;
   const shown = viewPly === null ? boards[boards.length - 1] : boards[viewPly];
   const humanTurn = phase === "playing" && (settings.mode === "local" || turn === mySide);
-  const bottomSide: Side = ((settings.mode === "local" ? 1 : mySide) * (flipped ? -1 : 1)) as Side;
+  const bottomSide: Side = (settings.mode === "local" ? 1 : mySide) as Side; // người đăng nhập luôn ở phía dưới
   const lastMove = viewing ? moves[(viewPly ?? 1) - 1] : moves[moves.length - 1];
 
   const targets = useMemo(() => {
@@ -172,19 +196,20 @@ export function XiangqiGame() {
       setSelected(null);
       sound("end");
       if (rated) {
-        settle(winner === 0 ? "draw" : winner === mySide ? "win" : "loss", { name: matchOpp?.name ?? `Engine ${level.label}`, elo: matchOpp?.elo ?? level.elo }, stake);
+        settle(winner === 0 ? "draw" : winner === mySide ? "win" : "loss", { name: pvp?.name ?? matchOpp?.name ?? `Engine ${level.label}`, elo: pvp ? 1200 : matchOpp?.elo ?? level.elo }, stake);
       } else showToast(winner === 0 ? `Hoà — ${reason}` : `${winner === 1 ? "Đỏ" : "Đen"} thắng — ${reason}`, "info", 4000);
     },
-    [rated, mySide, level, stake, settle, sound, showToast, matchOpp]
+    [rated, mySide, level, stake, settle, sound, showToast, matchOpp, pvp]
   );
 
   const applyMove = useCallback(
-    (from: number, to: number) => {
+    (from: number, to: number, remote = false) => {
       const p = posRef.current;
       const notation = vnNotation(p, from, to);
       const captured = p.b[to];
       const side = p.side;
       if (!p.play(from, to)) return false;
+      if (pvpRef.current && !remote) realtimeBridge.sendRoomEvent({ event: "move", roomId: pvpRef.current.room, data: { by: myId, from, to } });
       if (tc.base && tc.inc) {
         clockRef.current[side] += tc.inc * 1000;
         syncClock();
@@ -203,7 +228,7 @@ export function XiangqiGame() {
       if (r) finish(r.winner, r.reason);
       return true;
     },
-    [tc, syncClock, sound, finish]
+    [tc, syncClock, sound, finish, myId]
   );
 
   // AI
@@ -227,6 +252,31 @@ export function XiangqiGame() {
       alive = false;
     };
   }, [phase, isAi, turn, mySide, level, applyMove, boards.length]);
+
+  // Online match: receive the opponent's moves / resignation; replay history for a late joiner.
+  useEffect(() => {
+    if (!pvp) return;
+    const sendHistory = () =>
+      realtimeBridge.sendRoomEvent({
+        event: "sync",
+        roomId: pvp.room,
+        data: { by: myId, moves: movesRef.current.map((m) => ({ from: m.from, to: m.to })) },
+      });
+    const off = realtimeBridge.onRoomEvent((e) => {
+      const d = e.data as { by?: string; from?: number; to?: number; moves?: { from: number; to: number }[] } | undefined;
+      if (e.roomId !== pvp.room || !d || d.by !== pvp.oppId) return;
+      if (e.event === "move" && typeof d.from === "number" && typeof d.to === "number") {
+        if (posRef.current.side !== mySide) applyMove(d.from, d.to, true);
+      } else if (e.event === "resign") finish(mySide, "Đối thủ xin thua");
+      else if (e.event === "hello") sendHistory();
+      else if (e.event === "sync" && d.moves && d.moves.length > movesRef.current.length) {
+        for (const m of d.moves.slice(movesRef.current.length)) applyMove(m.from, m.to, true);
+      }
+    });
+    realtimeBridge.sendRoomEvent({ event: "hello", roomId: pvp.room, data: { by: myId } });
+    return off;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pvp, myId, mySide, applyMove, finish]);
 
   // Clock
   useEffect(() => {
@@ -299,7 +349,7 @@ export function XiangqiGame() {
 
   const persistRef = useRef<() => void>(() => {});
   persistRef.current = () => {
-    if (phase !== "playing") return;
+    if (phase !== "playing" || pvpRef.current) return;
     const fin = (v: number) => (v === Infinity ? null : Math.round(v));
     session.save(
       {
@@ -324,7 +374,31 @@ export function XiangqiGame() {
   }, [phase, moves.length, session]);
   useEffect(() => () => persistRef.current(), []);
 
+  const beginPvp = (info: PvpInfo) => {
+    session.clear();
+    const p = new XiangqiPosition();
+    posRef.current = p;
+    setPvp(info);
+    update({ mode: "pvp", time: "10+5" });
+    setMySide(myId < info.oppId ? 1 : -1);
+    setFlipped(false);
+    setBoards([p.b.slice()]);
+    setMoves([]);
+    setTurn(1);
+    setViewPly(null);
+    setSelected(null);
+    setHint(null);
+    clockRef.current = { 1: 600000, [-1]: 600000 };
+    syncClock();
+    resetSettlement();
+    setPhase("playing");
+  };
+
   const start = () => {
+    if (isFriend) {
+      if (!fb.friend) return;
+      return beginPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar });
+    }
     engine?.cancel();
     analyst?.cancel();
     const p = new XiangqiPosition();
@@ -356,6 +430,7 @@ export function XiangqiGame() {
   const resign = () => {
     setConfirm(null);
     if (phase !== "playing") return;
+    if (pvp) realtimeBridge.sendRoomEvent({ event: "resign", roomId: pvp.room, data: { by: myId } });
     const loser = settings.mode === "local" ? turn : mySide;
     finish((-loser) as Side, settings.mode === "local" ? `${loser === 1 ? "Đỏ" : "Đen"} xin thua` : "Bạn xin thua");
   };
@@ -363,6 +438,7 @@ export function XiangqiGame() {
   const offerDraw = async () => {
     if (phase !== "playing") return;
     if (settings.mode === "local") return finish(0, "Hai bên thoả thuận hoà");
+    if (isPvp) return showToast("Ván online chưa hỗ trợ cầu hoà", "info");
     if (!analyst) return;
     showToast("Đã gửi lời cầu hoà…");
     const p = posRef.current;
@@ -425,7 +501,6 @@ export function XiangqiGame() {
       const cur = viewPly ?? last;
       if (e.key === "ArrowLeft") setViewPly(Math.max(0, cur - 1));
       else if (e.key === "ArrowRight") setViewPly(cur + 1 >= last ? null : cur + 1);
-      else if (e.key.toLowerCase() === "f") setFlipped((f) => !f);
       else return;
       e.preventDefault();
     };
@@ -436,6 +511,7 @@ export function XiangqiGame() {
   const captured = (by: Side) => moves.filter((m) => m.side === by && m.captured).map((m) => m.captured);
   const playerFor = (side: Side) => {
     if (settings.mode === "local") return { name: side === 1 ? "Bên Đỏ" : "Bên Đen", avatar: `kokonut:${side === 1 ? "ben do" : "ben den"}:1`, rating: undefined };
+    if (pvp && side !== mySide) return { name: pvp.name, avatar: pvp.avatar, rating: undefined };
     if (side === mySide) return { name: me.username, avatar: me.avatar, rating: me.elo };
     return { name: matchOpp?.name ?? `Engine ${level.label}`, avatar: matchOpp?.avatar ?? `kokonut:ky vuong ${settings.level}:5`, rating: matchOpp?.elo ?? level.elo };
   };
@@ -481,7 +557,7 @@ export function XiangqiGame() {
             extra={capturedRow(topSide)}
           />
 
-          <div className="relative flex items-center justify-center h-full max-h-[calc(100dvh-5.5rem)] aspect-[9/10] max-w-[min(100%,calc((100dvh-5.5rem)*0.9))]">
+          <div className="relative flex items-center justify-center w-full aspect-[9/10] max-w-[min(100%,calc((100dvh-5.5rem)*0.9))]">
             <XqBoard
               board={shown}
               bottomSide={bottomSide}
@@ -496,8 +572,8 @@ export function XiangqiGame() {
             >
               {phase === "setup" && (
                 <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-xs">
-                  <button type="button" onClick={start} className="btn-lime px-6 py-4 text-base font-bold shadow-lift">
-                    <Play className="size-5" /> Bắt đầu ván
+                  <button type="button" onClick={start} disabled={waitingOpp} className="btn-lime disabled:opacity-50 px-6 py-4 text-base font-bold shadow-lift">
+                    <Play className="size-5" /> {waitingOpp ? "Chờ đối thủ nhận kèo" : "Bắt đầu ván"}
                   </button>
                 </div>
               )}
@@ -544,7 +620,7 @@ export function XiangqiGame() {
               <h2 className="font-display text-lg font-extrabold">Thiết lập ván</h2>
               <div>
                 <span className="label">Chế độ</span>
-                <Segmented value={settings.mode} onChange={(v) => update({ mode: v })} options={[{ value: "ai", label: "Đấu Engine" }, { value: "local", label: "2 người 1 máy" }]} />
+                <Segmented value={settings.mode} onChange={(v) => update({ mode: v })} options={[{ value: "ai", label: "Đấu Engine" }, { value: "local", label: "2 người 1 máy" }, { value: "friend", label: "Mời bạn" }]} />
               </div>
               {isAi && (
                 <>
@@ -598,17 +674,44 @@ export function XiangqiGame() {
                 <>
                   <div>
                     <span className="label">Loại ván</span>
-                    <Segmented value={settings.ranked ? "r" : "t"} onChange={(v) => update({ ranked: v === "r" })} options={[{ value: "r", label: "Xếp hạng" }, { value: "t", label: "Tập luyện" }]} />
+                    <Segmented value={settings.ranked ? "r" : "t"} onChange={(v) => { update({ ranked: v === "r" }); if (v === "t") setStake(0); }} options={[{ value: "r", label: "Xếp hạng" }, { value: "t", label: "Tập luyện" }]} />
                   </div>
-                  {settings.ranked && <StakePicker value={stake} onChange={setStake} />}
+                  <StakePicker
+                    value={stake}
+                    onChange={(v) => {
+                      setStake(v);
+                      if (v > 0 && !settings.ranked) update({ ranked: true });
+                    }}
+                  />
                 </>
               )}
               <div>
                 <span className="label">Bàn cờ</span>
                 <Segmented value={THEMES[settings.theme] ? settings.theme : "wood"} onChange={(v) => update({ theme: v })} size="sm" options={(Object.keys(THEMES) as ThemeId[]).map((k) => ({ value: k, label: THEMES[k].name }))} />
               </div>
-              <button type="button" onClick={start} className="btn-lime w-full py-2.5 font-bold">
-                <Play className="size-4" /> Bắt đầu
+              {isFriend && (
+                <>
+                  <StakePicker value={stake} onChange={(v) => { setInviteErr(null); setStake(v); }} disabled={!!fb.pending || !!fb.friend} />
+                  <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-2.5 text-xs">
+                    {fb.friend ? (
+                      <p>✅ <b>{fb.friend.name}</b> đã nhận kèo {fb.bet?.stake ?? 0} 🌾 — cả hai bấm Bắt đầu để vào bàn.</p>
+                    ) : fb.pending ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0">⏳ Chờ bạn bè nhận kèo {fb.pending.stake}&nbsp;🌾</span>
+                        <button type="button" className="btn-ghost shrink-0 whitespace-nowrap px-2 py-1" onClick={() => fb.cancel(fb.pending!.id)}>Huỷ kèo</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Chưa có đối thủ</span>
+                        <button type="button" className="btn-accent shrink-0 whitespace-nowrap px-2 py-1" onClick={() => setInviteErr(fb.invite(stake))}>Gửi kèo vào chat</button>
+                      </div>
+                    )}
+                    {inviteErr && <p role="alert" className="mt-1 text-danger">{inviteErr}</p>}
+                  </div>
+                </>
+              )}
+              <button type="button" onClick={start} disabled={waitingOpp} className="btn-lime w-full py-2.5 font-bold disabled:opacity-50">
+                <Play className="size-4" /> {waitingOpp ? "Chờ đối thủ nhận kèo" : "Bắt đầu"}
               </button>
             </div>
           ) : (
@@ -624,7 +727,6 @@ export function XiangqiGame() {
                   <Act label="Cầu hoà" icon={<Handshake className="size-3.5" />} onClick={offerDraw} disabled={phase !== "playing"} />
                   <Act label={`Đi lại ${rated ? "" : takebacksLeft}`} icon={<Undo2 className="size-3.5" />} onClick={takeback} disabled={rated || phase !== "playing" || takebacksLeft <= 0 || !moves.length} />
                   <Act label={`Gợi ý ${rated ? "" : hintsLeft}`} icon={<Lightbulb className="size-3.5" />} onClick={askHint} disabled={rated || !humanTurn || hintsLeft <= 0} />
-                  <Act label="Xoay bàn" icon={<Repeat className="size-3.5" />} onClick={() => setFlipped((f) => !f)} />
                   <Act label="Ván mới" icon={<RotateCcw className="size-3.5" />} onClick={() => (phase === "playing" ? setConfirm("new") : backToSetup())} />
                 </div>
                 {phase === "playing" && (

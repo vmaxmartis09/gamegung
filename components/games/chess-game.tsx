@@ -12,9 +12,12 @@ import {
   Handshake,
   Lightbulb,
   Play,
-  Repeat,
   RotateCcw,
   Undo2,
+  Headphones,
+  HeadphoneOff,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/lib/store";
@@ -23,10 +26,11 @@ import { soundManager } from "@/lib/audio";
 import { EngineClient } from "@/lib/engines/engine-client";
 import { ENGINE_LEVELS, EngineLevel, SearchOptions, SearchResult } from "@/lib/engines/chess-engine";
 import { cn } from "@/lib/utils";
+import { useGameRoom } from "@/lib/game-room";
 import { ChessIcon } from "./chess-icons";
 import { MatchResultModal } from "./match-result-modal";
 import HoldButton from "@/components/kokonut/hold-button";
-import { ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useGameSession, useMatchSettlement, useToast } from "./shared";
+import { ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchSettlement, useToast } from "./shared";
 
 /* --------------------------------- Config --------------------------------- */
 
@@ -112,7 +116,7 @@ interface ChessSave {
   hintsLeft: number;
   takebacksLeft: number;
 }
-type Mode = "ai" | "local" | "pvp";
+type Mode = "ai" | "local" | "pvp" | "friend";
 
 interface PvpInfo {
   room: string;
@@ -176,6 +180,15 @@ export function ChessGame() {
     if (s > 0) setStake(s);
   }, []);
 
+  const isFriend = settings.mode === "friend";
+  const fb = useFriendBet("chess");
+  const [inviteErr, setInviteErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (isFriend && fb.bet && fb.bet.stake !== stake) setStake(fb.bet.stake);
+  }, [isFriend, fb.bet, stake]);
+  // A bet needs a ready opponent: friend mode starts only after the challenge is accepted.
+  const waitingOpp = isFriend && !fb.friend;
+
   const [pvp, setPvp] = useState<PvpInfo | null>(null);
   const pvpRef = useRef<PvpInfo | null>(null);
   pvpRef.current = pvp;
@@ -186,7 +199,6 @@ export function ChessGame() {
   const [moves, setMoves] = useState<Move[]>([]);
   const [phase, setPhase] = useState<Phase>("setup");
   const [myColor, setMyColor] = useState<"w" | "b">("w");
-  const [flipped, setFlipped] = useState(false);
   const [viewPly, setViewPly] = useState<number | null>(null);
   const [selected, setSelected] = useState<Square | null>(null);
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
@@ -197,6 +209,7 @@ export function ChessGame() {
   const [evalCp, setEvalCp] = useState<number | null>(null);
   const [overReason, setOverReason] = useState<string>("");
   const [confirm, setConfirm] = useState<null | "resign" | "new">(null);
+  const [drawOffer, setDrawOffer] = useState<null | "in" | "out">(null);
   const [animKey, setAnimKey] = useState(0);
   const lastWasDrag = useRef(false);
 
@@ -218,7 +231,7 @@ export function ChessGame() {
   const viewing = viewPly !== null && viewPly !== fens.length - 1;
   const turn = liveFen.split(" ")[1] as "w" | "b";
   const humanTurn = phase === "playing" && (settings.mode === "local" || turn === myColor);
-  const orientation: "w" | "b" = (settings.mode === "local" ? "w" : myColor) === "w" ? (flipped ? "b" : "w") : flipped ? "w" : "b";
+  const orientation: "w" | "b" = settings.mode === "local" ? "w" : myColor; // người đăng nhập luôn ở phía dưới
 
   const shownBoard = useMemo(() => new Chess(shownFen).board(), [shownFen]);
   const material = useMemo(() => materialInfo(shownFen), [shownFen]);
@@ -253,8 +266,11 @@ export function ChessGame() {
 
   /* ------------------------------ Game end ------------------------------ */
 
+  const finishedRef = useRef(false);
   const finish = useCallback(
     (winner: "w" | "b" | null, reason: string) => {
+      if (finishedRef.current) return;
+      finishedRef.current = true;
       if (tickRef.current) cancelAnimationFrame(tickRef.current);
       engine?.cancel();
       setThinking(false);
@@ -310,6 +326,7 @@ export function ChessGame() {
       setViewPly(null);
       setSelected(null);
       setHint(null);
+      setDrawOffer(null);
       if (c.inCheck()) play("check");
       else if (mv.promotion) play("promotion");
       else if (mv.captured) play("capture");
@@ -409,18 +426,8 @@ export function ChessGame() {
   /* ------------------------------ Session ------------------------------ */
 
   // Online match: the matchmaking modal passes ?mode=match&room=…&oppId=…; two real players only.
-  const initPvpFromUrl = useCallback(() => {
-    const q = new URLSearchParams(window.location.search);
-    const room = q.get("room");
-    const oppId = q.get("oppId");
-    if (q.get("mode") !== "match" || q.get("isBot") === "1" || !room || !oppId) return false;
-    const info: PvpInfo = {
-      room,
-      oppId,
-      name: q.get("opp") || "Đối thủ",
-      avatar: q.get("oppAvatar") || "",
-      elo: parseInt(q.get("oppElo") || "", 10) || 1200,
-    };
+  const beginPvp = useCallback((info: PvpInfo) => {
+    const oppId = info.oppId;
     session.clear();
     const c = new Chess();
     chessRef.current = c;
@@ -432,10 +439,26 @@ export function ChessGame() {
     clockRef.current = { w: 600000, b: 600000 };
     syncClock();
     resetSettlement();
+    finishedRef.current = false;
+    setDrawOffer(null);
     setPhase("playing");
-    return true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myId, syncClock]);
+
+  const initPvpFromUrl = useCallback(() => {
+    const q = new URLSearchParams(window.location.search);
+    const room = q.get("room");
+    const oppId = q.get("oppId");
+    if (q.get("mode") !== "match" || q.get("isBot") === "1" || !room || !oppId) return false;
+    beginPvp({
+      room,
+      oppId,
+      name: q.get("opp") || "Đối thủ",
+      avatar: q.get("oppAvatar") || "",
+      elo: parseInt(q.get("oppElo") || "", 10) || 1200,
+    });
+    return true;
+  }, [beginPvp]);
 
   // Receive the opponent's moves / resignation; replay history for a late joiner.
   useEffect(() => {
@@ -453,6 +476,13 @@ export function ChessGame() {
         if (chessRef.current.turn() !== myColor) applyMove(d.from, d.to, d.promotion, false, true);
       } else if (e.event === "resign") {
         finish(myColor, "Đối thủ xin thua");
+      } else if (e.event === "draw") {
+        setDrawOffer("in");
+      } else if (e.event === "draw-accept") {
+        finish(null, "Hai bên thoả thuận hoà");
+      } else if (e.event === "draw-decline") {
+        setDrawOffer(null);
+        showToast("Đối thủ từ chối hoà", "bad");
       } else if (e.event === "hello") {
         sendHistory();
       } else if (e.event === "sync" && d.moves && d.moves.length > chessRef.current.history().length) {
@@ -461,7 +491,7 @@ export function ChessGame() {
     });
     realtimeBridge.sendRoomEvent({ event: "hello", roomId: pvp.room, data: { by: myId } });
     return off;
-  }, [pvp, myId, myColor, applyMove, finish]);
+  }, [pvp, myId, myColor, applyMove, finish, showToast]);
 
   // Resume a game left unfinished (once, on mount).
   const restored = useRef(false);
@@ -494,6 +524,7 @@ export function ChessGame() {
     syncClock();
     setHintsLeft(p.hintsLeft);
     setTakebacksLeft(p.takebacksLeft);
+    finishedRef.current = false;
     setPhase("playing");
     showToast("Đã khôi phục ván đang dở ♟", "good");
   }, [session, syncClock, showToast, initPvpFromUrl]);
@@ -529,12 +560,15 @@ export function ChessGame() {
   /* ------------------------------ Actions ------------------------------ */
 
   const startGame = () => {
+    if (isFriend) {
+      if (!fb.friend) return;
+      return beginPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar, elo: 1200 });
+    }
     engine?.cancel();
     const c = new Chess();
     chessRef.current = c;
     const color = settings.color === "random" ? (Math.random() < 0.5 ? "w" : "b") : settings.color;
     setMyColor(settings.mode === "local" ? "w" : color);
-    setFlipped(false);
     setFens([c.fen()]);
     setMoves([]);
     setViewPly(null);
@@ -548,6 +582,7 @@ export function ChessGame() {
     syncClock();
     analyst?.cancel();
     resetSettlement();
+    finishedRef.current = false;
     setPhase("playing");
   };
 
@@ -569,7 +604,12 @@ export function ChessGame() {
   const offerDraw = async () => {
     if (phase !== "playing") return;
     if (settings.mode === "local") return finish(null, "Hai bên thoả thuận hoà");
-    if (isPvp) return showToast("Ván online chưa hỗ trợ cầu hoà", "info");
+    if (pvp) {
+      if (drawOffer) return;
+      setDrawOffer("out");
+      realtimeBridge.sendRoomEvent({ event: "draw", roomId: pvp.room, data: { by: myId } });
+      return showToast("Đã gửi lời cầu hoà cho đối thủ…");
+    }
     if (!analyst) return;
     showToast("Đã gửi lời cầu hoà…");
     const r = await analyst.request({ fen: liveFen, opts: { maxDepth: 4, timeMs: 400 } });
@@ -578,6 +618,13 @@ export function ChessGame() {
     const accept = aiScore <= -120 || (Math.abs(aiScore) <= 40 && moves.length >= 40);
     if (accept) finish(null, "Engine chấp nhận cầu hoà");
     else showToast("Engine từ chối: “Ván này còn đánh được.”", "bad");
+  };
+
+  const answerDraw = (accept: boolean) => {
+    if (!pvp) return;
+    setDrawOffer(null);
+    realtimeBridge.sendRoomEvent({ event: accept ? "draw-accept" : "draw-decline", roomId: pvp.room, data: { by: myId } });
+    if (accept) finish(null, "Hai bên thoả thuận hoà");
   };
 
   const takeback = () => {
@@ -630,7 +677,6 @@ export function ChessGame() {
       else if (e.key === "ArrowRight") setViewPly(cur + 1 >= last ? null : cur + 1);
       else if (e.key === "ArrowUp") setViewPly(0);
       else if (e.key === "ArrowDown") setViewPly(null);
-      else if (e.key.toLowerCase() === "f") setFlipped((f) => !f);
       else return;
       e.preventDefault();
     };
@@ -693,7 +739,7 @@ export function ChessGame() {
             );
           })()}
 
-          <div className="relative flex items-center justify-center gap-2 h-full max-h-[calc(100dvh-5.5rem)] aspect-square max-w-[min(100%,calc(100dvh-5.5rem))]">
+          <div className="relative flex items-center justify-center gap-2 w-full aspect-square max-w-[min(100%,calc(100dvh-5.5rem))]">
             {evalCp !== null && !rated && <EvalBar cp={evalCp} orientation={orientation} />}
             <Board
               board={shownBoard}
@@ -726,8 +772,8 @@ export function ChessGame() {
               )}
               {phase === "setup" && (
                 <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-xs">
-                  <button type="button" onClick={startGame} className="btn-lime px-6 py-4 text-base font-bold shadow-lift">
-                    <Play className="size-5" /> Bắt đầu ván
+                  <button type="button" onClick={startGame} disabled={waitingOpp} className="btn-lime px-6 py-4 text-base font-bold shadow-lift disabled:opacity-50">
+                    <Play className="size-5" /> {waitingOpp ? "Chờ đối thủ nhận kèo" : "Bắt đầu ván"}
                   </button>
                 </div>
               )}
@@ -782,6 +828,7 @@ export function ChessGame() {
                   options={[
                     { value: "ai", label: "Đấu Engine" },
                     { value: "local", label: "2 người 1 máy" },
+                    { value: "friend", label: "Mời bạn" },
                   ]}
                 />
               </div>
@@ -845,14 +892,44 @@ export function ChessGame() {
                     <span className="label">Loại ván</span>
                     <Segmented
                       value={settings.ranked ? "r" : "t"}
-                      onChange={(v) => updateSettings({ ranked: v === "r" })}
+                      onChange={(v) => {
+                        updateSettings({ ranked: v === "r" });
+                        if (v === "t") setStake(0);
+                      }}
                       options={[
                         { value: "r", label: "Xếp hạng" },
                         { value: "t", label: "Tập luyện" },
                       ]}
                     />
                   </div>
-                  {settings.ranked && <StakePicker value={stake} onChange={setStake} />}
+                  <StakePicker
+                    value={stake}
+                    onChange={(v) => {
+                      setStake(v);
+                      if (v > 0 && !settings.ranked) updateSettings({ ranked: true });
+                    }}
+                  />
+                </>
+              )}
+              {isFriend && (
+                <>
+                  <StakePicker value={stake} onChange={(v) => { setInviteErr(null); setStake(v); }} disabled={!!fb.pending || !!fb.friend} />
+                  <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-2.5 text-xs">
+                    {fb.friend ? (
+                      <p>✅ <b>{fb.friend.name}</b> đã nhận kèo {fb.bet?.stake ?? 0} 🌾 — cả hai bấm Bắt đầu để vào bàn.</p>
+                    ) : fb.pending ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0">⏳ Chờ bạn bè nhận kèo {fb.pending.stake}&nbsp;🌾</span>
+                        <button type="button" className="btn-ghost shrink-0 whitespace-nowrap px-2 py-1" onClick={() => fb.cancel(fb.pending!.id)}>Huỷ kèo</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Chưa có đối thủ</span>
+                        <button type="button" className="btn-accent shrink-0 whitespace-nowrap px-2 py-1" onClick={() => setInviteErr(fb.invite(stake))}>Gửi kèo vào chat</button>
+                      </div>
+                    )}
+                    {inviteErr && <p role="alert" className="mt-1 text-danger">{inviteErr}</p>}
+                  </div>
                 </>
               )}
               <div>
@@ -874,8 +951,8 @@ export function ChessGame() {
                   ))}
                 </div>
               </div>
-              <button type="button" onClick={startGame} className="btn-lime w-full py-2.5 font-bold">
-                <Play className="size-4" /> Bắt đầu
+              <button type="button" onClick={startGame} disabled={waitingOpp} className="btn-lime w-full py-2.5 font-bold disabled:opacity-50">
+                <Play className="size-4" /> {waitingOpp ? "Chờ đối thủ nhận kèo" : "Bắt đầu"}
               </button>
             </div>
           ) : (
@@ -888,13 +965,22 @@ export function ChessGame() {
                   </div>
                 )}
                 <div className="grid grid-cols-3 gap-1.5">
-                  <IconAction label="Cầu hoà" icon={<Handshake className="size-3.5" />} onClick={offerDraw} disabled={phase !== "playing"} />
+                  <IconAction label="Cầu hoà" icon={<Handshake className="size-3.5" />} onClick={offerDraw} disabled={phase !== "playing" || drawOffer === "out"} />
                   <IconAction label={`Đi lại ${rated ? "" : takebacksLeft}`} icon={<Undo2 className="size-3.5" />} onClick={takeback} disabled={rated || phase !== "playing" || takebacksLeft <= 0 || moves.length === 0} />
                   <IconAction label={`Gợi ý ${rated ? "" : hintsLeft}`} icon={<Lightbulb className="size-3.5" />} onClick={askHint} disabled={rated || !humanTurn || hintsLeft <= 0} />
-                  <IconAction label="Xoay bàn" icon={<Repeat className="size-3.5" />} onClick={() => setFlipped((f) => !f)} />
                   <IconAction label="PGN" icon={<Copy className="size-3.5" />} onClick={copyPgn} disabled={moves.length === 0} />
                   <IconAction label="Ván mới" icon={<RotateCcw className="size-3.5" />} onClick={() => (phase === "playing" ? setConfirm("new") : backToSetup())} wide />
                 </div>
+                {phase === "playing" && drawOffer === "in" && (
+                  <div className="rounded-xl border border-lime-400/40 bg-lime-400/10 p-2 text-center text-xs">
+                    <p className="mb-1.5 font-bold">Đối thủ cầu hoà</p>
+                    <div className="flex gap-1.5">
+                      <button type="button" className="btn-lime flex-1 py-1.5 font-bold" onClick={() => answerDraw(true)}>Đồng ý</button>
+                      <button type="button" className="btn-ghost flex-1 py-1.5" onClick={() => answerDraw(false)}>Từ chối</button>
+                    </div>
+                  </div>
+                )}
+                {pvp && phase === "playing" && <MatchVoice room={pvp.room} />}
                 {phase === "playing" && (
                   <HoldButton className="w-full text-xs" variant="red" holdingLabel="Giữ để xác nhận…" completeLabel="Đã xin thua" onHoldComplete={resign}>
                     Giữ để xin thua
@@ -1191,6 +1277,31 @@ function PromotionPicker({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Voice chat private to this match: a two-person WebRTC room keyed by the match room id. */
+function MatchVoice({ room }: { room: string }) {
+  const v = useGameRoom(`chess-${room}`);
+  const opp = v.members.find((m) => m.id !== v.me.id);
+  const oppTalking = !!opp && v.speaking.includes(opp.id);
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-2">
+      <div className="flex items-center gap-1.5">
+        <button type="button" onClick={v.toggleMic} className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-1.5 text-[11px] font-bold transition-colors", v.micOn ? "bg-lime-400 text-black" : "bg-white/10 text-white hover:bg-white/15")}>
+          {v.micOn ? <Mic className="size-3.5" /> : <MicOff className="size-3.5" />}
+          {v.micOn ? "Mic bật" : "Bật mic"}
+        </button>
+        <button type="button" onClick={() => v.setDeafened(!v.deafened)} title={v.deafened ? "Bật loa" : "Tắt loa"} aria-label={v.deafened ? "Bật loa" : "Tắt loa"} className={cn("grid size-8 place-items-center rounded-xl transition-colors", v.deafened ? "bg-pop-red/30 text-white" : "bg-white/10 text-white hover:bg-white/15")}>
+          {v.deafened ? <HeadphoneOff className="size-3.5" /> : <Headphones className="size-3.5" />}
+        </button>
+      </div>
+      <p className="mt-1.5 flex items-center gap-1.5 text-[10px] text-ink-300">
+        <span className={cn("size-1.5 rounded-full", oppTalking ? "bg-lime-400 animate-pulse" : opp ? "bg-emerald-400" : "bg-neutral-600")} />
+        {!v.connected ? "Đang kết nối thoại…" : opp ? (oppTalking ? "Đối thủ đang nói" : "Đối thủ đã vào thoại") : "Chờ đối thủ vào thoại"}
+      </p>
+      {v.error && <p role="alert" className="mt-1 text-[10px] text-pop-red">{v.error}</p>}
     </div>
   );
 }
