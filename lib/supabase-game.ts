@@ -44,7 +44,7 @@ export interface SupabaseLeaderboardItem {
 // Columns the remote table turned out not to have; skipped on later syncs.
 const missingProfileColumns = new Set<string>();
 // Only real Supabase accounts (UUIDs) are ever written; local and dev ids stay local.
-const isAccountId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+export const isAccountId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 export async function syncProfileToSupabase(user: UserProfile): Promise<boolean> {
   if (!isSupabaseConfigured || !isAccountId(user.id)) return false;
@@ -229,189 +229,25 @@ export interface MatchmakingOpponent {
 }
 
 const OFFICE_BOT_POOL = [
-  {
-    name: "Alex Dev (AI Bot)",
-    title: "Đại Kiện Tướng Bàn Trà",
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Alex",
-    eloOffset: 20,
-  },
-  {
-    name: "Minh Marketing (AI)",
-    title: "Sói Già Phố Wall",
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Minh",
-    eloOffset: -15,
-  },
-  {
-    name: "Trang Lead Design",
-    title: "Bậc Thầy Bốc Phét",
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Trang",
-    eloOffset: 10,
-  },
-  {
-    name: "Tuấn Cloud DevOps",
-    title: "Kỳ Thánh IT",
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Tuan",
-    eloOffset: -30,
-  },
-  {
-    name: "Linh HR Chiến Thần",
-    title: "Chiến Thần Đàm Phán",
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Linh",
-    eloOffset: 25,
-  },
+  { name: "Alex Dev", title: "Đại Kiện Tướng Bàn Trà", avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Alex", eloOffset: 20 },
+  { name: "Minh Marketing", title: "Sói Già Phố Wall", avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Minh", eloOffset: -15 },
+  { name: "Trang Lead Design", title: "Bậc Thầy Bốc Phét", avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Trang", eloOffset: 10 },
+  { name: "Tuấn Cloud DevOps", title: "Kỳ Thánh IT", avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Tuan", eloOffset: -30 },
+  { name: "Linh HR Chiến Thần", title: "Chiến Thần Đàm Phán", avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Linh", eloOffset: 25 },
 ];
 
-/**
- * Trình ghép trận Realtime qua Supabase Broadcast Channel.
- * Tự động ghép 2 người thật nếu cùng online tìm trận, hoặc ghép AI đồng trình sau timeout 6s.
- */
-export function startRealtimeMatchmaking({
-  gameType,
-  stake,
-  user,
-  onOpponentFound,
-}: {
-  gameType: GameType;
-  stake: number;
-  user: UserProfile;
-  onOpponentFound: (opponent: MatchmakingOpponent) => void;
-}): () => void {
-  const channelName = `matchmaking_${gameType}_${stake}`;
-  let isMatched = false;
-  let botFallbackTimer: NodeJS.Timeout | null = null;
-
-  // Lấy ELO hiện tại của user theo game
-  const userElo =
-    gameType === "chess"
-      ? user.eloChess
-      : gameType === "xiangqi"
-      ? user.eloXiangqi
-      : gameType === "werewolf"
-      ? user.eloWerewolf
-      : (user.eloArcade ?? 1200);
-
-  // Fallback sang AI sau 6 giây nếu không có người chơi thật
-  botFallbackTimer = setTimeout(() => {
-    if (isMatched) return;
-    isMatched = true;
-
-    const randomBot = OFFICE_BOT_POOL[Math.floor(Math.random() * OFFICE_BOT_POOL.length)];
-    const botElo = Math.max(800, userElo + randomBot.eloOffset);
-    const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-    onOpponentFound({
-      id: "bot-" + Date.now(),
-      username: randomBot.name,
-      avatar: randomBot.avatar,
-      title: randomBot.title,
-      elo: botElo,
-      isBot: true,
-      stake,
-      roomCode,
-    });
-  }, 6500);
-
-  // Nếu Supabase có kết nối, thử ghép người chơi thật
-  let channel: any = null;
-  if (isSupabaseConfigured) {
-    try {
-      channel = supabase.channel(channelName, {
-        config: { broadcast: { self: false } },
-      });
-
-      channel
-        .on("broadcast", { event: "search_match" }, (payload: any) => {
-          if (isMatched) return;
-          const otherPlayer = payload.payload;
-          if (!otherPlayer || otherPlayer.id === user.id) return;
-
-          // Ghép thành công 2 người chơi thật!
-          isMatched = true;
-          if (botFallbackTimer) clearTimeout(botFallbackTimer);
-
-          const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-          // Phản hồi cho người chơi kia
-          channel.send({
-            type: "broadcast",
-            event: "match_ready",
-            payload: {
-              hostId: user.id,
-              guestId: otherPlayer.id,
-              roomCode,
-              opponent: {
-                id: user.id,
-                username: user.username,
-                avatar: user.avatar,
-                title: user.title,
-                elo: userElo,
-              },
-            },
-          });
-
-          onOpponentFound({
-            id: otherPlayer.id,
-            username: otherPlayer.username,
-            avatar: otherPlayer.avatar,
-            title: otherPlayer.title,
-            elo: otherPlayer.elo,
-            isBot: false,
-            stake,
-            roomCode,
-          });
-        })
-        .on("broadcast", { event: "match_ready" }, (payload: any) => {
-          if (isMatched) return;
-          const data = payload.payload;
-          if (data.guestId === user.id) {
-            isMatched = true;
-            if (botFallbackTimer) clearTimeout(botFallbackTimer);
-
-            onOpponentFound({
-              id: data.opponent.id,
-              username: data.opponent.username,
-              avatar: data.opponent.avatar,
-              title: data.opponent.title,
-              elo: data.opponent.elo,
-              isBot: false,
-              stake,
-              roomCode: data.roomCode,
-            });
-          }
-        })
-        .subscribe((status: string) => {
-          if (status === "SUBSCRIBED" && !isMatched) {
-            // Phát sóng tìm trận
-            channel.send({
-              type: "broadcast",
-              event: "search_match",
-              payload: {
-                id: user.id,
-                username: user.username,
-                avatar: user.avatar,
-                title: user.title,
-                elo: userElo,
-                stake,
-              },
-            });
-          }
-        });
-    } catch (e) {
-      console.warn("[Matchmaking] Realtime channel setup failed:", e);
-    }
-  }
-
-  // Cleanup function khi hủy hoặc đóng modal
-  return () => {
-    isMatched = true;
-    if (botFallbackTimer) clearTimeout(botFallbackTimer);
-    if (channel) {
-      try {
-        supabase.removeChannel(channel);
-      } catch (err) {
-        // ignore
-      }
-    }
+/** Đối thủ máy đồng trình, tên luôn ghi rõ là bot. Ghép người thật: xem joinMatchQueue (lib/online-match). */
+export function pickBotOpponent(userElo: number, stake: number): MatchmakingOpponent {
+  const bot = OFFICE_BOT_POOL[Math.floor(Math.random() * OFFICE_BOT_POOL.length)];
+  return {
+    id: "bot-" + Date.now(),
+    username: `${bot.name} (Bot)`,
+    avatar: bot.avatar,
+    title: bot.title,
+    elo: Math.max(800, userElo + bot.eloOffset),
+    isBot: true,
+    stake,
+    roomCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
   };
 }
 

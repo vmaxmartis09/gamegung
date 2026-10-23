@@ -103,6 +103,25 @@ export function betOpponentFromUrl(): { room: string; oppId: string; name: strin
   return null;
 }
 
+/** Like betOpponentFromUrl, but waits for chat history to load (the bet card may arrive a moment after the page). */
+export function waitForBetOpponent(timeoutMs = 8000): Promise<ReturnType<typeof betOpponentFromUrl>> {
+  return new Promise((resolve) => {
+    const now = betOpponentFromUrl();
+    if (now || !new URLSearchParams(window.location.search).get("bet")) return resolve(now);
+    const timer = setTimeout(() => {
+      unsub();
+      resolve(null);
+    }, timeoutMs);
+    const unsub = useAppStore.subscribe(() => {
+      const b = betOpponentFromUrl();
+      if (!b) return;
+      clearTimeout(timer);
+      unsub();
+      resolve(b);
+    });
+  });
+}
+
 /* ------------------------------ Game sessions ------------------------------ */
 
 /** Save / load the game in progress so leaving the table never loses it. */
@@ -389,6 +408,22 @@ export function useFriendBet(game: GameType) {
   );
 
   return { bet, friend, pending, invite, cancel: cancelBet };
+}
+
+/** Connection line for an online match: is the opponent at the table? */
+export function OnlineStatus({ oppOnline, ready, canAbort, onAbort }: { oppOnline: boolean | null; ready: boolean; canAbort: boolean; onAbort: () => void }) {
+  if (!ready) return <p className="text-center text-[11px] text-ink-300">Đang kết nối bàn đấu…</p>;
+  if (oppOnline !== false) return null;
+  return (
+    <div role="status" className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-2 text-center text-[11px] text-amber-200">
+      {canAbort ? "Đối thủ chưa vào bàn." : "Đối thủ mất kết nối — đồng hồ của họ vẫn chạy."}
+      {canAbort && (
+        <button type="button" className="btn-ghost ml-2 px-2 py-0.5 text-[11px]" onClick={onAbort}>
+          Huỷ ván
+        </button>
+      )}
+    </div>
+  );
 }
 
 /* ------------------------------ Confirm dialog ----------------------------- */

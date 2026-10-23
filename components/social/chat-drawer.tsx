@@ -35,7 +35,8 @@ import { soundManager } from "@/lib/audio";
 import { useUiStore } from "@/lib/ui-store";
 import { useAuthStore } from "@/lib/auth";
 import { getRankTier, RANK_TIERS } from "@/lib/ranking-system";
-import { syncProfileToSupabase, uploadAvatarImage } from "@/lib/supabase-game";
+import { isAccountId, syncProfileToSupabase, uploadAvatarImage } from "@/lib/supabase-game";
+import { uploadChatFile } from "@/lib/chat-upload";
 import { cn } from "@/lib/utils";
 import { BetModal } from "./bet-modal";
 
@@ -568,6 +569,8 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
 
 function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }) {
   const sendMessage = useAppStore((s) => s.sendMessage);
+  const myId = useAppStore((s) => s.currentUser.id);
+  const [uploading, setUploading] = useState(false);
   const [text, setText] = useState("");
   const [file, setFile] = useState<ChatAttachment | null>(null);
   const [emoji, setEmoji] = useState(false);
@@ -580,7 +583,7 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
   }, [channelId]);
 
   const send = () => {
-    if (!text.trim() && !file) return;
+    if (uploading || (!text.trim() && !file)) return;
     sendMessage(channelId, text, file);
     setText("");
     if (inputRef.current) inputRef.current.style.height = "auto";
@@ -593,6 +596,21 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
     e.target.value = "";
     if (!f) return;
     setErr(null);
+    // Signed-in: the file goes to Storage and the message only carries its URL.
+    if (isAccountId(myId)) {
+      setUploading(true);
+      try {
+        const isImage = f.type.startsWith("image/") && f.type !== "image/gif";
+        const blob = isImage ? await (await fetch(await compressImage(f))).blob() : f;
+        const url = await uploadChatFile(myId, blob, isImage ? "image.jpg" : f.name);
+        setFile({ name: f.name, url, type: f.type.startsWith("image/") ? "image" : "file", size: `${Math.max(1, Math.round(blob.size / 1024))} KB` });
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Không tải được tệp lên.");
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
     if (f.type.startsWith("image/")) {
       try {
         const url = await compressImage(f);
@@ -641,6 +659,7 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
         </div>
       )}
 
+      {uploading && <p className="mb-2 text-[11px] text-ink-300">Đang tải tệp lên…</p>}
       {file && (
         <div className="mb-2 flex items-center gap-2 rounded-2xl border border-white/[0.06] bg-ink-900 p-2">
           {file.type === "image" ? (
@@ -661,7 +680,7 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
       {err && <p className="mb-2 text-[11px] text-pop-red">{err}</p>}
 
       <div className="flex items-end gap-1 rounded-2xl border border-white/10 bg-ink-850/80 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-[border-color,box-shadow] duration-200 focus-within:border-accent/50 focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
-        <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.txt,.doc,.docx" onChange={onFile} />
+        <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.txt,.csv,.zip,.docx,.xlsx,.pptx" onChange={onFile} />
         <button type="button" onClick={() => fileRef.current?.click()} aria-label="Đính kèm" className="grid size-9 shrink-0 place-items-center rounded-xl text-ink-300 hover:bg-white/[0.06] hover:text-white">
           <ImageIcon className="size-4" />
         </button>
@@ -691,7 +710,7 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
         <button
           type="button"
           onClick={send}
-          disabled={!text.trim() && !file}
+          disabled={uploading || (!text.trim() && !file)}
           aria-label="Gửi"
           className="btn-accent !size-9 !shrink-0 !rounded-xl !p-0 disabled:!opacity-30"
         >

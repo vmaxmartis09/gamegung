@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/lib/store";
-import { realtimeBridge } from "@/lib/realtime-bridge";
+import { describeEnd, openBetMatch, opponentOf, slotOf, timeLeft, useOnlineMatch } from "@/lib/online-match";
 import { soundManager } from "@/lib/audio";
 import { EngineClient } from "@/lib/engines/engine-client";
 import { ENGINE_LEVELS, EngineLevel, SearchOptions, SearchResult } from "@/lib/engines/chess-engine";
@@ -30,7 +30,7 @@ import { useGameRoom } from "@/lib/game-room";
 import { ChessIcon } from "./chess-icons";
 import { MatchResultModal } from "./match-result-modal";
 import HoldButton from "@/components/kokonut/hold-button";
-import { betOpponentFromUrl, ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchSettlement, useToast } from "./shared";
+import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
 
 /* --------------------------------- Config --------------------------------- */
 
@@ -127,6 +127,25 @@ interface PvpInfo {
 }
 
 type PvpMove = { from: string; to: string; promotion?: string };
+
+/** How the game on this board has ended, if it has. */
+function gameEnd(c: Chess): { winner: "w" | "b" | null; reason: string } | null {
+  if (c.isCheckmate()) return { winner: c.turn() === "w" ? "b" : "w", reason: "Chiếu hết" };
+  if (c.isStalemate()) return { winner: null, reason: "Hết nước đi (pat)" };
+  if (c.isInsufficientMaterial()) return { winner: null, reason: "Không đủ lực chiếu hết" };
+  if (c.isThreefoldRepetition()) return { winner: null, reason: "Lặp lại thế cờ 3 lần" };
+  if (c.isDraw()) return { winner: null, reason: "Luật 50 nước" };
+  return null;
+}
+
+/** FIDE 6.9: a flag only loses if the other side could still possibly mate. */
+function canMateWith(c: Chess, color: "w" | "b") {
+  const pieces = c
+    .board()
+    .flat()
+    .filter((p) => p && p.color === color && p.type !== "k");
+  return pieces.some((p) => p!.type !== "n" && p!.type !== "b") || pieces.length >= 2;
+}
 
 interface Settings {
   mode: Mode;
@@ -268,7 +287,7 @@ export function ChessGame() {
 
   const finishedRef = useRef(false);
   const finish = useCallback(
-    (winner: "w" | "b" | null, reason: string) => {
+    (winner: "w" | "b" | null, reason: string, settleIt = true) => {
       if (finishedRef.current) return;
       finishedRef.current = true;
       if (tickRef.current) cancelAnimationFrame(tickRef.current);
@@ -278,7 +297,9 @@ export function ChessGame() {
       setOverReason(reason);
       setSelected(null);
       play("end");
-      if (rated) {
+      if (!settleIt) {
+        showToast(reason, "info", 4000);
+      } else if (rated) {
         const outcome = winner === null ? "draw" : winner === myColor ? "win" : "loss";
         settle(outcome, pvp ? { name: pvp.name, elo: pvp.elo } : { name: `Engine ${level.label}`, elo: level.elo }, stake);
       } else {
@@ -289,15 +310,17 @@ export function ChessGame() {
   );
 
   const checkGameEnd = useCallback(() => {
-    const c = chessRef.current;
-    if (c.isCheckmate()) finish(c.turn() === "w" ? "b" : "w", "Chiếu hết");
-    else if (c.isStalemate()) finish(null, "Hết nước đi (pat)");
-    else if (c.isInsufficientMaterial()) finish(null, "Không đủ lực chiếu hết");
-    else if (c.isThreefoldRepetition()) finish(null, "Lặp lại thế cờ 3 lần");
-    else if (c.isDraw()) finish(null, "Luật 50 nước");
-    else return false;
-    return true;
+    const end = gameEnd(chessRef.current);
+    if (end) finish(end.winner, end.reason);
+    return !!end;
   }, [finish]);
+
+  // Online match state (server-refereed); see lib/online-match.
+  const online = useOnlineMatch(pvp?.room ?? null, myId);
+  const onlineRef = useRef(online);
+  onlineRef.current = online;
+  /** A move of mine is on its way to the server; don't roll the board back meanwhile. */
+  const pendingMove = useRef(false);
 
   /* ------------------------------ Moves ------------------------------ */
 
@@ -311,9 +334,14 @@ export function ChessGame() {
         return false;
       }
       const mover = mv.color;
-      const room = pvpRef.current;
-      if (room && !remote) {
-        realtimeBridge.sendRoomEvent({ event: "move", roomId: room.room, data: { by: myId, from, to, promotion: promo } });
+      if (pvpRef.current && !remote) {
+        const end = gameEnd(c);
+        pendingMove.current = true;
+        void onlineRef.current
+          .sendMove(c.history().length - 1, { from, to, promotion: promo }, end ? (end.winner ? "win" : "draw") : undefined, end?.reason)
+          .finally(() => {
+            pendingMove.current = false;
+          });
       }
       if (tc.base && tc.inc) {
         clockRef.current[mover] += tc.inc * 1000;
@@ -335,7 +363,7 @@ export function ChessGame() {
       checkGameEnd();
       return true;
     },
-    [checkGameEnd, play, tc, syncClock, myId]
+    [checkGameEnd, play, tc, syncClock]
   );
 
   const tryUserMove = useCallback(
@@ -356,9 +384,11 @@ export function ChessGame() {
   const isOwnPiece = useCallback(
     (sq: Square) => {
       const p = chessRef.current.get(sq);
+      // Online: wait until the server has told us which side we play.
+      if (pvp && !online.row) return false;
       return !!p && p.color === turn && (settings.mode === "local" || p.color === myColor);
     },
-    [turn, settings.mode, myColor]
+    [turn, settings.mode, myColor, pvp, online.row]
   );
 
   /* ------------------------------ AI turn ------------------------------ */
@@ -391,7 +421,7 @@ export function ChessGame() {
   /* ------------------------------ Clock ------------------------------ */
 
   useEffect(() => {
-    if (phase !== "playing" || !tc.base || moves.length < 2) return;
+    if (phase !== "playing" || !tc.base || moves.length < 2 || pvp) return;
     let last = performance.now();
     const loop = (now: number) => {
       const dt = now - last;
@@ -404,11 +434,7 @@ export function ChessGame() {
         syncClock();
         // FIDE 6.9: flag loses unless the opponent cannot possibly mate.
         const opp = side === "w" ? "b" : "w";
-        const oppPieces = chessRef.current
-          .board()
-          .flat()
-          .filter((p) => p && p.color === opp && p.type !== "k");
-        const canMate = oppPieces.some((p) => p!.type !== "n" && p!.type !== "b") || oppPieces.length >= 2;
+        const canMate = canMateWith(chessRef.current, opp);
         finish(canMate ? opp : null, canMate ? "Hết giờ" : "Hết giờ, đối thủ không đủ lực");
         return;
       }
@@ -421,21 +447,51 @@ export function ChessGame() {
     return () => {
       if (tickRef.current) cancelAnimationFrame(tickRef.current);
     };
-  }, [phase, tc.base, moves.length, finish, syncClock]);
+  }, [phase, tc.base, moves.length, finish, syncClock, pvp]);
+
+  // Online clock: derived from the server's turn start, so it keeps running in a hidden tab
+  // and both players see the same time. When it runs out, ask the server to call the flag.
+  useEffect(() => {
+    if (!pvp || phase !== "playing") return;
+    let lastFlag = 0;
+    let shown = "";
+    const t = setInterval(() => {
+      const { row: r, serverNow, act } = onlineRef.current;
+      if (!r || r.status !== "active") return;
+      const now = serverNow();
+      const w = timeLeft(r, 1, now);
+      const b = timeLeft(r, 2, now);
+      clockRef.current = { w, b };
+      const key = [w, b].map((v) => Math.floor(v / (v < 10000 ? 100 : 1000))).join("|");
+      if (key !== shown) {
+        shown = key;
+        syncClock();
+      }
+      const toMove = r.moves.length % 2 === 0 ? 1 : 2;
+      if (r.moves.length >= 2 && (toMove === 1 ? w : b) <= 0 && Date.now() - lastFlag > 2000) {
+        lastFlag = Date.now();
+        void act("flag", !canMateWith(chessRef.current, toMove === 1 ? "b" : "w"));
+      }
+    }, 100);
+    return () => clearInterval(t);
+  }, [pvp, phase, syncClock]);
 
   /* ------------------------------ Session ------------------------------ */
 
-  // Online match: the matchmaking modal passes ?mode=match&room=…&oppId=…; two real players only.
+  // Online match: the matchmaking modal passes ?match=<id>; a chat bet opens a match keyed by the bet id.
+  // Colours, names, moves and clocks all come from the server row.
+  const loadedMatch = useRef<string | null>(null);
   const beginPvp = useCallback((info: PvpInfo) => {
-    const oppId = info.oppId;
     session.clear();
     const c = new Chess();
     chessRef.current = c;
+    loadedMatch.current = null;
     setPvp(info);
     setSettings((s) => ({ ...s, mode: "pvp", time: "10+0" }));
-    setMyColor(myId < oppId ? "w" : "b");
     setFens([c.fen()]);
     setMoves([]);
+    setViewPly(null);
+    setSelected(null);
     clockRef.current = { w: 600000, b: 600000 };
     syncClock();
     resetSettlement();
@@ -443,60 +499,100 @@ export function ChessGame() {
     setDrawOffer(null);
     setPhase("playing");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myId, syncClock]);
+  }, [syncClock]);
+
+  const startBetPvp = useCallback(
+    async (bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) => {
+      const row = await openBetMatch({
+        id: bo.room,
+        game: "chess",
+        oppId: bo.oppId,
+        stake: bo.stake,
+        me: { name: me.username, avatar: me.avatar },
+        opp: { name: bo.name, avatar: bo.avatar },
+      });
+      if (!row) return showToast("Không mở được bàn online — cần đăng nhập tài khoản.", "bad", 4000);
+      beginPvp({ room: bo.room, oppId: bo.oppId, name: bo.name, avatar: bo.avatar, elo: 1200 });
+    },
+    [beginPvp, me.username, me.avatar, showToast]
+  );
 
   const initPvpFromUrl = useCallback(() => {
-    const bo = betOpponentFromUrl();
-    if (bo && bo.oppId) {
-      beginPvp({ room: bo.room, oppId: bo.oppId, name: bo.name, avatar: bo.avatar, elo: 1200 });
+    const q = new URLSearchParams(window.location.search);
+    const id = q.get("match");
+    if (id) {
+      beginPvp({ room: id, oppId: "", name: "Đối thủ", avatar: "", elo: 1200 });
       return true;
     }
-    const q = new URLSearchParams(window.location.search);
-    const room = q.get("room");
-    const oppId = q.get("oppId");
-    if (q.get("mode") !== "match" || q.get("isBot") === "1" || !room || !oppId) return false;
-    beginPvp({
-      room,
-      oppId,
-      name: q.get("opp") || "Đối thủ",
-      avatar: q.get("oppAvatar") || "",
-      elo: parseInt(q.get("oppElo") || "", 10) || 1200,
-    });
-    return true;
-  }, [beginPvp]);
-
-  // Receive the opponent's moves / resignation; replay history for a late joiner.
-  useEffect(() => {
-    if (!pvp) return;
-    const sendHistory = () =>
-      realtimeBridge.sendRoomEvent({
-        event: "sync",
-        roomId: pvp.room,
-        data: { by: myId, moves: chessRef.current.history({ verbose: true }).map((m) => ({ from: m.from, to: m.to, promotion: m.promotion })) },
+    if (q.get("bet")) {
+      void waitForBetOpponent().then((bo) => {
+        if (bo?.oppId) void startBetPvp(bo);
+        else showToast("Không tìm thấy kèo đã được nhận cho bàn này.", "bad", 4000);
       });
-    const off = realtimeBridge.onRoomEvent((e) => {
-      const d = e.data as { by?: string; from?: string; to?: string; promotion?: string; moves?: PvpMove[] } | undefined;
-      if (e.roomId !== pvp.room || !d || d.by !== pvp.oppId) return;
-      if (e.event === "move" && d.from && d.to) {
-        if (chessRef.current.turn() !== myColor) applyMove(d.from, d.to, d.promotion, false, true);
-      } else if (e.event === "resign") {
-        finish(myColor, "Đối thủ xin thua");
-      } else if (e.event === "draw") {
-        setDrawOffer("in");
-      } else if (e.event === "draw-accept") {
-        finish(null, "Hai bên thoả thuận hoà");
-      } else if (e.event === "draw-decline") {
-        setDrawOffer(null);
-        showToast("Đối thủ từ chối hoà", "bad");
-      } else if (e.event === "hello") {
-        sendHistory();
-      } else if (e.event === "sync" && d.moves && d.moves.length > chessRef.current.history().length) {
-        for (const m of d.moves.slice(chessRef.current.history().length)) applyMove(m.from, m.to, m.promotion, false, true);
+      return true;
+    }
+    return false;
+  }, [beginPvp, startBetPvp, showToast]);
+
+  const rebuildFrom = useCallback((list: PvpMove[]) => {
+    const c = new Chess();
+    const mv: Move[] = [];
+    const fs = [c.fen()];
+    for (const m of list) {
+      try {
+        mv.push(c.move({ from: m.from, to: m.to, promotion: m.promotion }));
+        fs.push(c.fen());
+      } catch {
+        break;
       }
-    });
-    realtimeBridge.sendRoomEvent({ event: "hello", roomId: pvp.room, data: { by: myId } });
-    return off;
-  }, [pvp, myId, myColor, applyMove, finish, showToast]);
+    }
+    chessRef.current = c;
+    setMoves(mv);
+    setFens(fs);
+    setViewPly(null);
+    setSelected(null);
+    setPromotion(null);
+  }, []);
+
+  // Reconcile the board with the server row (realtime, poll, or my own move's reply).
+  const prevRow = useRef<{ offer: string | null; plies: number } | null>(null);
+  useEffect(() => {
+    const r = online.row;
+    if (!r || !pvp || r.id !== pvp.room) return;
+    const first = loadedMatch.current !== r.id;
+    const mine: "w" | "b" = slotOf(r, myId) === 1 ? "w" : "b";
+    if (first) {
+      loadedMatch.current = r.id;
+      setMyColor(mine);
+      const o = opponentOf(r, myId);
+      setPvp((p) => (p && p.room === r.id ? { ...p, oppId: o.id, name: o.name, avatar: o.avatar || p.avatar, elo: o.elo } : p));
+      setStake(r.stake);
+    }
+
+    const remote = r.moves as PvpMove[];
+    const local = chessRef.current.history({ verbose: true });
+    const same = local
+      .slice(0, remote.length)
+      .every((m, i) => m.from === remote[i].from && m.to === remote[i].to && (m.promotion ?? null) === (remote[i].promotion ?? null));
+    if (!same || (remote.length < local.length && !pendingMove.current)) rebuildFrom(remote);
+    else if (remote.length > local.length) {
+      if (first || remote.length - local.length > 2) rebuildFrom(remote);
+      else for (const m of remote.slice(local.length)) applyMove(m.from, m.to, m.promotion, false, true);
+    }
+
+    const prev = prevRow.current;
+    prevRow.current = { offer: r.draw_offer_by, plies: remote.length };
+    if (r.status === "active") {
+      setDrawOffer(r.draw_offer_by ? (r.draw_offer_by === myId ? "out" : "in") : null);
+      if (prev?.offer === myId && !r.draw_offer_by && prev.plies === remote.length) showToast("Đối thủ từ chối hoà", "bad");
+    } else if (!finishedRef.current) {
+      // A game that was already over when I opened it is shown, not paid out again.
+      const end = describeEnd(r, myId);
+      if (end.outcome === "abort") finish(null, end.reason, false);
+      else finish(end.outcome === "draw" ? null : end.outcome === "win" ? mine : mine === "w" ? "b" : "w", end.reason, !first);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online.row]);
 
   // Resume a game left unfinished (once, on mount).
   const restored = useRef(false);
@@ -534,6 +630,10 @@ export function ChessGame() {
     showToast("Đã khôi phục ván đang dở ♟", "good");
   }, [session, syncClock, showToast, initPvpFromUrl]);
 
+  useEffect(() => {
+    if (online.error) showToast(online.error, "bad", 5000);
+  }, [online.error, showToast]);
+
   const persistRef = useRef<() => void>(() => {});
   persistRef.current = () => {
     if (phase !== "playing" || pvpRef.current) return;
@@ -567,7 +667,8 @@ export function ChessGame() {
   const startGame = () => {
     if (isFriend) {
       if (!fb.friend) return;
-      return beginPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar, elo: 1200 });
+      void startBetPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar, stake: fb.bet?.stake ?? stake });
+      return;
     }
     engine?.cancel();
     const c = new Chess();
@@ -594,6 +695,11 @@ export function ChessGame() {
   const backToSetup = () => {
     engine?.cancel();
     setThinking(false);
+    if (pvp) {
+      setPvp(null);
+      setSettings(loadSettings());
+      window.history.replaceState(null, "", window.location.pathname);
+    }
     setPhase("setup");
     setResultOpen(false);
   };
@@ -601,7 +707,7 @@ export function ChessGame() {
   const resign = () => {
     setConfirm(null);
     if (phase !== "playing") return;
-    if (pvp) realtimeBridge.sendRoomEvent({ event: "resign", roomId: pvp.room, data: { by: myId } });
+    if (pvp) void online.act("resign");
     const loser = settings.mode === "local" ? turn : myColor;
     finish(loser === "w" ? "b" : "w", settings.mode === "local" ? `${loser === "w" ? "Trắng" : "Đen"} xin thua` : "Bạn xin thua");
   };
@@ -612,7 +718,7 @@ export function ChessGame() {
     if (pvp) {
       if (drawOffer) return;
       setDrawOffer("out");
-      realtimeBridge.sendRoomEvent({ event: "draw", roomId: pvp.room, data: { by: myId } });
+      void online.act("draw_offer");
       return showToast("Đã gửi lời cầu hoà cho đối thủ…");
     }
     if (!analyst) return;
@@ -628,8 +734,8 @@ export function ChessGame() {
   const answerDraw = (accept: boolean) => {
     if (!pvp) return;
     setDrawOffer(null);
-    realtimeBridge.sendRoomEvent({ event: accept ? "draw-accept" : "draw-decline", roomId: pvp.room, data: { by: myId } });
-    if (accept) finish(null, "Hai bên thoả thuận hoà");
+    // The server ends the game on accept; the row update finishes it here.
+    void online.act(accept ? "draw_accept" : "draw_decline");
   };
 
   const takeback = () => {
@@ -984,6 +1090,9 @@ export function ChessGame() {
                       <button type="button" className="btn-ghost flex-1 py-1.5" onClick={() => answerDraw(false)}>Từ chối</button>
                     </div>
                   </div>
+                )}
+                {pvp && phase === "playing" && (
+                  <OnlineStatus oppOnline={online.oppOnline} ready={!!online.row} canAbort={moves.length < 2} onAbort={() => void online.act("abort")} />
                 )}
                 {pvp && phase === "playing" && <MatchVoice room={pvp.room} />}
                 {phase === "playing" && (

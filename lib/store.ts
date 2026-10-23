@@ -811,7 +811,7 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           const currentList = state.messages[channelId] || [];
           const newMessage: ChatMessage = {
-            id: "msg-" + now,
+            id: "msg-" + now + "-" + Math.random().toString(36).substring(2, 6),
             channelId,
             senderId: user.id,
             senderName: user.username,
@@ -895,7 +895,7 @@ export const useAppStore = create<AppState>()(
 
         // Add a system notification in the channel
         const sysMsg: ChatMessage = {
-          id: "msg-sys-" + now,
+          id: "msg-sys-" + now + "-" + Math.random().toString(36).substring(2, 6),
           channelId: foundChannel,
           senderId: "system",
           senderName: "Hệ Thống Trọng Tài ⚖️",

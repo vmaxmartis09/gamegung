@@ -1,6 +1,7 @@
 -- ====================================================================
 -- OFFICE ARENA - SUPABASE DATABASE SCHEMA
 -- HỆ THỐNG TÍNH ĐIỂM ELO, RANKING, ĐẶT CƯỢC LÚA & GHÉP TRẬN MATCHMAKING
+-- Chạy file này rồi chạy tiếp db/online.sql (phòng trận, hàng chờ, chat). Cả hai chạy lại được.
 -- ====================================================================
 
 -- 1. BẢNG HỒ SƠ NGƯỜI CHƠI (PROFILES)
@@ -107,29 +108,32 @@ drop policy if exists "Allow public read on profiles" on public.profiles;
 create policy "Allow public read on profiles" on public.profiles
   for select using (true);
 
--- Cho phép người dùng upsert hồ sơ của mình
+-- Chỉ được ghi hồ sơ của chính mình
 drop policy if exists "Allow upsert on profiles" on public.profiles;
-create policy "Allow upsert on profiles" on public.profiles
-  for all using (true) with check (true);
+drop policy if exists "Own profile insert" on public.profiles;
+create policy "Own profile insert" on public.profiles for insert to authenticated
+  with check (auth.uid()::text = id);
+drop policy if exists "Own profile update" on public.profiles;
+create policy "Own profile update" on public.profiles for update to authenticated
+  using (auth.uid()::text = id) with check (auth.uid()::text = id);
 
--- Cho phép đọc và ghi lịch sử đấu
+-- Lịch sử đấu: ai cũng đọc được, chỉ ghi trận của chính mình
 drop policy if exists "Allow public read on match_history" on public.match_history;
 create policy "Allow public read on match_history" on public.match_history
   for select using (true);
-
 drop policy if exists "Allow insert on match_history" on public.match_history;
-create policy "Allow insert on match_history" on public.match_history
-  for insert with check (true);
+drop policy if exists "Own match insert" on public.match_history;
+create policy "Own match insert" on public.match_history for insert to authenticated
+  with check (auth.uid()::text = player_id);
 
--- Cho phép thao tác trên hàng chờ ghép trận
+-- Hàng chờ ghép trận: không có policy, chỉ thao tác qua RPC mm_join / mm_leave (db/online.sql)
 drop policy if exists "Allow all on matchmaking_queue" on public.matchmaking_queue;
-create policy "Allow all on matchmaking_queue" on public.matchmaking_queue
-  for all using (true) with check (true);
 
--- Cho phép đọc và ghi lịch sử giao dịch
+-- Giao dịch Lúa: chỉ đọc của mình; ghi qua hàm security definer
 drop policy if exists "Allow all on transactions" on public.transactions;
-create policy "Allow all on transactions" on public.transactions
-  for all using (true) with check (true);
+drop policy if exists "Own transactions read" on public.transactions;
+create policy "Own transactions read" on public.transactions for select to authenticated
+  using (auth.uid()::text = user_id);
 
 -- ====================================================================
 -- TỰ ĐỘNG CẬP NHẬT UPDATED_AT
@@ -200,6 +204,11 @@ declare
   v_new_lua bigint;
   v_hours_left integer;
 begin
+  -- Chỉ được tự điểm danh cho chính mình
+  if auth.uid() is null or auth.uid()::text <> p_user_id then
+    return jsonb_build_object('success', false, 'message', 'Không có quyền điểm danh cho tài khoản này.');
+  end if;
+
   -- Khóa dòng người dùng để tránh race-condition (double-claim)
   select * into v_profile
   from public.profiles
@@ -380,18 +389,6 @@ $$ language plpgsql security definer;
 alter table public.profiles add column if not exists elo_arcade integer default 1200;
 alter table public.profiles add column if not exists elo_uno integer default 1200;
 
--- ====================================================================
--- (KHUYẾN NGHỊ) SIẾT RLS: mỗi tài khoản chỉ được ghi hồ sơ / lịch sử của chính mình.
--- App giờ bắt buộc đăng nhập Supabase Auth nên có thể bật ngay.
--- ====================================================================
--- drop policy if exists "Allow upsert on profiles" on public.profiles;
--- drop policy if exists "Own profile insert" on public.profiles;
-create policy "Own profile insert" on public.profiles for insert with check (auth.uid()::text = id);
--- drop policy if exists "Own profile update" on public.profiles;
-create policy "Own profile update" on public.profiles for update using (auth.uid()::text = id) with check (auth.uid()::text = id);
--- drop policy if exists "Allow insert on match_history" on public.match_history;
--- drop policy if exists "Own match insert" on public.match_history;
-create policy "Own match insert" on public.match_history for insert with check (auth.uid()::text = player_id);
 
 -- Nếu bảng đã tồn tại với check cũ, nới rộng game_type:
 alter table public.match_history drop constraint if exists match_history_game_type_check;

@@ -5,31 +5,54 @@ import { supabase, isSupabaseConfigured } from "./supabase";
 import { useAppStore, ChatMessage, BetChallenge, UserProfile } from "./store";
 import { soundManager } from "./audio";
 import { usePresenceStore, OnlinePeer, HEARTBEAT_MS } from "./presence";
-import { dmIncludes, isDmChannel } from "./chat";
+import { dmIncludes, dmOtherId, isDmChannel } from "./chat";
+import { isAccountId } from "./supabase-game";
 
 type BridgeEvent =
   | { type: "PRESENCE"; peer: OnlinePeer }
   | { type: "PRESENCE_LEAVE"; id: string }
   | { type: "CHAT_MESSAGE"; payload: ChatMessage }
   | { type: "CHAT_REACTION"; payload: { channelId: string; messageId: string; emoji: string; userId: string } }
-  | { type: "BET_UPDATE"; payload: BetChallenge }
-  | { type: "ROOM_EVENT"; payload: { event: string; roomId: string; data: unknown } };
+  | { type: "BET_UPDATE"; payload: BetChallenge };
 
 const MAX_MESSAGES_PER_CHANNEL = 200;
+const HISTORY_PUBLIC = 80;
+const HISTORY_DM = 300;
+const MISSING_TABLE = /chat_messages|does not exist|schema cache|could not find/i;
+
+interface ChatRow {
+  id: string;
+  channel_id: string;
+  sender_id: string;
+  payload: ChatMessage;
+  created_at: string;
+}
+
+/** Stored row → message; the author is whoever really sent it, not what the payload claims. */
+function rowToMessage(r: ChatRow): ChatMessage {
+  const m = r.payload;
+  const senderId = m.senderId === "system" ? "system" : r.sender_id;
+  return { ...m, id: r.id, channelId: r.channel_id, senderId, reactions: m.reactions ?? {} };
+}
 
 /**
  * One realtime pipe for the whole app:
  *  - BroadcastChannel for instant cross-tab sync on the same machine
- *  - one Supabase channel (broadcast + presence) for cross-device
+ *  - one Supabase channel (broadcast + presence) for presence, reactions and guest chat
+ *  - signed-in accounts: chat is stored in `chat_messages` (db/online.sql) and delivered with
+ *    postgres_changes, so history survives reloads and RLS keeps DMs to the two people in them
  * Presence and peers live in `usePresenceStore`, chat lives in `useAppStore`.
+ * Game moves never go through here: each online match has its own channel (lib/online-match).
  */
 class RealtimeBridge {
   private bc: BroadcastChannel | null = null;
   private sb: RealtimeChannel | null = null;
+  private chatDb: RealtimeChannel | null = null;
+  /** Chat goes through the database (signed-in account) rather than broadcast. */
+  private stored = false;
   private started = false;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private unsubPresence: (() => void) | null = null;
-  private roomListeners = new Set<(e: { event: string; roomId: string; data: unknown }) => void>();
 
   /** Start once the user is authenticated. Safe to call many times. */
   init() {
@@ -65,6 +88,9 @@ class RealtimeBridge {
       } catch (err) {
         console.warn("[realtime] Supabase channel failed:", err);
       }
+
+      this.stored = isAccountId(me.id);
+      if (this.stored) this.startStoredChat();
     }
 
     this.heartbeat = setInterval(() => {
@@ -92,6 +118,9 @@ class RealtimeBridge {
     this.bc = null;
     if (this.sb) supabase.removeChannel(this.sb);
     this.sb = null;
+    if (this.chatDb) supabase.removeChannel(this.chatDb);
+    this.chatDb = null;
+    this.stored = false;
     this.started = false;
     usePresenceStore.getState().replacePeers([]);
     window.removeEventListener("pagehide", this.leave);
@@ -147,10 +176,104 @@ class RealtimeBridge {
     }
   }
 
+  // ---------- stored chat ----------
+
+  private startStoredChat() {
+    this.chatDb = supabase
+      .channel("chat-db")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, ({ new: row }) => {
+        this.receiveMessage(rowToMessage(row as ChatRow));
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages" }, ({ new: row }) => {
+        const bet = (row as ChatRow).payload?.betChallenge;
+        if (bet) useAppStore.getState().applyBetUpdate(bet);
+      })
+      .subscribe((status) => {
+        // (Re)subscribed: fetch what may have arrived while the socket was down.
+        if (status === "SUBSCRIBED") void this.loadHistory();
+      });
+  }
+
+  /** Server without db/online.sql yet: keep chat working over broadcast instead. */
+  private disableStoredChat() {
+    if (!this.stored) return;
+    console.warn("[chat] chat_messages is missing — run db/online.sql. Falling back to broadcast chat.");
+    this.stored = false;
+    if (this.chatDb) supabase.removeChannel(this.chatDb);
+    this.chatDb = null;
+  }
+
+  private async loadHistory() {
+    const [pub, dm] = await Promise.all([
+      supabase.from("chat_messages").select("*").not("channel_id", "like", "dm-%").order("created_at", { ascending: false }).limit(HISTORY_PUBLIC),
+      // RLS returns only the threads I am in.
+      supabase.from("chat_messages").select("*").like("channel_id", "dm-%").order("created_at", { ascending: false }).limit(HISTORY_DM),
+    ]);
+    if (pub.error || dm.error) {
+      const msg = (pub.error ?? dm.error)!.message;
+      console.warn("[chat] history:", msg);
+      if (MISSING_TABLE.test(msg)) this.disableStoredChat();
+      return;
+    }
+    const rows = [...(pub.data as ChatRow[]), ...(dm.data as ChatRow[])];
+    const store = useAppStore.getState();
+    const myId = store.currentUser.id;
+    const byChannel: Record<string, ChatMessage[]> = {};
+    for (const r of rows) (byChannel[r.channel_id] ||= []).push(rowToMessage(r));
+
+    const messages = { ...store.messages };
+    for (const [ch, list] of Object.entries(byChannel)) {
+      const seen = new Map((messages[ch] || []).map((m) => [m.id, m]));
+      for (const m of list) seen.set(m.id, { ...m, reactions: seen.get(m.id)?.reactions ?? m.reactions });
+      messages[ch] = [...seen.values()].sort((a, b) => a.timestamp - b.timestamp).slice(-MAX_MESSAGES_PER_CHANNEL);
+    }
+
+    // Who is on the other side of each DM thread.
+    const dmPeers = { ...store.dmPeers };
+    const unknown: string[] = [];
+    for (const [ch, list] of Object.entries(byChannel)) {
+      if (!isDmChannel(ch) || dmPeers[ch]) continue;
+      const theirs = list.find((m) => m.senderId !== myId && m.senderId !== "system");
+      if (theirs) dmPeers[ch] = { id: theirs.senderId, username: theirs.senderName, avatar: theirs.senderAvatar };
+      else unknown.push(dmOtherId(ch, myId));
+    }
+    if (unknown.length) {
+      const { data } = await supabase.from("profiles").select("id, username, avatar").in("id", unknown);
+      for (const p of (data ?? []) as { id: string; username: string | null; avatar: string | null }[]) {
+        const ch = Object.keys(byChannel).find((c) => isDmChannel(c) && dmOtherId(c, myId) === p.id);
+        if (ch) dmPeers[ch] = { id: p.id, username: p.username || "Đồng nghiệp", avatar: p.avatar || "" };
+      }
+    }
+    useAppStore.setState({ messages, dmPeers });
+  }
+
   // ---------- outgoing ----------
 
   sendChatMessage(message: ChatMessage) {
-    this.post({ type: "CHAT_MESSAGE", payload: message });
+    if (!message) return;
+    if (this.stored) {
+      // Other tabs of mine get it at once; everyone else through the database.
+      try {
+        this.bc?.postMessage({ type: "CHAT_MESSAGE", payload: message } satisfies BridgeEvent);
+      } catch {
+        /* ignore */
+      }
+      const { reactions: _r, ...payload } = message;
+      void supabase
+        .from("chat_messages")
+        .insert({ id: message.id, channel_id: message.channelId, sender_id: message.senderId === "system" ? useAppStore.getState().currentUser.id : message.senderId, payload })
+        .then(({ error }) => {
+          if (!error) return;
+          console.warn("[chat] send:", error.message);
+          if (MISSING_TABLE.test(error.message)) {
+            this.disableStoredChat();
+            this.post({ type: "CHAT_MESSAGE", payload: message }, !isDmChannel(message.channelId));
+          }
+        });
+      return;
+    }
+    // Guests: broadcast only, and never put a private thread on the shared channel.
+    this.post({ type: "CHAT_MESSAGE", payload: message }, !isDmChannel(message.channelId));
   }
 
   sendReaction(channelId: string, messageId: string, emoji: string) {
@@ -159,18 +282,15 @@ class RealtimeBridge {
   }
 
   sendBetUpdate(challenge: BetChallenge) {
+    if (this.stored) {
+      // The server decides who got the bet; its answer may undo my local accept (refund in applyBetUpdate).
+      void supabase.rpc("chat_update_bet", { p_bet: challenge }).then(({ data, error }) => {
+        if (error) console.warn("[chat] bet:", error.message);
+        else if (data) useAppStore.getState().applyBetUpdate(data as BetChallenge);
+      });
+      return;
+    }
     this.post({ type: "BET_UPDATE", payload: challenge });
-  }
-
-  sendRoomEvent(roomEvent: { event: string; roomId: string; data: unknown }) {
-    this.post({ type: "ROOM_EVENT", payload: roomEvent });
-  }
-
-  onRoomEvent(cb: (e: { event: string; roomId: string; data: unknown }) => void) {
-    this.roomListeners.add(cb);
-    return () => {
-      this.roomListeners.delete(cb);
-    };
   }
 
   /** Back-compat helpers used by game lobbies. */
@@ -222,9 +342,6 @@ class RealtimeBridge {
         break;
       case "BET_UPDATE":
         useAppStore.getState().applyBetUpdate(evt.payload);
-        break;
-      case "ROOM_EVENT":
-        this.roomListeners.forEach((l) => l(evt.payload));
         break;
     }
   }

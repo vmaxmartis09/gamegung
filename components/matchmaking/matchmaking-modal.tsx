@@ -21,10 +21,8 @@ import confetti from "canvas-confetti";
 import { useAppStore } from "@/lib/store";
 import { GameType, getRankTier } from "@/lib/ranking-system";
 import { soundManager } from "@/lib/audio";
-import {
-  startRealtimeMatchmaking,
-  MatchmakingOpponent,
-} from "@/lib/supabase-game";
+import { isAccountId, pickBotOpponent, MatchmakingOpponent } from "@/lib/supabase-game";
+import { joinMatchQueue, opponentOf } from "@/lib/online-match";
 import { cn } from "@/lib/utils";
 
 interface MatchmakingModalProps {
@@ -35,37 +33,12 @@ interface MatchmakingModalProps {
   defaultStake?: number;
 }
 
-const GAME_OPTIONS: { id: GameType; name: string; icon: string; desc: string }[] = [
-  {
-    id: "chess",
-    name: "Cờ Vua",
-    icon: "♟️",
-    desc: "Đấu trí FIDE 64 ô quốc tế",
-  },
-  {
-    id: "xiangqi",
-    name: "Cờ Tướng",
-    icon: "🀄",
-    desc: "Chiến thuật Á Đông Sở Hà Hán Giới",
-  },
-  {
-    id: "werewolf",
-    name: "Ma Sói",
-    icon: "🐺",
-    desc: "Ẩn vai suy luận nhóm nghỉ trưa",
-  },
-  {
-    id: "arcade",
-    name: "Cyber Slash",
-    icon: "⚡",
-    desc: "Chém Bug diệt Deadline Chibi 60FPS",
-  },
-  {
-    id: "uno",
-    name: "Uno Battle",
-    icon: "🎴",
-    desc: "Đại chiến bài Uno công sở 2-4 người",
-  },
+/** `online`: có chế độ đấu người thật qua hàng chờ; các game khác đấu với máy. */
+const GAME_OPTIONS: { id: GameType; name: string; icon: string; desc: string; online: boolean }[] = [
+  { id: "chess", name: "Cờ Vua", icon: "♟️", desc: "Đấu trí FIDE 64 ô quốc tế", online: true },
+  { id: "xiangqi", name: "Cờ Tướng", icon: "🀄", desc: "Chiến thuật Á Đông Sở Hà Hán Giới", online: true },
+  { id: "werewolf", name: "Ma Sói", icon: "🐺", desc: "Đấu với làng bot · chưa có online", online: false },
+  { id: "uno", name: "Deadline Rush", icon: "🎴", desc: "Bài đẩy việc với bot · chưa có online", online: false },
 ];
 
 const STAKE_PRESETS = [0, 50, 100, 200, 500];
@@ -88,6 +61,8 @@ export function MatchmakingModal({
   const [matchedOpponent, setMatchedOpponent] = useState<MatchmakingOpponent | null>(null);
   const [countdown, setCountdown] = useState(3);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [matchId, setMatchId] = useState<string | null>(null);
+  const [othersWaiting, setOthersWaiting] = useState(0);
 
   const cleanupRef = useRef<(() => void) | null>(null);
 
@@ -99,6 +74,7 @@ export function MatchmakingModal({
       setPhase("idle");
       setSearchSeconds(0);
       setMatchedOpponent(null);
+      setMatchId(null);
       setErrorMsg(null);
     } else {
       if (cleanupRef.current) {
@@ -107,6 +83,9 @@ export function MatchmakingModal({
       }
     }
   }, [isOpen, defaultGame, defaultStake]);
+
+  // Đóng modal (unmount) khi đang tìm thì rời hàng chờ.
+  useEffect(() => () => cleanupRef.current?.(), []);
 
   // Searching timer
   useEffect(() => {
@@ -130,7 +109,9 @@ export function MatchmakingModal({
       }, 1000);
     } else if (phase === "matched" && countdown === 0 && matchedOpponent) {
       // Navigate to game
-      const url = `/games/${selectedGame}?mode=match&stake=${selectedStake}&room=${matchedOpponent.roomCode}&oppId=${encodeURIComponent(matchedOpponent.id)}&opp=${encodeURIComponent(
+      const url = matchId
+        ? `/games/${selectedGame}?match=${encodeURIComponent(matchId)}&stake=${selectedStake}`
+        : `/games/${selectedGame}?mode=match&stake=${selectedStake}&room=${matchedOpponent.roomCode}&oppId=${encodeURIComponent(matchedOpponent.id)}&opp=${encodeURIComponent(
         matchedOpponent.username
       )}&oppElo=${matchedOpponent.elo}&oppAvatar=${encodeURIComponent(
         matchedOpponent.avatar
@@ -142,7 +123,27 @@ export function MatchmakingModal({
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [phase, countdown, matchedOpponent, selectedGame, selectedStake, router, onClose]);
+  }, [phase, countdown, matchedOpponent, matchId, selectedGame, selectedStake, router, onClose]);
+
+  const gameInfo = GAME_OPTIONS.find((g) => g.id === selectedGame) ?? GAME_OPTIONS[0];
+  const canGoOnline = gameInfo.online && isAccountId(currentUser.id);
+
+  const onFound = (opp: MatchmakingOpponent, id: string | null) => {
+    setMatchedOpponent(opp);
+    setMatchId(id);
+    setPhase("matched");
+    setCountdown(3);
+    if (soundEnabled) soundManager.playVictory();
+    confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+  };
+
+  const playBot = () => {
+    if (cleanupRef.current) {
+      cleanupRef.current();
+      cleanupRef.current = null;
+    }
+    onFound(pickBotOpponent(currentElo, selectedStake), null);
+  };
 
   const handleStartSearch = () => {
     if (selectedStake > currentUser.lua) {
@@ -155,17 +156,28 @@ export function MatchmakingModal({
 
     if (soundEnabled) soundManager.playTurn();
 
-    // Start Realtime Matchmaking with Supabase + AI fallback
-    const cleanup = startRealtimeMatchmaking({
-      gameType: selectedGame,
+    if (!canGoOnline) {
+      playBot();
+      return;
+    }
+    if (selectedGame !== "chess" && selectedGame !== "xiangqi") return;
+    setOthersWaiting(0);
+    const cleanup = joinMatchQueue({
+      game: selectedGame,
       stake: selectedStake,
-      user: currentUser,
-      onOpponentFound: (opp) => {
-        setMatchedOpponent(opp);
-        setPhase("matched");
-        setCountdown(3);
-        if (soundEnabled) soundManager.playVictory();
-        confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+      elo: currentElo,
+      name: currentUser.username,
+      avatar: currentUser.avatar,
+      onUpdate: (st) => {
+        if (st.status === "waiting") return setOthersWaiting(st.othersWaiting);
+        const o = opponentOf(st.match, currentUser.id);
+        onFound({ id: o.id, username: o.name, avatar: o.avatar, title: "Kỳ thủ", elo: o.elo, isBot: false, stake: selectedStake, roomCode: st.match.id }, st.match.id);
+      },
+      onError: (msg) => {
+        cleanupRef.current?.();
+        cleanupRef.current = null;
+        setErrorMsg(msg);
+        setPhase("idle");
       },
     });
 
@@ -188,7 +200,7 @@ export function MatchmakingModal({
       ? currentUser.eloXiangqi
       : selectedGame === "werewolf"
       ? currentUser.eloWerewolf
-      : (currentUser.eloArcade ?? 1200);
+      : (currentUser.eloUno ?? 1200);
 
   const currentTier = getRankTier(currentElo);
 
@@ -244,7 +256,7 @@ export function MatchmakingModal({
                     <label className="text-xs font-semibold uppercase tracking-wider text-ink-400 block mb-2.5">
                       1. Chọn Bộ Môn Thi Đấu
                     </label>
-                    <div className="grid grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-2 gap-2.5">
                       {GAME_OPTIONS.map((g) => {
                         const isSelected = selectedGame === g.id;
                         return (
@@ -338,6 +350,15 @@ export function MatchmakingModal({
                     </div>
                   </div>
 
+                  {!canGoOnline && (
+                    <p className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-xs text-ink-300">
+                      <Bot className="size-4 shrink-0" />
+                      {gameInfo.online
+                        ? "Cần đăng nhập tài khoản để ghép với người thật. Lượt này bạn sẽ đấu với máy."
+                        : `${gameInfo.name} chưa có chế độ online. Bạn sẽ đấu với máy.`}
+                    </p>
+                  )}
+
                   {errorMsg && (
                     <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
                       <ShieldAlert className="w-4 h-4 shrink-0" />
@@ -352,7 +373,7 @@ export function MatchmakingModal({
                     className="w-full py-3.5 rounded-2xl seg-active font-extrabold text-xs uppercase tracking-widest hover:bg-ink-200 transition-all shadow-[0_0_25px_rgba(255,255,255,0.25)] hover:scale-[1.02] flex items-center justify-center gap-2"
                   >
                     <Zap className="w-4 h-4 fill-black" />
-                    <span>Bắt Đầu Dò Tìm Đối Thủ</span>
+                    <span>{canGoOnline ? "Tìm Đối Thủ Thật" : "Đấu Với Máy"}</span>
                   </button>
                 </div>
               )}
@@ -375,17 +396,31 @@ export function MatchmakingModal({
                       ĐANG TÌM KIẾM ĐỐI THỦ...
                     </h4>
                     <p className="text-xs text-ink-400 font-mono mt-1">
-                      Dải ELO mục tiêu: {Math.max(100, currentElo - 150)} - {currentElo + 150} ELO
+                      Ưu tiên đối thủ gần {currentElo} ELO · cùng mức cược
                     </p>
                     <p className="text-xs font-mono text-amber-300 mt-2">
-                      Thời gian chờ: 00:{searchSeconds < 10 ? `0${searchSeconds}` : searchSeconds}
+                      Thời gian chờ: {String(Math.floor(searchSeconds / 60)).padStart(2, "0")}:{String(searchSeconds % 60).padStart(2, "0")}
                     </p>
                   </div>
 
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ink-900 border border-ink-800 text-[10px] font-mono text-ink-400">
                     <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-                    <span>Supabase Realtime Channel: Đang lắng nghe kỳ thủ...</span>
+                    <span>
+                      {othersWaiting > 0
+                        ? `${othersWaiting} người khác đang tìm trận ${gameInfo.name}`
+                        : `Chưa có ai khác đang tìm trận ${gameInfo.name}`}
+                    </span>
                   </div>
+
+                  {searchSeconds >= 10 && (
+                    <button
+                      type="button"
+                      onClick={playBot}
+                      className="mx-auto flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-xs font-semibold text-white hover:bg-white/10"
+                    >
+                      <Bot className="size-4" /> Đấu với máy trong lúc chờ
+                    </button>
+                  )}
 
                   <button
                     type="button"

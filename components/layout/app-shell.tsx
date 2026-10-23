@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { useShallow } from "zustand/react/shallow";
 import { MessageCircle, Trophy, UserRound, Wallet, X } from "lucide-react";
@@ -53,7 +53,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ) : (
         <main className={cn("relative z-10 pb-20 pt-4 transition-[padding] duration-300 ease-out sm:pt-6", chatPad)}>{children}</main>
       )}
-      {gameId && <GameRoomDock key={gameId} game={gameId} />}
+      {gameId && (
+        <Suspense fallback={null}>
+          <RoomDockGate gameId={gameId} />
+        </Suspense>
+      )}
       <ChatBubble />
       <GlobalModals />
     </MotionConfig>
@@ -61,6 +65,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 /* ---------------------------------- Dock ---------------------------------- */
+
+/** The game's open lobby room; hidden at an online match table, which has its own private room. */
+function RoomDockGate({ gameId }: { gameId: string }) {
+  const q = useSearchParams();
+  if (q?.get("match") || q?.get("bet")) return null;
+  return <GameRoomDock key={gameId} game={gameId} />;
+}
 
 /* ------------------------- Chat (always on, right) ------------------------- */
 

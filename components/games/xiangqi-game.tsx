@@ -18,10 +18,10 @@ import {
   Side,
 } from "@/lib/engines/xiangqi-engine";
 import { cn } from "@/lib/utils";
-import { realtimeBridge } from "@/lib/realtime-bridge";
+import { describeEnd, openBetMatch, opponentOf, slotOf, timeLeft, useOnlineMatch } from "@/lib/online-match";
 import { MatchResultModal } from "./match-result-modal";
 import HoldButton from "@/components/kokonut/hold-button";
-import { betOpponentFromUrl, ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchOpponent, useMatchSettlement, useToast } from "./shared";
+import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchOpponent, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
 
 const TIME_CONTROLS = [
   { id: "5+3", base: 300, inc: 3, label: "5+3", kind: "Nhanh" },
@@ -67,6 +67,7 @@ interface PvpInfo {
   oppId: string;
   name: string;
   avatar: string;
+  elo?: number;
 }
 
 interface XqSave {
@@ -128,6 +129,14 @@ export function XiangqiGame() {
   const [pvp, setPvp] = useState<PvpInfo | null>(null);
   const pvpRef = useRef<PvpInfo | null>(null);
   pvpRef.current = pvp;
+  // Online match state (server-refereed); see lib/online-match.
+  const online = useOnlineMatch(pvp?.room ?? null, myId);
+  const onlineRef = useRef(online);
+  onlineRef.current = online;
+  /** A move of mine is on its way to the server; don't roll the board back meanwhile. */
+  const pendingMove = useRef(false);
+  const finishedRef = useRef(false);
+  const [drawOffer, setDrawOffer] = useState<null | "in" | "out">(null);
 
   const posRef = useRef(new XiangqiPosition());
   const [boards, setBoards] = useState<Int8Array[]>([posRef.current.b.slice()]);
@@ -159,7 +168,8 @@ export function XiangqiGame() {
   const rated = (isAi && settings.ranked) || isPvp;
   const viewing = viewPly !== null && viewPly !== boards.length - 1;
   const shown = viewPly === null ? boards[boards.length - 1] : boards[viewPly];
-  const humanTurn = phase === "playing" && (settings.mode === "local" || turn === mySide);
+  // Online: wait until the server has told us which side we play.
+  const humanTurn = phase === "playing" && (settings.mode === "local" || turn === mySide) && (!pvp || !!online.row);
   const bottomSide: Side = (settings.mode === "local" ? 1 : mySide) as Side; // người đăng nhập luôn ở phía dưới
   const lastMove = viewing ? moves[(viewPly ?? 1) - 1] : moves[moves.length - 1];
 
@@ -188,15 +198,19 @@ export function XiangqiGame() {
   );
 
   const finish = useCallback(
-    (winner: Side | 0, reason: string) => {
+    (winner: Side | 0, reason: string, settleIt = true) => {
+      if (finishedRef.current) return;
+      finishedRef.current = true;
       engine?.cancel();
       setThinking(false);
       setPhase("over");
       setOverReason(reason);
       setSelected(null);
       sound("end");
-      if (rated) {
-        settle(winner === 0 ? "draw" : winner === mySide ? "win" : "loss", { name: pvp?.name ?? matchOpp?.name ?? `Engine ${level.label}`, elo: pvp ? 1200 : matchOpp?.elo ?? level.elo }, stake);
+      setDrawOffer(null);
+      if (!settleIt) showToast(reason, "info", 4000);
+      else if (rated) {
+        settle(winner === 0 ? "draw" : winner === mySide ? "win" : "loss", { name: pvp?.name ?? matchOpp?.name ?? `Engine ${level.label}`, elo: pvp ? pvp.elo ?? 1200 : matchOpp?.elo ?? level.elo }, stake);
       } else showToast(winner === 0 ? `Hoà — ${reason}` : `${winner === 1 ? "Đỏ" : "Đen"} thắng — ${reason}`, "info", 4000);
     },
     [rated, mySide, level, stake, settle, sound, showToast, matchOpp, pvp]
@@ -209,7 +223,16 @@ export function XiangqiGame() {
       const captured = p.b[to];
       const side = p.side;
       if (!p.play(from, to)) return false;
-      if (pvpRef.current && !remote) realtimeBridge.sendRoomEvent({ event: "move", roomId: pvpRef.current.room, data: { by: myId, from, to } });
+      if (pvpRef.current && !remote) {
+        // Tell the server if this move ends the game (from the mover's point of view).
+        const end = p.result();
+        pendingMove.current = true;
+        void onlineRef.current
+          .sendMove(movesRef.current.length, { from, to }, end ? (end.winner === 0 ? "draw" : end.winner === side ? "win" : "loss") : undefined, end?.reason)
+          .finally(() => {
+            pendingMove.current = false;
+          });
+      }
       if (tc.base && tc.inc) {
         clockRef.current[side] += tc.inc * 1000;
         syncClock();
@@ -228,7 +251,7 @@ export function XiangqiGame() {
       if (r) finish(r.winner, r.reason);
       return true;
     },
-    [tc, syncClock, sound, finish, myId]
+    [tc, syncClock, sound, finish]
   );
 
   // AI
@@ -253,34 +276,100 @@ export function XiangqiGame() {
     };
   }, [phase, isAi, turn, mySide, level, applyMove, boards.length]);
 
-  // Online match: receive the opponent's moves / resignation; replay history for a late joiner.
+  const rebuildFrom = useCallback((list: { from: number; to: number }[]) => {
+    const p = new XiangqiPosition();
+    const played: PlayedMove[] = [];
+    const bs = [p.b.slice()];
+    for (const m of list) {
+      const notation = vnNotation(p, m.from, m.to);
+      const captured = p.b[m.to];
+      const side = p.side;
+      if (!p.play(m.from, m.to)) break;
+      played.push({ ...m, captured, notation, side });
+      bs.push(p.b.slice());
+    }
+    posRef.current = p;
+    movesRef.current = played;
+    setMoves(played);
+    setBoards(bs);
+    setTurn(p.side);
+    setViewPly(null);
+    setSelected(null);
+  }, []);
+
+  // Reconcile the board with the server row (realtime, poll, or my own move's reply).
+  const loadedMatch = useRef<string | null>(null);
+  const prevRow = useRef<{ offer: string | null; plies: number } | null>(null);
   useEffect(() => {
-    if (!pvp) return;
-    const sendHistory = () =>
-      realtimeBridge.sendRoomEvent({
-        event: "sync",
-        roomId: pvp.room,
-        data: { by: myId, moves: movesRef.current.map((m) => ({ from: m.from, to: m.to })) },
-      });
-    const off = realtimeBridge.onRoomEvent((e) => {
-      const d = e.data as { by?: string; from?: number; to?: number; moves?: { from: number; to: number }[] } | undefined;
-      if (e.roomId !== pvp.room || !d || d.by !== pvp.oppId) return;
-      if (e.event === "move" && typeof d.from === "number" && typeof d.to === "number") {
-        if (posRef.current.side !== mySide) applyMove(d.from, d.to, true);
-      } else if (e.event === "resign") finish(mySide, "Đối thủ xin thua");
-      else if (e.event === "hello") sendHistory();
-      else if (e.event === "sync" && d.moves && d.moves.length > movesRef.current.length) {
-        for (const m of d.moves.slice(movesRef.current.length)) applyMove(m.from, m.to, true);
-      }
-    });
-    realtimeBridge.sendRoomEvent({ event: "hello", roomId: pvp.room, data: { by: myId } });
-    return off;
+    const r = online.row;
+    if (!r || !pvp || r.id !== pvp.room) return;
+    const first = loadedMatch.current !== r.id;
+    const mine: Side = slotOf(r, myId) === 1 ? 1 : -1;
+    if (first) {
+      loadedMatch.current = r.id;
+      setMySide(mine);
+      const o = opponentOf(r, myId);
+      setPvp((p) => (p && p.room === r.id ? { ...p, oppId: o.id, name: o.name, avatar: o.avatar || p.avatar, elo: o.elo } : p));
+      setStake(r.stake);
+    }
+
+    const remote = r.moves as { from: number; to: number }[];
+    const local = movesRef.current;
+    const same = local.slice(0, remote.length).every((m, i) => m.from === remote[i].from && m.to === remote[i].to);
+    if (!same || (remote.length < local.length && !pendingMove.current)) rebuildFrom(remote);
+    else if (remote.length > local.length) {
+      if (first || remote.length - local.length > 2) rebuildFrom(remote);
+      else for (const m of remote.slice(local.length)) applyMove(m.from, m.to, true);
+    }
+
+    const prev = prevRow.current;
+    prevRow.current = { offer: r.draw_offer_by, plies: remote.length };
+    if (r.status === "active") {
+      setDrawOffer(r.draw_offer_by ? (r.draw_offer_by === myId ? "out" : "in") : null);
+      if (prev?.offer === myId && !r.draw_offer_by && prev.plies === remote.length) showToast("Đối thủ từ chối hoà", "bad");
+    } else if (!finishedRef.current) {
+      // A game that was already over when I opened it is shown, not paid out again.
+      const end = describeEnd(r, myId);
+      if (end.outcome === "abort") finish(0, end.reason, false);
+      else finish(end.outcome === "draw" ? 0 : end.outcome === "win" ? mine : ((-mine) as Side), end.reason, !first);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pvp, myId, mySide, applyMove, finish]);
+  }, [online.row]);
+
+  useEffect(() => {
+    if (online.error) showToast(online.error, "bad", 5000);
+  }, [online.error, showToast]);
+
+  // Online clock: derived from the server's turn start (same for both players, runs in hidden tabs).
+  // When it runs out, ask the server to call the flag.
+  useEffect(() => {
+    if (!pvp || phase !== "playing") return;
+    let lastFlag = 0;
+    let shown = "";
+    const t = setInterval(() => {
+      const { row: r, serverNow, act } = onlineRef.current;
+      if (!r || r.status !== "active") return;
+      const now = serverNow();
+      const red = timeLeft(r, 1, now);
+      const black = timeLeft(r, 2, now);
+      clockRef.current = { 1: red, [-1]: black };
+      const key = [red, black].map((v) => Math.floor(v / (v < 10000 ? 100 : 1000))).join("|");
+      if (key !== shown) {
+        shown = key;
+        syncClock();
+      }
+      const left = r.moves.length % 2 === 0 ? red : black;
+      if (r.moves.length >= 2 && left <= 0 && Date.now() - lastFlag > 2000) {
+        lastFlag = Date.now();
+        void act("flag");
+      }
+    }, 100);
+    return () => clearInterval(t);
+  }, [pvp, phase, syncClock]);
 
   // Clock
   useEffect(() => {
-    if (phase !== "playing" || !tc.base || moves.length < 2) return;
+    if (phase !== "playing" || !tc.base || moves.length < 2 || pvp) return;
     let last = performance.now();
     let raf = 0;
     const loop = (now: number) => {
@@ -302,7 +391,7 @@ export function XiangqiGame() {
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [phase, tc.base, moves.length, finish, syncClock]);
+  }, [phase, tc.base, moves.length, finish, syncClock, pvp]);
 
   useEffect(
     () => () => {
@@ -317,9 +406,17 @@ export function XiangqiGame() {
   useEffect(() => {
     if (restored.current) return;
     restored.current = true;
-    const bo = betOpponentFromUrl();
-    if (bo && bo.oppId) {
-      beginPvp({ room: bo.room, oppId: bo.oppId, name: bo.name, avatar: bo.avatar });
+    const q = new URLSearchParams(window.location.search);
+    const matchId = q.get("match");
+    if (matchId) {
+      beginPvp({ room: matchId, oppId: "", name: "Đối thủ", avatar: "" });
+      return;
+    }
+    if (q.get("bet")) {
+      void waitForBetOpponent().then((bo) => {
+        if (bo?.oppId) void startBetPvp(bo);
+        else showToast("Không tìm thấy kèo đã được nhận cho bàn này.", "bad", 4000);
+      });
       return;
     }
     const saved = session.load();
@@ -379,13 +476,17 @@ export function XiangqiGame() {
   }, [phase, moves.length, session]);
   useEffect(() => () => persistRef.current(), []);
 
+  // Online match: the matchmaking modal passes ?match=<id>; a chat bet opens a match keyed by the bet id.
+  // Sides, names, moves and clocks all come from the server row.
   const beginPvp = (info: PvpInfo) => {
     session.clear();
     const p = new XiangqiPosition();
     posRef.current = p;
+    loadedMatch.current = null;
+    finishedRef.current = false;
+    setDrawOffer(null);
     setPvp(info);
-    update({ mode: "pvp", time: "10+5" });
-    setMySide(myId < info.oppId ? 1 : -1);
+    setSettings((s) => ({ ...s, mode: "pvp", time: "10+5" }));
     setFlipped(false);
     setBoards([p.b.slice()]);
     setMoves([]);
@@ -399,11 +500,26 @@ export function XiangqiGame() {
     setPhase("playing");
   };
 
+  async function startBetPvp(bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) {
+    const row = await openBetMatch({
+      id: bo.room,
+      game: "xiangqi",
+      oppId: bo.oppId,
+      stake: bo.stake,
+      me: { name: me.username, avatar: me.avatar },
+      opp: { name: bo.name, avatar: bo.avatar },
+    });
+    if (!row) return showToast("Không mở được bàn online — cần đăng nhập tài khoản.", "bad", 4000);
+    beginPvp({ room: bo.room, oppId: bo.oppId, name: bo.name, avatar: bo.avatar });
+  }
+
   const start = () => {
     if (isFriend) {
       if (!fb.friend) return;
-      return beginPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar });
+      void startBetPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar, stake: fb.bet?.stake ?? stake });
+      return;
     }
+    finishedRef.current = false;
     engine?.cancel();
     analyst?.cancel();
     const p = new XiangqiPosition();
@@ -428,6 +544,11 @@ export function XiangqiGame() {
   const backToSetup = () => {
     engine?.cancel();
     setThinking(false);
+    if (pvp) {
+      setPvp(null);
+      setSettings((s) => ({ ...s, mode: "ai" }));
+      window.history.replaceState(null, "", window.location.pathname);
+    }
     setPhase("setup");
     setResultOpen(false);
   };
@@ -435,7 +556,7 @@ export function XiangqiGame() {
   const resign = () => {
     setConfirm(null);
     if (phase !== "playing") return;
-    if (pvp) realtimeBridge.sendRoomEvent({ event: "resign", roomId: pvp.room, data: { by: myId } });
+    if (pvp) void online.act("resign");
     const loser = settings.mode === "local" ? turn : mySide;
     finish((-loser) as Side, settings.mode === "local" ? `${loser === 1 ? "Đỏ" : "Đen"} xin thua` : "Bạn xin thua");
   };
@@ -443,7 +564,12 @@ export function XiangqiGame() {
   const offerDraw = async () => {
     if (phase !== "playing") return;
     if (settings.mode === "local") return finish(0, "Hai bên thoả thuận hoà");
-    if (isPvp) return showToast("Ván online chưa hỗ trợ cầu hoà", "info");
+    if (isPvp) {
+      if (drawOffer) return;
+      setDrawOffer("out");
+      void online.act("draw_offer");
+      return showToast("Đã gửi lời cầu hoà cho đối thủ…");
+    }
     if (!analyst) return;
     showToast("Đã gửi lời cầu hoà…");
     const p = posRef.current;
@@ -516,7 +642,7 @@ export function XiangqiGame() {
   const captured = (by: Side) => moves.filter((m) => m.side === by && m.captured).map((m) => m.captured);
   const playerFor = (side: Side) => {
     if (settings.mode === "local") return { name: side === 1 ? "Bên Đỏ" : "Bên Đen", avatar: `kokonut:${side === 1 ? "ben do" : "ben den"}:1`, rating: undefined };
-    if (pvp && side !== mySide) return { name: pvp.name, avatar: pvp.avatar, rating: undefined };
+    if (pvp && side !== mySide) return { name: pvp.name, avatar: pvp.avatar, rating: pvp.elo };
     if (side === mySide) return { name: me.username, avatar: me.avatar, rating: me.elo };
     return { name: matchOpp?.name ?? `Engine ${level.label}`, avatar: matchOpp?.avatar ?? `kokonut:ky vuong ${settings.level}:5`, rating: matchOpp?.elo ?? level.elo };
   };
@@ -729,11 +855,23 @@ export function XiangqiGame() {
                   </div>
                 )}
                 <div className="grid grid-cols-3 gap-1.5">
-                  <Act label="Cầu hoà" icon={<Handshake className="size-3.5" />} onClick={offerDraw} disabled={phase !== "playing"} />
+                  <Act label="Cầu hoà" icon={<Handshake className="size-3.5" />} onClick={offerDraw} disabled={phase !== "playing" || drawOffer === "out"} />
                   <Act label={`Đi lại ${rated ? "" : takebacksLeft}`} icon={<Undo2 className="size-3.5" />} onClick={takeback} disabled={rated || phase !== "playing" || takebacksLeft <= 0 || !moves.length} />
                   <Act label={`Gợi ý ${rated ? "" : hintsLeft}`} icon={<Lightbulb className="size-3.5" />} onClick={askHint} disabled={rated || !humanTurn || hintsLeft <= 0} />
                   <Act label="Ván mới" icon={<RotateCcw className="size-3.5" />} onClick={() => (phase === "playing" ? setConfirm("new") : backToSetup())} />
                 </div>
+                {phase === "playing" && drawOffer === "in" && (
+                  <div className="rounded-xl border border-lime-400/40 bg-lime-400/10 p-2 text-center text-xs">
+                    <p className="mb-1.5 font-bold">Đối thủ cầu hoà</p>
+                    <div className="flex gap-1.5">
+                      <button type="button" className="btn-lime flex-1 py-1.5 font-bold" onClick={() => { setDrawOffer(null); void online.act("draw_accept"); }}>Đồng ý</button>
+                      <button type="button" className="btn-ghost flex-1 py-1.5" onClick={() => { setDrawOffer(null); void online.act("draw_decline"); }}>Từ chối</button>
+                    </div>
+                  </div>
+                )}
+                {pvp && phase === "playing" && (
+                  <OnlineStatus oppOnline={online.oppOnline} ready={!!online.row} canAbort={moves.length < 2} onAbort={() => void online.act("abort")} />
+                )}
                 {phase === "playing" && (
                   <HoldButton className="w-full text-xs" variant="red" holdingLabel="Giữ để xác nhận…" completeLabel="Đã xin thua" onHoldComplete={resign}>
                     Giữ để xin thua
