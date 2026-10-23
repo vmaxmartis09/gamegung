@@ -117,7 +117,7 @@ export const DCard = memo(function DCard({
         {center}
       </span>
       {size === "lg" && card.kind !== "num" && (
-        <span className="absolute inset-x-0 bottom-2 text-center text-xs font-black uppercase tracking-wider" style={{ color: wild ? "#09090b" : ink }}>
+        <span className="absolute inset-x-0 bottom-2 text-center text-[10px] font-black uppercase tracking-wider" style={{ color: wild ? "#09090b" : ink }}>
           {KIND_LABEL[card.kind]}
         </span>
       )}
@@ -137,7 +137,6 @@ export function DeadlineGame() {
   const soundEnabled = useAppStore((s) => s.soundEnabled);
   const { settle, reset: resetSettlement, result, open: resultOpen, setOpen: setResultOpen } = useMatchSettlement("uno");
   const session = useGameSession<Save>("uno");
-  const matchOpp = useMatchOpponent();
 
   const [count, setCount] = useState<2 | 3 | 4>(4);
   const [target, setTarget] = useState<0 | 250>(0);
@@ -210,7 +209,7 @@ export function DeadlineGame() {
     setSelected([]);
     const players = [
       { id: me.id, name: me.username, avatar: me.avatar, bot: false, score: 0 },
-      ...BOTS.slice(0, count - 1).map((b, i) => ({ id: `bot-${i}`, name: i === 0 && matchOpp ? matchOpp.name : b.name, avatar: i === 0 && matchOpp?.avatar ? matchOpp.avatar : `kokonut:${b.seed}`, bot: true, score: 0 })),
+      ...BOTS.slice(0, count - 1).map((b, i) => ({ id: `bot-${i}`, name: b.name, avatar: `kokonut:${b.seed}`, bot: true, score: 0 })),
     ];
     commit(newRound(players, target));
     setTurnStart(Date.now());
@@ -328,7 +327,7 @@ export function DeadlineGame() {
   useEffect(() => {
     if (!s || !matchOver(s)) return;
     if (s.winner === 0) sfx("win");
-    settle(s.winner === 0 ? "win" : "loss", { name: matchOpp?.name ?? "Bàn Deadline Rush", elo: matchOpp?.elo ?? 1250 }, stake);
+    settle(s.winner === 0 ? "win" : "loss", { name: "Bàn Deadline Rush", elo: 1250 }, stake);
   }, [s?.winner, s?.round]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ------------------------------ Human input ------------------------------ */
@@ -371,7 +370,7 @@ export function DeadlineGame() {
 
   if (!s) {
     return (
-      <div className="mx-auto min-h-0 w-full max-w-[1100px] flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 sm:px-6">
+      <div className="mx-auto max-w-[1100px] px-4 sm:px-6">
         <GameHeader game="uno" subtitle="Game bài đẩy việc · 2–4 người" />
         <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
           <div className="panel p-6">
@@ -445,7 +444,7 @@ export function DeadlineGame() {
                 <div key={p.id} className={cn("flex min-w-[150px] items-center gap-3 rounded-3xl border p-2.5 pr-4 transition-colors", active ? "border-white bg-white/[0.08] shadow-[0_0_28px_rgba(255,255,255,0.35)]" : "border-white/10 bg-white/[0.02]")}>
                   <div className="relative">
                     <UserAvatar src={p.avatar} name={p.name} className={cn("size-11", active && "ring-2 ring-white")} />
-                    {p.hand.length === 1 && <span className="absolute -right-2 -top-2 rounded-full bg-white px-1.5 py-0.5 text-xs font-black text-black">{p.called ? "CHỐT" : "1!"}</span>}
+                    {p.hand.length === 1 && <span className="absolute -right-2 -top-2 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black text-black">{p.called ? "CHỐT" : "1!"}</span>}
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold">{p.name}</p>
@@ -456,9 +455,9 @@ export function DeadlineGame() {
                         ))}
                       </div>
                       <span className="ml-1 font-mono text-xs text-ink-300">{p.hand.length}</span>
-                      {s.target > 0 && <span className="ml-1 font-mono text-xs text-ink-400">· {p.score}đ</span>}
+                      {s.target > 0 && <span className="ml-1 font-mono text-[11px] text-ink-400">· {p.score}đ</span>}
                     </div>
-                    {active && !p.bot ? null : active && <TextLoading className="mt-0.5 text-xs text-ink-300" texts={["Đang tính…", "Soi bài…", "Sắp đánh…"]} />}
+                    {active && !p.bot ? null : active && <TextLoading className="mt-0.5 text-[11px] text-ink-300" texts={["Đang tính…", "Soi bài…", "Sắp đánh…"]} />}
                   </div>
                 </div>
               );
@@ -481,7 +480,7 @@ export function DeadlineGame() {
                 <DCard faceDown size="lg" />
               </div>
               <DCard faceDown size="lg" />
-              <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-ink-900 px-2 py-0.5 font-mono text-xs text-ink-300 ring-1 ring-white/10">{s.draw.length}</span>
+              <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-ink-900 px-2 py-0.5 font-mono text-[11px] text-ink-300 ring-1 ring-white/10">{s.draw.length}</span>
             </button>
 
             <div className="relative">
@@ -604,7 +603,7 @@ export function DeadlineGame() {
                         <button key={d} type="button" onClick={() => chooseDept(d)} className="flex flex-col items-center gap-1 rounded-2xl border-2 border-black/30 px-6 py-4 font-bold transition-transform hover:-translate-y-1" style={{ background: DEPT_INFO[d].tone, color: DEPT_INFO[d].ink }}>
                           <I className="size-7" />
                           {DEPT_INFO[d].name}
-                          <span className="text-xs opacity-70">{n} lá</span>
+                          <span className="text-[11px] opacity-70">{n} lá</span>
                         </button>
                       );
                     })}
