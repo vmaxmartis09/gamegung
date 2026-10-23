@@ -79,7 +79,7 @@ export function MatchSettlementModal({
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className="relative z-10 w-full max-w-md bg-ink-950 border border-ink-800 rounded-3xl p-6 sm:p-8 shadow-2xl text-white text-center overflow-hidden"
+            className="relative z-10 w-full max-w-md max-h-[92dvh] no-scrollbar overflow-y-auto bg-ink-950 border border-ink-800 rounded-3xl p-6 sm:p-8 shadow-2xl text-white text-center overflow-hidden"
           >
             {/* Top gradient glow based on result */}
             <div

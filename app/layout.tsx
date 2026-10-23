@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Be_Vietnam_Pro, Newsreader, JetBrains_Mono } from "next/font/google";
+import { Be_Vietnam_Pro, Cormorant_Garamond, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthGate } from "@/components/auth/auth-gate";
 import { AppShell } from "@/components/layout/app-shell";
@@ -11,9 +11,9 @@ const body = Be_Vietnam_Pro({
   display: "swap",
 });
 
-const display = Newsreader({
+const display = Cormorant_Garamond({
   subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600"],
+  weight: ["500", "600", "700"],
   style: ["normal", "italic"],
   variable: "--font-display",
   display: "swap",

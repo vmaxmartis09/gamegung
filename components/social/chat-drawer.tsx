@@ -15,6 +15,7 @@ import {
   Hash,
   Image as ImageIcon,
   MessageSquare,
+  Pencil,
   Send,
   Smile,
   LogOut,
@@ -29,11 +30,12 @@ import { useAppStore, ChatMessage, ChatAttachment } from "@/lib/store";
 import { usePresenceStore, sortPeers, OnlinePeer } from "@/lib/presence";
 import { dmOtherId, isDmChannel, relativeTime } from "@/lib/chat";
 import { GameIcon, GAME_BY_ID, GameId } from "@/components/art/game-art";
-import { UserAvatar, STATUS_META } from "@/components/ui/user-avatar";
+import { UserAvatar, STATUS_META, kokonutAvatar, avatarSeedFrom } from "@/components/ui/user-avatar";
 import { soundManager } from "@/lib/audio";
 import { useUiStore } from "@/lib/ui-store";
 import { useAuthStore } from "@/lib/auth";
 import { getRankTier, RANK_TIERS } from "@/lib/ranking-system";
+import { syncProfileToSupabase } from "@/lib/supabase-game";
 import { cn } from "@/lib/utils";
 import { BetModal } from "./bet-modal";
 
@@ -85,17 +87,18 @@ async function compressImage(file: File): Promise<string> {
 }
 
 export function ChatDrawer() {
-  const { isChatOpen, activeChannel, myId } = useAppStore(
-    useShallow((s) => ({ isChatOpen: s.isChatOpen, activeChannel: s.activeChannel, myId: s.currentUser.id }))
+  const { isChatOpen, isChatCollapsed, activeChannel, myId } = useAppStore(
+    useShallow((s) => ({
+      isChatOpen: s.isChatOpen,
+      isChatCollapsed: s.isChatCollapsed,
+      activeChannel: s.activeChannel,
+      myId: s.currentUser.id,
+    }))
   );
   const setActiveChannel = useAppStore((s) => s.setActiveChannel);
+  const setChatCollapsed = useAppStore((s) => s.setChatCollapsed);
   const [tab, setTab] = useState<Tab>("general");
   const [betOpen, setBetOpen] = useState(false);
-  // Below lg the drawer would cover the page, so it starts collapsed to a floating button.
-  const [collapsed, setCollapsed] = useState(false);
-  useEffect(() => {
-    if (window.matchMedia("(max-width: 1023px)").matches) setCollapsed(true);
-  }, []);
   const totalUnread = useAppStore((s) => Object.values(s.unreadCounts).reduce((a, v) => a + v, 0));
 
   // Only two chat areas: the general room and one-to-one threads.
@@ -118,16 +121,16 @@ export function ChatDrawer() {
 
   return (
     <AnimatePresence>
-      {isChatOpen && collapsed && (
+      {isChatOpen && isChatCollapsed && (
         <motion.button
           key="chat-fab"
           type="button"
-          onClick={() => setCollapsed(false)}
+          onClick={() => setChatCollapsed(false)}
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
           aria-label={totalUnread > 0 ? `Mở chat, ${totalUnread} tin chưa đọc` : "Mở chat"}
-          className="fixed bottom-4 right-4 z-50 grid size-14 place-items-center rounded-full border border-white/10 bg-ink-900/90 text-white shadow-lift backdrop-blur-xl lg:hidden"
+          className="fixed bottom-4 right-4 z-50 grid size-14 place-items-center rounded-full border border-white/10 bg-ink-900/90 text-white shadow-lift backdrop-blur-xl transition-transform hover:scale-105 active:scale-95"
         >
           <MessageSquare className="size-6" />
           {totalUnread > 0 && (
@@ -135,7 +138,7 @@ export function ChatDrawer() {
           )}
         </motion.button>
       )}
-      {isChatOpen && (
+      {isChatOpen && !isChatCollapsed && (
         <>
           <motion.aside
             initial={{ opacity: 0, scale: 0.97, y: 16 }}
@@ -143,10 +146,10 @@ export function ChatDrawer() {
             exit={{ opacity: 0, scale: 0.97, y: 16 }}
             style={{ transformOrigin: "bottom right" }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className={cn(collapsed && "max-lg:hidden", "fixed inset-x-2 bottom-16 top-auto z-50 h-[60vh] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-ink-950/90 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9)] backdrop-blur-2xl sm:inset-x-auto sm:right-4 sm:bottom-4 sm:h-[min(88vh,820px)] sm:w-[480px]")}
+            className="fixed inset-x-2 bottom-16 top-auto z-50 h-[70vh] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-ink-950/95 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.85)] backdrop-blur-2xl sm:inset-x-auto sm:right-3 sm:top-2.5 sm:bottom-2.5 sm:h-[calc(100dvh-1.25rem)] sm:w-[380px] xl:w-[420px]"
             aria-label="Chat văn phòng"
           >
-            <DrawerHeader tab={tab} setTab={pick} onCollapse={() => setCollapsed(true)} />
+            <DrawerHeader tab={tab} setTab={pick} onCollapse={() => setChatCollapsed(true)} />
 
             {tab === "general" && (
               <>
@@ -178,6 +181,15 @@ export function ChatDrawer() {
 }
 
 function DrawerHeader({ tab, setTab, onCollapse }: { tab: Tab; setTab: (t: Tab) => void; onCollapse: () => void }) {
+  const me = useAppStore(
+    useShallow((s) => ({
+      username: s.currentUser.username,
+      avatar: s.currentUser.avatar,
+      title: s.currentUser.title,
+      lua: s.currentUser.lua,
+    }))
+  );
+  const myStatus = usePresenceStore((s) => s.myStatus);
   const unread = useAppStore(
     useShallow((s) => ({
       general: s.unreadCounts["lounge"] || 0,
@@ -190,8 +202,51 @@ function DrawerHeader({ tab, setTab, onCollapse }: { tab: Tab; setTab: (t: Tab) 
     { id: "profile", label: "Hồ sơ", icon: <UserRound className="size-3.5" />, badge: 0 },
   ];
   return (
-    <div className="flex items-center gap-2 border-b border-white/[0.06] p-2">
-      <div role="tablist" aria-label="Khu vực chat" className="grid min-w-0 flex-1 grid-cols-3 gap-1 rounded-xl border border-white/[0.06] bg-black/30 p-1">
+    <div className="border-b border-white/[0.08] p-2.5 bg-black/70 backdrop-blur-xl">
+      {/* Integrated Profile Top Strip */}
+      <div className="mb-2 flex items-center justify-between gap-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] p-2 transition-colors hover:border-white/20">
+        <button
+          type="button"
+          onClick={() => setTab("profile")}
+          className="flex min-w-0 flex-1 items-center gap-2.5 text-left group"
+          title="Xem & chỉnh sửa hồ sơ"
+        >
+          <UserAvatar src={me.avatar} name={me.username} status={myStatus} className="size-9 ring-1 ring-white/20" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-xs font-semibold text-white group-hover:underline">{me.username}</span>
+              <span className="shrink-0 text-[10px] text-neutral-400 font-mono">🌾 {me.lua.toLocaleString("vi-VN")}</span>
+            </div>
+            <p className="truncate text-[10px] text-neutral-400">{me.title}</p>
+          </div>
+        </button>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setTab("profile")}
+            className={cn(
+              "rounded-lg px-2 py-1 text-[11px] font-medium transition-colors border",
+              tab === "profile"
+                ? "bg-white text-black border-white"
+                : "bg-white/[0.05] text-neutral-300 border-white/10 hover:bg-white/10 hover:text-white"
+            )}
+          >
+            Hồ sơ
+          </button>
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="Thu nhỏ chat"
+            className="grid size-8 shrink-0 place-items-center rounded-lg text-neutral-400 hover:bg-white/[0.08] hover:text-white"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div role="tablist" aria-label="Khu vực chat" className="grid grid-cols-3 gap-1 rounded-xl border border-white/[0.07] bg-black/60 p-1">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -200,35 +255,25 @@ function DrawerHeader({ tab, setTab, onCollapse }: { tab: Tab; setTab: (t: Tab) 
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
             className={cn(
-              "relative flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-colors",
-              tab === t.id ? "text-white" : "text-ink-400 hover:text-white"
+              "relative flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition-colors",
+              tab === t.id ? "text-white" : "text-neutral-400 hover:text-white"
             )}
           >
             {tab === t.id && (
               <motion.span
                 layoutId="chat-tab-pill"
                 transition={{ type: "spring", damping: 32, stiffness: 420 }}
-                className="absolute inset-0 rounded-lg border border-white/10 bg-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-              >
-                <span className="absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-accent to-transparent" />
-              </motion.span>
+                className="absolute inset-0 rounded-lg bg-white/10 border border-white/15"
+              />
             )}
             <span className="relative flex items-center gap-1.5">
               {t.icon}
               {t.label}
-              {t.badge > 0 && <span className="grid min-w-4 place-items-center rounded-full bg-accent px-1 text-[9px] font-bold text-black">{t.badge}</span>}
+              {t.badge > 0 && <span className="grid min-w-4 place-items-center rounded-full bg-white px-1 text-[9px] font-bold text-black">{t.badge}</span>}
             </span>
           </button>
         ))}
       </div>
-      <button
-        type="button"
-        onClick={onCollapse}
-        aria-label="Thu nhỏ chat"
-        className="grid size-10 shrink-0 place-items-center rounded-xl text-ink-300 hover:bg-white/[0.06] hover:text-white lg:hidden"
-      >
-        <X className="size-4" />
-      </button>
     </div>
   );
 }
@@ -383,7 +428,7 @@ const MessageRow = memo(function MessageRow({
                 }}
                 className="grid size-6 place-items-center rounded-lg text-ink-300 hover:text-white"
               >
-                {copied ? <Check className="size-3 text-lime-400" /> : <Copy className="size-3" />}
+                {copied ? <Check className="size-3 text-white" /> : <Copy className="size-3" />}
               </button>
             )}
           </div>
@@ -481,7 +526,7 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
                   if (lua < bet.stake) return setErr(`Cần ${bet.stake} 🌾, bạn có ${lua}.`);
                   if (accept(bet.id) && soundEnabled) soundManager.playCoin();
                 }}
-                className="btn-lime px-3 py-1 text-[11px]"
+                className="btn-accent px-3 py-1 text-[11px]"
               >
                 <Swords className="size-3" /> Nhận kèo
               </button>
@@ -490,10 +535,10 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
         )}
         {bet.status === "accepted" && (
           <>
-            <span className="flex items-center gap-1 text-[11px] text-lime-400">
-              <Check className="size-3" /> Đã chốt: {bet.creatorName} vs {bet.opponentName}
+            <span className="flex items-center gap-1 text-[11px] text-white font-medium">
+              <Check className="size-3 text-white" /> Đã chốt: {bet.creatorName} vs {bet.opponentName}
             </span>
-            <Link href={`${GAME_URL[bet.gameType] ?? "/"}?stake=${bet.stake}`} className="btn-lime px-3 py-1 text-[11px]">
+            <Link href={`${GAME_URL[bet.gameType] ?? "/"}?stake=${bet.stake}`} className="btn-accent px-3 py-1 text-[11px]">
               Vào chơi
             </Link>
           </>
@@ -667,12 +712,42 @@ function ProfilePanel() {
   const myStatus = usePresenceStore((s) => s.myStatus);
   const [claimMsg, setClaimMsg] = useState<string | null>(null);
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(me.username);
+  const [editTitle, setEditTitle] = useState(me.title);
+  const [editSeed, setEditSeed] = useState(() => avatarSeedFrom(me.avatar, me.username));
+  const setCurrentUser = useAppStore((s) => s.setCurrentUser);
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
   const score = me.score ?? 1200;
   const lua = me.lua ?? 0;
   const tier = getRankTier(score);
   const next = RANK_TIERS[RANK_TIERS.findIndex((t) => t.id === tier.id) + 1];
   const pct = next ? Math.min(100, Math.max(0, ((score - tier.minElo) / (next.minElo - tier.minElo)) * 100)) : 100;
   const canClaim = !me.lastDailyClaim || Date.now() - me.lastDailyClaim > 24 * 3600 * 1000;
+
+  const TITLES = [
+    "Đại Kiện Tướng Bàn Trà",
+    "Sói Già Phố Wall",
+    "Kỳ Thánh IT",
+    "Trưởng Phòng Chiến Thuật",
+    "Bậc Thầy Bốc Phét",
+    "Thợ Săn Bug & Sói",
+    "Vua Cờ Nghỉ Trưa",
+    "Chiến Thần Đàm Phán",
+  ];
+
+  const handleSaveProfile = () => {
+    const newName = editName.trim() || me.username;
+    const newAvatar = kokonutAvatar(editSeed);
+    setCurrentUser({ username: newName, title: editTitle, avatar: newAvatar });
+    syncProfileToSupabase({ ...me, username: newName, title: editTitle, avatar: newAvatar });
+    setSavedSuccess(true);
+    setTimeout(() => {
+      setSavedSuccess(false);
+      setIsEditing(false);
+    }, 700);
+  };
 
   const st = (k: "chess" | "xiangqi" | "werewolf" | "arcade" | "uno") => me.stats?.[k] ?? { wins: 0, losses: 0, draws: 0, games: 0 };
   const rows = [
@@ -689,27 +764,94 @@ function ProfilePanel() {
     { id: "busy", label: "Bận" },
     { id: "away", label: "Away" },
   ];
-  const card = "rounded-2xl border border-white/[0.07] bg-white/[0.03]";
+  const card = "rounded-2xl border border-white/[0.08] bg-white/[0.03]";
 
   return (
-    <div className="flex-1 space-y-4 overflow-y-auto p-4">
-      <div className="flex items-center gap-3">
-        <UserAvatar src={me.avatar} name={me.username} status={myStatus} className="size-16" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-lg font-extrabold">{me.username}</p>
-          <p className="truncate text-xs text-ink-300">{me.title}</p>
-          {email && <p className="truncate text-[11px] text-ink-500">{email}</p>}
-        </div>
-        <button type="button" onClick={() => open("profile")} className="chip shrink-0 hover:text-white">
-          Sửa hồ sơ
-        </button>
-      </div>
+    <div className="flex-1 space-y-4 overflow-y-auto p-4 no-scrollbar">
+      {/* Profile Header & In-Drawer Edit */}
+      {isEditing ? (
+        <div className={cn(card, "p-4 space-y-3.5 border-white/20 bg-neutral-900/90")}>
+          <div className="flex items-center justify-between pb-1 border-b border-white/10">
+            <span className="text-xs font-semibold text-white">Chỉnh sửa hồ sơ</span>
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="text-xs text-neutral-400 hover:text-white"
+            >
+              Hủy
+            </button>
+          </div>
 
-      <div className={cn(card, "p-3")}>
+          <div className="flex items-center gap-3">
+            <UserAvatar src={kokonutAvatar(editSeed)} name={editName} className="size-14 ring-1 ring-white/30" />
+            <button
+              type="button"
+              onClick={() => setEditSeed(Math.random().toString(36).substring(2, 8) + ":0")}
+              className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs text-white hover:bg-white/10"
+            >
+              <Dices className="size-3.5" /> Đổi avatar
+            </button>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">Tên hiển thị</label>
+            <input
+              type="text"
+              value={editName}
+              maxLength={24}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-black/60 px-3 py-2 text-xs text-white outline-none focus:border-white"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">Danh hiệu</label>
+            <select
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-black/60 px-3 py-2 text-xs text-white outline-none focus:border-white"
+            >
+              {TITLES.map((t) => (
+                <option key={t} value={t} className="bg-neutral-900 text-white">
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSaveProfile}
+            disabled={savedSuccess}
+            className="w-full rounded-xl bg-white py-2 text-xs font-semibold text-black hover:bg-neutral-200 transition-colors"
+          >
+            {savedSuccess ? "✓ Đã lưu thành công" : "Lưu thay đổi"}
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3.5 p-1">
+          <UserAvatar src={me.avatar} name={me.username} status={myStatus} className="size-16 ring-1 ring-white/20" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-lg font-medium text-white">{me.username}</p>
+            <p className="truncate text-xs text-neutral-400">{me.title}</p>
+            {email && <p className="truncate text-[11px] text-neutral-500 font-mono mt-0.5">{email}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="flex items-center gap-1 rounded-xl border border-white/15 bg-white/[0.05] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10 shrink-0"
+          >
+            <Pencil className="size-3" /> Sửa
+          </button>
+        </div>
+      )}
+
+      {/* Credit & Daily Claim Card */}
+      <div className={cn(card, "p-3.5")}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] text-ink-400">Số dư Lúa</p>
-            <p className="font-display text-2xl font-extrabold tabular">{lua.toLocaleString("vi-VN")} 🌾</p>
+            <p className="text-[11px] uppercase tracking-wider text-neutral-400">Số dư Credit</p>
+            <p className="font-display text-2xl font-medium tabular text-white">{lua.toLocaleString("vi-VN")} 🌾</p>
           </div>
           <div className="flex flex-col items-end gap-1.5">
             <button
@@ -719,23 +861,23 @@ function ProfilePanel() {
                 const r = claimDailyBonus();
                 setClaimMsg(r.success ? `+${r.amount} 🌾` : r.message);
               }}
-              className="btn-lime px-3 py-1.5 text-xs disabled:opacity-40"
+              className="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-neutral-200 disabled:opacity-40 transition-colors"
             >
-              {canClaim ? "Điểm danh" : "Đã điểm danh"}
+              {canClaim ? "Điểm danh" : "Đã nhận hôm nay"}
             </button>
-            <button type="button" onClick={() => open("wallet")} className="text-[11px] text-ink-300 underline-offset-4 hover:text-white hover:underline">
+            <button type="button" onClick={() => open("wallet")} className="text-[11px] text-neutral-400 underline-offset-4 hover:text-white hover:underline">
               Mở ví
             </button>
           </div>
         </div>
-        {claimMsg && <p className="mt-2 text-xs font-semibold">{claimMsg}</p>}
+        {claimMsg && <p className="mt-2 text-xs font-semibold text-white">{claimMsg}</p>}
         {transactions.length > 0 && (
           <div className="mt-3 divide-y divide-white/[0.06] border-t border-white/[0.06]">
-            {transactions.slice(0, 4).map((t) => (
+            {transactions.slice(0, 3).map((t) => (
               <div key={t.id} className="flex items-center justify-between gap-2 py-1.5 text-xs">
-                <span className="min-w-0 flex-1 truncate text-ink-300">{(t as { description?: string }).description ?? t.type.replace(/_/g, " ")}</span>
-                <span className="shrink-0 text-[10px] text-ink-500">{relativeTime(t.timestamp)}</span>
-                <span className={cn("w-16 shrink-0 text-right font-mono", t.amount >= 0 ? "text-lime-400" : "text-pop-red")}>
+                <span className="min-w-0 flex-1 truncate text-neutral-300">{(t as { description?: string }).description ?? t.type.replace(/_/g, " ")}</span>
+                <span className="shrink-0 text-[10px] text-neutral-500 font-mono">{relativeTime(t.timestamp)}</span>
+                <span className="w-16 shrink-0 text-right font-mono text-white">
                   {t.amount >= 0 ? "+" : ""}
                   {t.amount}
                 </span>
@@ -745,35 +887,37 @@ function ProfilePanel() {
         )}
       </div>
 
-      <div className={cn(card, "p-3")}>
+      {/* Rank ELO Card */}
+      <div className={cn(card, "p-3.5")}>
         <div className="flex items-baseline justify-between">
-          <p className={cn("text-sm font-extrabold", tier.color)}>
+          <p className={cn("text-sm font-semibold", tier.color)}>
             {tier.icon} {tier.name}
           </p>
-          <p className="font-mono text-xs text-ink-300">{score} ELO</p>
+          <p className="font-mono text-xs text-neutral-300">{score} ELO</p>
         </div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full rounded-full bg-lime-400" style={{ width: `${pct}%` }} />
+          <div className="h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
         </div>
-        <div className="mt-1.5 flex justify-between text-[11px] text-ink-400">
-          <span>{next ? `Còn ${next.minElo - score} ELO để lên ${next.name}` : "Hạng cao nhất"}</span>
+        <div className="mt-1.5 flex justify-between text-[11px] text-neutral-400 font-mono">
+          <span>{next ? `Còn ${next.minElo - score} ELO để lên hạng` : "Hạng cao nhất"}</span>
           <span>
             {totalWins} thắng / {totalGames} trận
           </span>
         </div>
       </div>
 
+      {/* Game Breakdown */}
       <div>
-        <p className="eyebrow pb-1.5 text-[10px] text-ink-400">Xếp hạng theo game</p>
+        <p className="eyebrow pb-1.5 text-[10px] text-neutral-400">Xếp hạng theo game</p>
         <div className={cn(card, "divide-y divide-white/[0.06]")}>
           {rows.map((r) => {
             const t = getRankTier(r.elo);
             return (
               <div key={r.label} className="flex items-center gap-2 px-3 py-2 text-xs">
-                <span className="min-w-0 flex-1 truncate font-semibold">{r.label}</span>
+                <span className="min-w-0 flex-1 truncate font-medium text-white">{r.label}</span>
                 <span className={cn("shrink-0", t.color)}>{t.icon}</span>
-                <span className="w-10 shrink-0 text-right font-mono text-ink-200">{r.elo}</span>
-                <span className="w-20 shrink-0 text-right font-mono text-[11px] text-ink-400">
+                <span className="w-10 shrink-0 text-right font-mono text-neutral-200">{r.elo}</span>
+                <span className="w-20 shrink-0 text-right font-mono text-[11px] text-neutral-400">
                   {r.s.wins}T · {r.s.losses}B · {r.s.draws}H
                 </span>
               </div>
@@ -782,27 +926,29 @@ function ProfilePanel() {
         </div>
       </div>
 
+      {/* Action shortcuts */}
       <div className="grid grid-cols-3 gap-2">
         {[
           { label: "Xếp hạng", icon: <Trophy className="size-3.5" />, to: "ranking" as const },
           { label: "Nhân vật", icon: <Wand2 className="size-3.5" />, to: "creator" as const },
           { label: "Ghép trận", icon: <Swords className="size-3.5" />, to: "matchmaking" as const },
         ].map((b) => (
-          <button key={b.to} type="button" onClick={() => open(b.to)} className={cn(card, "flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-semibold hover:bg-white/[0.06]")}>
+          <button key={b.to} type="button" onClick={() => open(b.to)} className={cn(card, "flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium text-neutral-200 hover:bg-white/[0.08] hover:text-white transition-colors")}>
             {b.icon} {b.label}
           </button>
         ))}
       </div>
 
+      {/* Status */}
       <div>
-        <p className="eyebrow pb-1.5 text-[10px] text-ink-400">Trạng thái</p>
-        <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/[0.06] bg-black/40 p-1">
+        <p className="eyebrow pb-1.5 text-[10px] text-neutral-400">Trạng thái làm việc</p>
+        <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/[0.07] bg-black/50 p-1">
           {statuses.map((x) => (
             <button
               key={x.id}
               type="button"
               onClick={() => setManual(x.id === "auto" ? null : x.id)}
-              className={cn("rounded-xl py-1.5 text-xs font-bold", (manual ?? "auto") === x.id ? "seg-active" : "text-ink-300 hover:text-white")}
+              className={cn("rounded-xl py-1.5 text-xs font-medium transition-colors", (manual ?? "auto") === x.id ? "bg-white text-black font-semibold" : "text-neutral-400 hover:text-white")}
             >
               {x.label}
             </button>
@@ -810,11 +956,12 @@ function ProfilePanel() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={toggleSound} className="chip hover:text-white">
+      {/* Sound & Logout */}
+      <div className="flex items-center justify-between gap-2 pt-1 pb-2">
+        <button type="button" onClick={toggleSound} className="chip border-white/10 bg-white/5 text-neutral-300 hover:text-white">
           Âm thanh: {soundEnabled ? "Bật" : "Tắt"}
         </button>
-        <button type="button" onClick={() => signOut()} className="chip hover:text-white">
+        <button type="button" onClick={() => signOut()} className="chip border-white/10 bg-white/5 text-neutral-300 hover:text-white">
           <LogOut className="size-3" /> Đăng xuất
         </button>
       </div>
@@ -885,10 +1032,10 @@ function OnlineList({ onOpenDm }: { onOpenDm: () => void }) {
   const openDm = useAppStore((s) => s.openDm);
   const list = useMemo(() => sortPeers(Object.values(peers)), [peers]);
   const groups: { label: string; items: OnlinePeer[]; tone: string }[] = [
-    { label: "Đang chơi", items: list.filter((p) => p.status === "in-game"), tone: "text-pop-violet" },
-    { label: "Online", items: list.filter((p) => p.status === "online"), tone: "text-pop-green" },
-    { label: "Bận", items: list.filter((p) => p.status === "busy"), tone: "text-pop-red" },
-    { label: "Away", items: list.filter((p) => p.status === "away"), tone: "text-pop-yellow" },
+    { label: "Đang chơi", items: list.filter((p) => p.status === "in-game"), tone: "text-neutral-200" },
+    { label: "Online", items: list.filter((p) => p.status === "online"), tone: "text-white" },
+    { label: "Bận", items: list.filter((p) => p.status === "busy"), tone: "text-neutral-400" },
+    { label: "Away", items: list.filter((p) => p.status === "away"), tone: "text-neutral-500" },
   ];
   return (
     <div className="p-3">

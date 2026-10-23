@@ -216,6 +216,8 @@ interface AppState {
 
   // Chat & Betting in Chat
   isChatOpen: boolean;
+  isChatCollapsed: boolean;
+  setChatCollapsed: (collapsed: boolean) => void;
   activeChannel: string; // 'lounge' | game id | dmChannelId(a, b)
   messages: Record<string, ChatMessage[]>;
   /** Who is on the other side of each DM thread (not persisted). */
@@ -625,6 +627,8 @@ export const useAppStore = create<AppState>()(
         })),
 
       isChatOpen: true,
+      isChatCollapsed: true,
+      setChatCollapsed: (collapsed) => set({ isChatCollapsed: collapsed }),
       activeChannel: "lounge",
       messages: INITIAL_MESSAGES,
       dmPeers: {},
@@ -635,12 +639,17 @@ export const useAppStore = create<AppState>()(
           dmPeers: { ...state.dmPeers, [channelId]: peer },
           activeChannel: channelId,
           isChatOpen: true,
+          isChatCollapsed: false,
           unreadCounts: { ...state.unreadCounts, [channelId]: 0 },
         }));
       },
       unreadCounts: {},
-      // Chat is always on; kept as an API so existing callers still work.
-      toggleChat: () => set({ isChatOpen: true }),
+      // Chat toggle
+      toggleChat: (open) =>
+        set((state) => ({
+          isChatOpen: true,
+          isChatCollapsed: typeof open === "boolean" ? !open : !state.isChatCollapsed,
+        })),
       setActiveChannel: (channelId) => {
         set((state) => {
           const newUnreads = { ...state.unreadCounts, [channelId]: 0 };

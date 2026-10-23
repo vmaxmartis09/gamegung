@@ -25,7 +25,7 @@ export function GameHeader({ game, subtitle, children }: { game: GameId; subtitl
   const toggleSound = useAppStore((s) => s.toggleSound);
   const icon = "relative grid size-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.04] text-ink-100 transition-colors hover:bg-white hover:text-black";
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-1.5">
+    <div className="mb-2 flex flex-wrap items-center gap-1.5">
       <Link href="/" className={icon} aria-label="Về sảnh" title="Về sảnh (ván được lưu)">
         <ArrowLeft className="size-4" />
       </Link>
@@ -96,6 +96,7 @@ export function PlayerCard({
   clockMs,
   extra,
   accent = "lime",
+  compact = false,
   className,
 }: {
   name: string;
@@ -107,9 +108,52 @@ export function PlayerCard({
   clockMs?: number;
   extra?: React.ReactNode;
   accent?: "lime" | "red" | "violet";
+  compact?: boolean;
   className?: string;
 }) {
   const low = clockMs !== undefined && clockMs !== Infinity && clockMs < 20000;
+
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-xl border px-2.5 py-1 transition-colors min-h-[34px]",
+          active ? "border-white/20 bg-white/[0.08]" : "border-white/[0.06] bg-white/[0.02]",
+          className
+        )}
+      >
+        {icon ?? <UserAvatar src={avatar} name={name} className="size-6 shrink-0" />}
+        <div className="min-w-0 flex-1 flex items-center gap-2">
+          <p className="truncate text-xs font-bold text-ink-100">{name}</p>
+          {rating !== undefined && <span className="font-mono text-[10px] text-ink-400">({rating})</span>}
+          {thinking ? (
+            <TextLoading className="text-[11px] text-white" texts={["Nghĩ…", "Tính…"]} label="Đang nghĩ" />
+          ) : (
+            <div className="truncate text-[11px] text-ink-300">{extra}</div>
+          )}
+        </div>
+        {clockMs !== undefined && (
+          <div
+            className={cn(
+              "rounded-lg px-2 py-0.5 font-mono text-xs font-bold tabular transition-colors shrink-0",
+              active
+                ? low
+                  ? "animate-pulse bg-pop-red text-white"
+                  : accent === "red"
+                  ? "bg-pop-red text-white"
+                  : accent === "violet"
+                  ? "bg-pop-violet text-black"
+                  : "bg-lime-400 text-black"
+                : "bg-black/40 text-ink-200"
+            )}
+          >
+            {formatClock(clockMs)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -150,6 +194,46 @@ export function PlayerCard({
           {formatClock(clockMs)}
         </div>
       )}
+    </div>
+  );
+}
+
+/* --------------------------------- FitBox ---------------------------------- */
+
+/**
+ * A container-query-powered box that automatically scales to the maximum size
+ * that fits both the width and height of its parent container, maintaining the
+ * specified aspect ratio (width / height). Never overflows, never requires scroll.
+ */
+export function FitBox({
+  aspect = 1,
+  className,
+  style,
+  children,
+}: {
+  aspect: number;
+  className?: string;
+  style?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative flex h-full w-full items-center justify-center overflow-hidden [container-type:size]",
+        className
+      )}
+      style={style}
+    >
+      <div
+        className="relative flex items-center justify-center max-h-full max-w-full"
+        style={{
+          aspectRatio: `${aspect}`,
+          width: `min(100cqw, calc(100cqh * ${aspect}))`,
+          height: `min(100cqh, calc(100cqw / ${aspect}))`,
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useShallow } from "zustand/react/shallow";
 import { MessageCircle, Trophy, UserRound, Wallet, Wand2, X } from "lucide-react";
@@ -15,6 +16,14 @@ import MessageStack, { type StackMessage } from "@/components/kokonut/message-st
 import { Aurora } from "@/components/reactbits/aurora";
 import { cn } from "@/lib/utils";
 
+const DailyBackground = dynamic(
+  () => import("@/components/layout/daily-background").then((m) => m.DailyBackground),
+  {
+    ssr: false,
+    loading: () => <Aurora />,
+  }
+);
+
 const ChatDrawer = dynamic(() => import("@/components/social/chat-drawer").then((m) => m.ChatDrawer), { ssr: false });
 const WalletModal = dynamic(() => import("@/components/social/wallet-modal").then((m) => m.WalletModal), { ssr: false });
 const RankingModal = dynamic(() => import("@/components/social/ranking-modal").then((m) => m.RankingModal), { ssr: false });
@@ -24,6 +33,7 @@ const CharacterCreatorModal = dynamic(() => import("@/components/character/chara
 const RulesModal = dynamic(() => import("@/components/games/rules-modal").then((m) => m.RulesModal), { ssr: false });
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const inGame = (usePathname() || "").startsWith("/games");
   // Freeze looping CSS animations while the tab is hidden.
   useEffect(() => {
     const sync = () => document.documentElement.toggleAttribute("data-tab-hidden", document.hidden);
@@ -32,8 +42,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
   return (
     <>
-      <Aurora />
-      <main className="relative z-10 pb-32 pt-5 sm:pt-6 lg:pr-[512px]">{children}</main>
+      <DailyBackground />
+      {inGame ? (
+        <main className="relative z-10 h-dvh w-full overflow-hidden flex flex-col">{children}</main>
+      ) : (
+        <main className="relative z-10 pb-20 pt-4 sm:pt-6">{children}</main>
+      )}
       <ChatBubble />
       <GlobalModals />
     </>

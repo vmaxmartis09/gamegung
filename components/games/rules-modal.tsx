@@ -99,7 +99,7 @@ export function RulesModal({ isOpen, onClose, gameType }: RulesModalProps) {
             role="dialog"
             aria-modal="true"
             aria-label={`Luật ${meta.name}`}
-            className="panel w-full max-w-lg space-y-4 p-6"
+            className="panel w-full max-w-lg max-h-[92dvh] no-scrollbar overflow-y-auto space-y-4 p-6"
           >
             <div className="flex items-center gap-3">
               <GameIcon game={gameType} className="size-11" />

@@ -1,0 +1,1612 @@
+[
+  {
+    "slug": "spectral-drape",
+    "title": "Spectral Drape",
+    "desc": "A glowing drape of dots folding in 3D",
+    "isNew": true,
+    "href": "/docs/components/spectral-drape"
+  },
+  {
+    "slug": "horizon-bloom",
+    "title": "Horizon Bloom",
+    "desc": "A sunrise breaking over the glowing edge of a dark planet",
+    "isNew": true,
+    "href": "/docs/components/horizon-bloom"
+  },
+  {
+    "slug": "photon-knot",
+    "title": "Photon Knot",
+    "desc": "A translucent ribbon of light tied into a slowly turning knot",
+    "isNew": true,
+    "href": "/docs/components/photon-knot"
+  },
+  {
+    "slug": "axial-beam",
+    "title": "Axial Beam",
+    "desc": "Soft rays of light rising from beyond the frame",
+    "isNew": true,
+    "href": "/docs/components/axial-beam"
+  },
+  {
+    "slug": "nexus-rays",
+    "title": "Nexus Rays",
+    "desc": "Laser beams radiating from a glowing core",
+    "isNew": true,
+    "href": "/docs/components/nexus-rays"
+  },
+  {
+    "slug": "hexagonal-vault",
+    "title": "Hexagonal Vault",
+    "desc": "A hexagon grid lit by a soft light that follows the cursor",
+    "isNew": true,
+    "href": "/docs/components/hexagonal-vault"
+  },
+  {
+    "slug": "prismatic-slats",
+    "title": "Prismatic Slats",
+    "desc": "Colored liquid refracted through fluted glass",
+    "isNew": true,
+    "href": "/docs/components/prismatic-slats"
+  },
+  {
+    "slug": "luminous-filaments",
+    "title": "Luminous Filaments",
+    "desc": "Glowing fibers fanning out from a bright source",
+    "isNew": true,
+    "href": "/docs/components/luminous-filaments"
+  },
+  {
+    "slug": "interference-ribbons",
+    "title": "Interference Ribbons",
+    "desc": "A ribbon of fine glowing wires drifting and twisting",
+    "isNew": true,
+    "href": "/docs/components/interference-ribbons"
+  },
+  {
+    "slug": "voxel-arc",
+    "title": "Voxel Arc",
+    "desc": "A curved horizon of square voxels rolling like a calm sea",
+    "isNew": true,
+    "href": "/docs/components/voxel-arc"
+  },
+  {
+    "slug": "chroma-current",
+    "title": "Chroma Current",
+    "desc": "Currents of light flowing across a grid of glowing dots",
+    "isNew": true,
+    "href": "/docs/components/chroma-current"
+  },
+  {
+    "slug": "cloud-atlas",
+    "title": "Cloud Atlas",
+    "desc": "Billowing clouds you can push around like wind",
+    "isNew": true,
+    "href": "/docs/components/cloud-atlas"
+  },
+  {
+    "slug": "satin-ridges",
+    "title": "Satin Ridges",
+    "desc": "Flowing satin folds catching soft highlights",
+    "isNew": true,
+    "href": "/docs/components/satin-ridges"
+  },
+  {
+    "slug": "concentric-tides",
+    "title": "Concentric Tides",
+    "desc": "Fine glowing arcs pinching into a bright hourglass",
+    "isNew": true,
+    "href": "/docs/components/concentric-tides"
+  },
+  {
+    "slug": "contour-tide",
+    "title": "Contour Tide",
+    "desc": "An ocean of particles rolling in waves",
+    "isNew": true,
+    "href": "/docs/components/contour-tide"
+  },
+  {
+    "slug": "spiral-funnel",
+    "title": "Spiral Funnel",
+    "desc": "Fine threads of light spiraling up a turning vortex",
+    "isNew": true,
+    "href": "/docs/components/spiral-funnel"
+  },
+  {
+    "slug": "astral-shell",
+    "title": "Astral Shell",
+    "desc": "A slowly turning globe of connected stars",
+    "isNew": true,
+    "href": "/docs/components/astral-shell"
+  },
+  {
+    "slug": "binary-orbits",
+    "title": "Binary Orbits",
+    "desc": "A tilted spiral galaxy of stars streaming through its arms",
+    "isNew": true,
+    "href": "/docs/components/binary-orbits"
+  },
+  {
+    "slug": "glyph-tide",
+    "title": "Glyph Tide",
+    "desc": "An ASCII tide that floods and drains the shore",
+    "isNew": true,
+    "href": "/docs/components/glyph-tide"
+  },
+  {
+    "slug": "terminal-rain",
+    "title": "Terminal Rain",
+    "desc": "Streams of glowing glyphs raining down in layered columns",
+    "isNew": true,
+    "href": "/docs/components/terminal-rain"
+  },
+  {
+    "slug": "glyph-ember",
+    "title": "Glyph Ember",
+    "desc": "ASCII fire licking up from a white-hot bed of glyphs",
+    "isNew": true,
+    "href": "/docs/components/glyph-ember"
+  },
+  {
+    "slug": "glyph-orb",
+    "title": "Glyph Orb",
+    "desc": "A banded ASCII planet turning slowly in the light of a distant sun",
+    "isNew": true,
+    "href": "/docs/components/glyph-orb"
+  },
+  {
+    "slug": "glyph-sonar",
+    "title": "Glyph Sonar",
+    "desc": "Sonar pings sweeping a field of glyphs, lighting up drifting shoals",
+    "isNew": true,
+    "href": "/docs/components/glyph-sonar"
+  },
+  {
+    "slug": "elastic-lettering",
+    "title": "Elastic Lettering",
+    "desc": "A headline you can grab, stretch and fling like an elastic band",
+    "isNew": true,
+    "href": "/docs/components/elastic-lettering"
+  },
+  {
+    "slug": "signal-type",
+    "title": "Signal Type",
+    "desc": "A headline that flickers on like a neon sign",
+    "isNew": true,
+    "href": "/docs/components/signal-type"
+  },
+  {
+    "slug": "spring-lettering",
+    "title": "Spring Lettering",
+    "desc": "Letters that lean after the cursor on springs",
+    "isNew": true,
+    "href": "/docs/components/spring-lettering"
+  },
+  {
+    "slug": "smoke-type",
+    "title": "Smoke Type",
+    "desc": "A headline that condenses out of drifting smoke, letter by letter",
+    "isNew": true,
+    "href": "/docs/components/smoke-type"
+  },
+  {
+    "slug": "rising-ink",
+    "title": "Rising Ink",
+    "desc": "Letters that lift off the page in 3D near the cursor",
+    "isNew": true,
+    "href": "/docs/components/rising-ink"
+  },
+  {
+    "slug": "domino-lettering",
+    "title": "Domino Lettering",
+    "desc": "Letters that topple like dominoes and rebuild",
+    "isNew": true,
+    "href": "/docs/components/domino-lettering"
+  },
+  {
+    "slug": "glyph-lottery",
+    "title": "Glyph Lottery",
+    "desc": "Letters that spin like slot reels and lock into a headline",
+    "isNew": true,
+    "href": "/docs/components/glyph-lottery"
+  },
+  {
+    "slug": "cipher-reveal",
+    "title": "Cipher Reveal",
+    "desc": "A headline that decodes out of scrambled characters",
+    "isNew": true,
+    "href": "/docs/components/cipher-reveal"
+  },
+  {
+    "slug": "luminous-type",
+    "title": "Luminous Type",
+    "desc": "A drifting spotlight that brings dimmed text into the light",
+    "isNew": true,
+    "href": "/docs/components/luminous-type"
+  },
+  {
+    "slug": "orbital-type",
+    "title": "Orbital Type",
+    "desc": "A turning globe wrapped in rings of text you can spin by hand",
+    "isNew": true,
+    "href": "/docs/components/orbital-type"
+  },
+  {
+    "slug": "gravity-letters",
+    "title": "Gravity Letters",
+    "desc": "A headline of glyph sand you can slice; cut pieces fall, shatter and pour back",
+    "isNew": true,
+    "href": "/docs/components/gravity-letters"
+  },
+  {
+    "slug": "wave-lettering",
+    "title": "Wave Lettering",
+    "desc": "A sea of text lines rolling in soft swells, in and out of focus",
+    "isNew": true,
+    "href": "/docs/components/wave-lettering"
+  },
+  {
+    "slug": "mesh-lettering",
+    "title": "Mesh Lettering",
+    "desc": "A headline cut from silk that ripples in a slow breeze and billows at your touch",
+    "isNew": true,
+    "href": "/docs/components/mesh-lettering"
+  },
+  {
+    "slug": "stipple-type",
+    "title": "Stipple Type",
+    "desc": "A marbled-ink headline that swirls and breaks into stipple as you stir it",
+    "isNew": true,
+    "href": "/docs/components/stipple-type"
+  },
+  {
+    "slug": "vapor-type",
+    "title": "Vapor Type",
+    "desc": "Words that condense out of vapor and drift away",
+    "isNew": true,
+    "href": "/docs/components/vapor-type"
+  },
+  {
+    "slug": "typographic-wall",
+    "title": "Typographic Wall",
+    "desc": "A wall of scrambling glyphs that decodes scattered words, line by line",
+    "isNew": true,
+    "href": "/docs/components/typographic-wall"
+  },
+  {
+    "slug": "passage-gallery",
+    "title": "Passage Gallery",
+    "desc": "A tunnel of photos you glide through",
+    "isNew": true,
+    "href": "/docs/components/passage-gallery"
+  },
+  {
+    "slug": "constellation-gallery",
+    "title": "Constellation Gallery",
+    "desc": "Photo cards that flow between rings, spirals and globes",
+    "isNew": true,
+    "href": "/docs/components/constellation-gallery"
+  },
+  {
+    "slug": "concave-carousel",
+    "title": "Concave Carousel",
+    "desc": "A gallery wall that curves around the viewer",
+    "isNew": true,
+    "href": "/docs/components/concave-carousel"
+  },
+  {
+    "slug": "orbit-reel",
+    "title": "Orbit Reel",
+    "desc": "A turning wheel of cards that sweeps into an arc",
+    "isNew": true,
+    "href": "/docs/components/orbit-reel"
+  },
+  {
+    "slug": "depth-ribbon",
+    "title": "Depth Ribbon",
+    "desc": "A ribbon of images winding through 3D space",
+    "isNew": true,
+    "href": "/docs/components/depth-ribbon"
+  },
+  {
+    "slug": "prism-carousel",
+    "title": "Prism Carousel",
+    "desc": "A coverflow that sweeps color into each new image",
+    "isNew": true,
+    "href": "/docs/components/prism-carousel"
+  },
+  {
+    "slug": "iris-gallery",
+    "title": "Iris Gallery",
+    "desc": "An oval of photos that turns into an iris",
+    "isNew": true,
+    "href": "/docs/components/iris-gallery"
+  },
+  {
+    "slug": "album-rail",
+    "title": "Album Rail",
+    "desc": "A fan of album sleeves, each with a record tucked inside",
+    "isNew": true,
+    "href": "/docs/components/album-rail"
+  },
+  {
+    "slug": "expanding-grid",
+    "title": "Expanding Grid",
+    "desc": "A portrait grid that magnifies faces under the cursor",
+    "isNew": true,
+    "href": "/docs/components/expanding-grid"
+  },
+  {
+    "slug": "contact-sheet",
+    "title": "Contact Sheet",
+    "desc": "Photos streaming out of the center, developing like prints",
+    "isNew": true,
+    "href": "/docs/components/contact-sheet"
+  },
+  {
+    "slug": "elastic-reel",
+    "title": "Elastic Reel",
+    "desc": "A dock of photo slices that swell open into full images",
+    "isNew": true,
+    "href": "/docs/components/elastic-reel"
+  },
+  {
+    "slug": "vertical-reel",
+    "title": "Momentum Ring",
+    "desc": "A ring of photos that blurs as it spins and clicks into place",
+    "isNew": true,
+    "href": "/docs/components/vertical-reel"
+  },
+  {
+    "slug": "spin-shutter",
+    "title": "Spin Shutter",
+    "desc": "An orbit of photos that spins open and pulls focus where you point",
+    "isNew": true,
+    "href": "/docs/components/spin-shutter"
+  },
+  {
+    "slug": "helix-gallery",
+    "title": "Helix Gallery",
+    "desc": "Photos spiraling out from a dense core",
+    "isNew": true,
+    "href": "/docs/components/helix-gallery"
+  },
+  {
+    "slug": "chrome-orbit",
+    "title": "Chrome Orbit",
+    "desc": "Nested chrome rings that turn like a gyroscope and swing into a halo on click",
+    "isNew": true,
+    "href": "/docs/components/chrome-orbit"
+  },
+  {
+    "slug": "chroma-halo",
+    "title": "Chroma Halo",
+    "desc": "Soft ink that blooms behind the cursor",
+    "isNew": true,
+    "href": "/docs/components/chroma-halo"
+  },
+  {
+    "slug": "drafting-cursor",
+    "title": "Drafting Cursor",
+    "desc": "Hairline crosshairs with edge rulers, a coordinate readout and drag-to-measure",
+    "isNew": true,
+    "href": "/docs/components/drafting-cursor"
+  },
+  {
+    "slug": "glyph-stream",
+    "title": "Glyph Stream",
+    "desc": "A liquid stream of glyph tiles that pours after the cursor and splashes on click",
+    "isNew": true,
+    "href": "/docs/components/glyph-stream"
+  },
+  {
+    "slug": "dappled-light",
+    "title": "Dappled Light",
+    "desc": "Sunlight falling through swaying leaves onto a wall",
+    "isNew": true,
+    "href": "/docs/components/dappled-light"
+  },
+  {
+    "slug": "shatter-type",
+    "title": "Shatter Type",
+    "desc": "A headline cut into glass shards that assemble, crack under the cursor and shatter on click",
+    "isNew": true,
+    "href": "/docs/components/shatter-type"
+  },
+  {
+    "slug": "ribbon-trail",
+    "title": "Ribbon Trail",
+    "desc": "A gymnast's ribbon that trails the cursor",
+    "isNew": true,
+    "href": "/docs/components/ribbon-trail"
+  },
+  {
+    "slug": "stardust-cursor",
+    "title": "Stardust Cursor",
+    "desc": "Fine dust carried on a fluid wake behind the cursor, with a mushroom puff on click",
+    "isNew": true,
+    "href": "/docs/components/stardust-cursor"
+  },
+  {
+    "slug": "pigment-trail",
+    "title": "Pigment Trail",
+    "desc": "An ink brush that paints behind the cursor",
+    "isNew": true,
+    "href": "/docs/components/pigment-trail"
+  },
+  {
+    "slug": "arc-cursor",
+    "title": "Arc Cursor",
+    "desc": "A crackling electric arc that trails the cursor",
+    "isNew": true,
+    "href": "/docs/components/arc-cursor"
+  },
+  {
+    "slug": "gyroscope-cursor",
+    "title": "Gyroscope Cursor",
+    "desc": "An arrow cursor that turns toward where it moves",
+    "isNew": true,
+    "href": "/docs/components/gyroscope-cursor"
+  },
+  {
+    "slug": "label-orbit",
+    "title": "Label Orbit",
+    "desc": "A label that becomes the cursor and trails a 3D stack",
+    "isNew": true,
+    "href": "/docs/components/label-orbit"
+  },
+  {
+    "slug": "tessera-trail",
+    "title": "Tessera Trail",
+    "desc": "A cursor trail of bouncy letter tiles",
+    "isNew": true,
+    "href": "/docs/components/tessera-trail"
+  },
+  {
+    "slug": "celebration-cursor",
+    "title": "Celebration Cursor",
+    "desc": "Tumbling paper confetti that spills from the cursor and bursts on click",
+    "isNew": true,
+    "href": "/docs/components/celebration-cursor"
+  },
+  {
+    "slug": "snapshot-trail",
+    "title": "Snapshot Trail",
+    "desc": "A cursor trail of photos that lean, toss and settle like prints",
+    "isNew": true,
+    "href": "/docs/components/snapshot-trail"
+  },
+  {
+    "slug": "elastic-sticker",
+    "title": "Elastic Sticker",
+    "desc": "A sticker you can peel off the page and paste back",
+    "isNew": true,
+    "href": "/docs/components/elastic-sticker"
+  },
+  {
+    "slug": "glimmer-wrap",
+    "title": "Glimmer Wrap",
+    "desc": "A field of fine glints drifting past, flashing as they catch the light",
+    "isNew": true,
+    "href": "/docs/components/glimmer-wrap"
+  },
+  {
+    "slug": "ribbon-type",
+    "title": "Ribbon Type",
+    "desc": "Text printed on satin ribbons that twist and wave through 3D space",
+    "isNew": true,
+    "href": "/docs/components/ribbon-type"
+  },
+  {
+    "slug": "ghost-type",
+    "title": "Ghost Type",
+    "desc": "A headline that writes itself with AI-style ghost completions",
+    "isNew": true,
+    "href": "/docs/components/ghost-type"
+  },
+  {
+    "slug": "text-morph",
+    "title": "Text Morph",
+    "desc": "Words that morph letter by letter, with shared letters gliding into place",
+    "isNew": true,
+    "href": "/docs/components/text-morph"
+  },
+  {
+    "slug": "tumble-wall",
+    "title": "Tumble Wall",
+    "desc": "A pile of photos, avatars or tags that rains in and can be thrown around",
+    "isNew": true,
+    "href": "/docs/components/tumble-wall"
+  },
+  {
+    "slug": "loupe-image",
+    "title": "Loupe Image",
+    "desc": "A loupe that glides over a photo and magnifies its finest details",
+    "isNew": true,
+    "href": "/docs/components/loupe-image"
+  },
+  {
+    "slug": "ember-reveal",
+    "title": "Ember Reveal",
+    "desc": "A burning hole that reveals the next image",
+    "isNew": true,
+    "href": "/docs/components/ember-reveal"
+  },
+  {
+    "slug": "pond-image",
+    "title": "Pond Image",
+    "desc": "A photo you can stir like liquid",
+    "isNew": true,
+    "href": "/docs/components/pond-image"
+  },
+  {
+    "slug": "fading-stars",
+    "title": "Fading Stars",
+    "desc": "Stars rising from beyond the frame on trails that fade behind them",
+    "isNew": true,
+    "href": "/docs/components/fading-stars"
+  },
+  {
+    "slug": "ring-field",
+    "title": "Ring Field",
+    "desc": "Wavy rings of fine dust drifting outward from a dark center",
+    "isNew": true,
+    "href": "/docs/components/ring-field"
+  },
+  {
+    "slug": "scroll-bend",
+    "title": "Scroll Bend",
+    "desc": "A strip of images that bulges or pinches with your scroll speed",
+    "isNew": true,
+    "href": "/docs/components/scroll-bend"
+  },
+  {
+    "slug": "staggered-text",
+    "title": "Staggered Text",
+    "desc": "Text that staggers in by letter, word or line",
+    "isNew": false,
+    "href": "/docs/components/staggered-text"
+  },
+  {
+    "slug": "glitch-text",
+    "title": "Glitch Text",
+    "desc": "Text that glitches under the cursor",
+    "isNew": false,
+    "href": "/docs/components/glitch-text"
+  },
+  {
+    "slug": "smooth-cursor",
+    "title": "Smooth Cursor",
+    "desc": "A smooth, springy trail that follows the cursor",
+    "isNew": false,
+    "href": "/docs/components/smooth-cursor"
+  },
+  {
+    "slug": "text-path",
+    "title": "Text Path",
+    "desc": "Text that flows along a curved path",
+    "isNew": false,
+    "href": "/docs/components/text-path"
+  },
+  {
+    "slug": "3d-text-reveal",
+    "title": "3D Text Reveal",
+    "desc": "Lines of text turning on a 3D cylinder as you scroll",
+    "isNew": false,
+    "href": "/docs/components/3d-text-reveal"
+  },
+  {
+    "slug": "particle-text",
+    "title": "Particle Text",
+    "desc": "Text made of particles that scatter from the cursor",
+    "isNew": false,
+    "href": "/docs/components/particle-text"
+  },
+  {
+    "slug": "text-scatter",
+    "title": "Text Scatter",
+    "desc": "Letters that scatter on hover and fall back into place",
+    "isNew": false,
+    "href": "/docs/components/text-scatter"
+  },
+  {
+    "slug": "3d-letter-swap",
+    "title": "3D Letter Swap",
+    "desc": "Letters that flip in 3D to swap on hover",
+    "isNew": false,
+    "href": "/docs/components/3d-letter-swap"
+  },
+  {
+    "slug": "custom-cursor",
+    "title": "Custom Cursor",
+    "desc": "A ring and dot cursor that morphs around hovered items",
+    "isNew": false,
+    "href": "/docs/components/custom-cursor"
+  },
+  {
+    "slug": "blur-highlight",
+    "title": "Blur Highlight",
+    "desc": "A paragraph that blurs in and highlights key phrases",
+    "isNew": false,
+    "href": "/docs/components/blur-highlight"
+  },
+  {
+    "slug": "globe",
+    "title": "Globe",
+    "desc": "A dotted 3D globe with animated arcs",
+    "isNew": false,
+    "href": "/docs/components/globe"
+  },
+  {
+    "slug": "rotating-cards",
+    "title": "Rotating Cards",
+    "desc": "A draggable ring of cards rotating in 3D",
+    "isNew": false,
+    "href": "/docs/components/rotating-cards"
+  },
+  {
+    "slug": "draggable-grid",
+    "title": "Draggable Grid",
+    "desc": "A grid you can drag around with smooth momentum",
+    "isNew": false,
+    "href": "/docs/components/draggable-grid"
+  },
+  {
+    "slug": "comparison-slider",
+    "title": "Comparison Slider",
+    "desc": "A before and after image slider",
+    "isNew": false,
+    "href": "/docs/components/comparison-slider"
+  },
+  {
+    "slug": "shader-reveal",
+    "title": "Shader Reveal",
+    "desc": "A liquid cursor trail that reveals a second image",
+    "isNew": false,
+    "href": "/docs/components/shader-reveal"
+  },
+  {
+    "slug": "device",
+    "title": "Device",
+    "desc": "A studio-lit 3D phone mockup that frames any image or content",
+    "isNew": false,
+    "href": "/docs/components/device"
+  },
+  {
+    "slug": "simple-graph",
+    "title": "Simple Graph",
+    "desc": "A smooth animated line graph",
+    "isNew": false,
+    "href": "/docs/components/simple-graph"
+  },
+  {
+    "slug": "credit-card",
+    "title": "Credit Card",
+    "desc": "A credit card that tilts in 3D on hover",
+    "isNew": false,
+    "href": "/docs/components/credit-card"
+  },
+  {
+    "slug": "circle-gallery",
+    "title": "Circle Gallery",
+    "desc": "A draggable circle of images that spins with inertia",
+    "isNew": false,
+    "href": "/docs/components/circle-gallery"
+  },
+  {
+    "slug": "ai-blob",
+    "title": "AI Blob",
+    "desc": "A glowing glass orb that listens, thinks and speaks with your AI",
+    "isNew": false,
+    "href": "/docs/components/ai-blob"
+  },
+  {
+    "slug": "gradient-carousel",
+    "title": "Gradient Carousel",
+    "desc": "A 3D carousel that tints the background from each card",
+    "isNew": false,
+    "href": "/docs/components/gradient-carousel"
+  },
+  {
+    "slug": "circles",
+    "title": "Circles",
+    "desc": "Rings of images orbiting a center",
+    "isNew": false,
+    "href": "/docs/components/circles"
+  },
+  {
+    "slug": "shader-card",
+    "title": "Shader Card",
+    "desc": "A content card with a luminous flame rising behind it",
+    "isNew": false,
+    "href": "/docs/components/shader-card"
+  },
+  {
+    "slug": "preloader",
+    "title": "Preloader",
+    "desc": "Loading screens in five styles",
+    "isNew": false,
+    "href": "/docs/components/preloader"
+  },
+  {
+    "slug": "hover-preview",
+    "title": "Hover Preview",
+    "desc": "Words that show an image preview on hover",
+    "isNew": false,
+    "href": "/docs/components/hover-preview"
+  },
+  {
+    "slug": "modal-cards",
+    "title": "Modal Cards",
+    "desc": "Cards that expand into full-screen modals",
+    "isNew": false,
+    "href": "/docs/components/modal-cards"
+  },
+  {
+    "slug": "pixelate-hover",
+    "title": "Pixelate Hover",
+    "desc": "An image that pixelates or sharpens under the cursor",
+    "isNew": false,
+    "href": "/docs/components/pixelate-hover"
+  },
+  {
+    "slug": "animated-list",
+    "title": "Animated List",
+    "desc": "A live feed where new items animate into the list",
+    "isNew": false,
+    "href": "/docs/components/animated-list"
+  },
+  {
+    "slug": "neon-reveal",
+    "title": "Neon Reveal",
+    "desc": "A neon tube that lights up and reveals the content below",
+    "isNew": false,
+    "href": "/docs/components/neon-reveal"
+  },
+  {
+    "slug": "depth-card",
+    "title": "Depth Card",
+    "desc": "A card that tilts with depth as the cursor moves",
+    "isNew": false,
+    "href": "/docs/components/depth-card"
+  },
+  {
+    "slug": "liquid-swap",
+    "title": "Liquid Swap",
+    "desc": "Images that swap through a liquid glass ball",
+    "isNew": false,
+    "href": "/docs/components/liquid-swap"
+  },
+  {
+    "slug": "parallax-cards",
+    "title": "Parallax Cards",
+    "desc": "Layered cards that shift in depth with the cursor",
+    "isNew": false,
+    "href": "/docs/components/parallax-cards"
+  },
+  {
+    "slug": "perspective-grid",
+    "title": "Perspective Grid",
+    "desc": "An endless grid scrolling toward the horizon",
+    "isNew": false,
+    "href": "/docs/components/perspective-grid"
+  },
+  {
+    "slug": "glitter-warp",
+    "title": "Glitter Warp",
+    "desc": "A glittering starfield warp tunnel",
+    "isNew": false,
+    "href": "/docs/components/glitter-warp"
+  },
+  {
+    "slug": "shader-waves",
+    "title": "Shader Waves",
+    "desc": "Smooth, flowing waves of color",
+    "isNew": false,
+    "href": "/docs/components/shader-waves"
+  },
+  {
+    "slug": "gradient-blob",
+    "title": "Gradient Blob",
+    "desc": "A soft gradient blob that morphs toward the cursor",
+    "isNew": false,
+    "href": "/docs/components/gradient-blob"
+  },
+  {
+    "slug": "light-droplets",
+    "title": "Light Droplets",
+    "desc": "Streaks of light falling like rain",
+    "isNew": false,
+    "href": "/docs/components/light-droplets"
+  },
+  {
+    "slug": "lightspeed",
+    "title": "Lightspeed",
+    "desc": "A hyperspace jump of streaking stars",
+    "isNew": false,
+    "href": "/docs/components/lightspeed"
+  },
+  {
+    "slug": "dither-wave",
+    "title": "Dither Wave",
+    "desc": "Flowing waves drawn in a retro dither",
+    "isNew": false,
+    "href": "/docs/components/dither-wave"
+  },
+  {
+    "slug": "radial-liquid",
+    "title": "Radial Liquid",
+    "desc": "Liquid ripples spreading from a center",
+    "isNew": false,
+    "href": "/docs/components/radial-liquid"
+  },
+  {
+    "slug": "chroma-waves",
+    "title": "Chroma Waves",
+    "desc": "Soft waves of light with a chromatic shimmer",
+    "isNew": false,
+    "href": "/docs/components/chroma-waves"
+  },
+  {
+    "slug": "mosaic",
+    "title": "Mosaic",
+    "desc": "A tiled mosaic over a moving wave or video",
+    "isNew": false,
+    "href": "/docs/components/mosaic"
+  },
+  {
+    "slug": "vortex",
+    "title": "Vortex",
+    "desc": "An endless spinning tunnel of particles",
+    "isNew": false,
+    "href": "/docs/components/vortex"
+  },
+  {
+    "slug": "portal",
+    "title": "Portal",
+    "desc": "A glowing portal of warp-speed light you can click to jump through",
+    "isNew": false,
+    "href": "/docs/components/portal"
+  },
+  {
+    "slug": "rising-lines",
+    "title": "Rising Lines",
+    "desc": "Lines of light rising from a glowing horizon",
+    "isNew": false,
+    "href": "/docs/components/rising-lines"
+  },
+  {
+    "slug": "color-loops",
+    "title": "Color Loops",
+    "desc": "Concentric rings of color looping out from a center",
+    "isNew": false,
+    "href": "/docs/components/color-loops"
+  },
+  {
+    "slug": "rotating-stars",
+    "title": "Rotating Stars",
+    "desc": "Star trails spinning in circles",
+    "isNew": false,
+    "href": "/docs/components/rotating-stars"
+  },
+  {
+    "slug": "dither-cursor",
+    "title": "Dither Cursor",
+    "desc": "A cursor trail drawn in pixelated dither",
+    "isNew": false,
+    "href": "/docs/components/dither-cursor"
+  },
+  {
+    "slug": "ascii-cursor",
+    "title": "Ascii Cursor",
+    "desc": "A cursor that leaves a trail of ASCII characters",
+    "isNew": false,
+    "href": "/docs/components/ascii-cursor"
+  },
+  {
+    "slug": "ascii-waves",
+    "title": "Ascii Waves",
+    "desc": "Waves made of ASCII characters",
+    "isNew": false,
+    "href": "/docs/components/ascii-waves"
+  },
+  {
+    "slug": "synaptic-shift",
+    "title": "Synaptic Shift",
+    "desc": "Glowing neural tendrils that pulse and shift",
+    "isNew": false,
+    "href": "/docs/components/synaptic-shift"
+  },
+  {
+    "slug": "dot-shift",
+    "title": "Dot Shift",
+    "desc": "A shifting grid of glowing dots",
+    "isNew": false,
+    "href": "/docs/components/dot-shift"
+  },
+  {
+    "slug": "star-burst",
+    "title": "Star Burst",
+    "desc": "A burst of stars streaming out from a point",
+    "isNew": false,
+    "href": "/docs/components/star-burst"
+  },
+  {
+    "slug": "silk-waves",
+    "title": "Silk Waves",
+    "desc": "Flowing waves like draped silk",
+    "isNew": false,
+    "href": "/docs/components/silk-waves"
+  },
+  {
+    "slug": "falling-rays",
+    "title": "Falling Rays",
+    "desc": "Pulses of light falling down fanning rays",
+    "isNew": false,
+    "href": "/docs/components/falling-rays"
+  },
+  {
+    "slug": "liquid-bars",
+    "title": "Liquid Bars",
+    "desc": "Glossy bars of liquid color rippling in waves",
+    "isNew": false,
+    "href": "/docs/components/liquid-bars"
+  },
+  {
+    "slug": "aurora-blur",
+    "title": "Aurora Blur",
+    "desc": "A soft, blurred aurora glow",
+    "isNew": false,
+    "href": "/docs/components/aurora-blur"
+  },
+  {
+    "slug": "chroma-card",
+    "title": "Chroma Card",
+    "desc": "A tilting image card with an RGB glitch on hover",
+    "isNew": false,
+    "href": "/docs/components/chroma-card"
+  },
+  {
+    "slug": "liquid-lines",
+    "title": "Liquid Lines",
+    "desc": "Streaks of light flowing like liquid",
+    "isNew": false,
+    "href": "/docs/components/liquid-lines"
+  },
+  {
+    "slug": "squircle-shift",
+    "title": "Squircle Shift",
+    "desc": "A glowing grid of squircles that shift and morph",
+    "isNew": false,
+    "href": "/docs/components/squircle-shift"
+  },
+  {
+    "slug": "grain-wave",
+    "title": "Grain Wave",
+    "desc": "A grainy ribbon of color waving through the dark",
+    "isNew": false,
+    "href": "/docs/components/grain-wave"
+  },
+  {
+    "slug": "glass-flow",
+    "title": "Glass Flow",
+    "desc": "An image or video seen through flowing fluted glass",
+    "isNew": false,
+    "href": "/docs/components/glass-flow"
+  },
+  {
+    "slug": "shadow-bars",
+    "title": "Shadow Bars",
+    "desc": "Vertical bars of shifting light and shadow",
+    "isNew": false,
+    "href": "/docs/components/shadow-bars"
+  },
+  {
+    "slug": "warp-twister",
+    "title": "Warp Twister",
+    "desc": "A twisting tube of haze and drifting dust",
+    "isNew": false,
+    "href": "/docs/components/warp-twister"
+  },
+  {
+    "slug": "center-flow",
+    "title": "Center Flow",
+    "desc": "A hub with pulses flowing out to connected nodes",
+    "isNew": false,
+    "href": "/docs/components/center-flow"
+  },
+  {
+    "slug": "glass-cursor",
+    "title": "Glass Cursor",
+    "desc": "A glass cursor that bends the image beneath it",
+    "isNew": false,
+    "href": "/docs/components/glass-cursor"
+  },
+  {
+    "slug": "agentic-ball",
+    "title": "Agentic Ball",
+    "desc": "A glossy 3D orb with a slow swirl inside",
+    "isNew": false,
+    "href": "/docs/components/agentic-ball"
+  },
+  {
+    "slug": "black-hole",
+    "title": "Black Hole",
+    "desc": "Smoky light bending around a black hole and its photon ring",
+    "isNew": false,
+    "href": "/docs/components/black-hole"
+  },
+  {
+    "slug": "blurred-rays",
+    "title": "Blurred Rays",
+    "desc": "Soft vertical beams of light that flicker through the spectrum",
+    "isNew": false,
+    "href": "/docs/components/blurred-rays"
+  },
+  {
+    "slug": "click-stack",
+    "title": "Click Stack",
+    "desc": "A stack of cards you click through",
+    "isNew": false,
+    "href": "/docs/components/click-stack"
+  },
+  {
+    "slug": "flame-paths",
+    "title": "Flame Paths",
+    "desc": "Glowing flame tongues that gust and flare up",
+    "isNew": false,
+    "href": "/docs/components/flame-paths"
+  },
+  {
+    "slug": "frame-border",
+    "title": "Frame Border",
+    "desc": "A crisp, glowing border that frames any content",
+    "isNew": false,
+    "href": "/docs/components/frame-border"
+  },
+  {
+    "slug": "gradient-bars",
+    "title": "Gradient Bars",
+    "desc": "Vertical gradient bars shifting in waves",
+    "isNew": false,
+    "href": "/docs/components/gradient-bars"
+  },
+  {
+    "slug": "halftone-vortex",
+    "title": "Halftone Vortex",
+    "desc": "A spiraling vortex of halftone dots",
+    "isNew": false,
+    "href": "/docs/components/halftone-vortex"
+  },
+  {
+    "slug": "halftone-wave",
+    "title": "Halftone Wave",
+    "desc": "A halftone dot grid rippling with soft noise",
+    "isNew": false,
+    "href": "/docs/components/halftone-wave"
+  },
+  {
+    "slug": "infinite-gallery",
+    "title": "Infinite Gallery",
+    "desc": "An endless field of images you drift through in 3D",
+    "isNew": false,
+    "href": "/docs/components/infinite-gallery"
+  },
+  {
+    "slug": "liquid-ascii",
+    "title": "Liquid Ascii",
+    "desc": "Sloshing water drawn in ASCII characters",
+    "isNew": false,
+    "href": "/docs/components/liquid-ascii"
+  },
+  {
+    "slug": "metallic-swirl",
+    "title": "Metallic Swirl",
+    "desc": "A swirl of liquid metal",
+    "isNew": false,
+    "href": "/docs/components/metallic-swirl"
+  },
+  {
+    "slug": "retro-lines",
+    "title": "Retro Lines",
+    "desc": "Wavy lines receding toward a retro horizon",
+    "isNew": false,
+    "href": "/docs/components/retro-lines"
+  },
+  {
+    "slug": "rubber-fluid",
+    "title": "Rubber Fluid",
+    "desc": "Glossy rubber folds of color drifting slowly",
+    "isNew": false,
+    "href": "/docs/components/rubber-fluid"
+  },
+  {
+    "slug": "simple-swirl",
+    "title": "Simple Swirl",
+    "desc": "A soft, glowing swirl you can spin with momentum",
+    "isNew": false,
+    "href": "/docs/components/simple-swirl"
+  },
+  {
+    "slug": "square-matrix",
+    "title": "Square Matrix",
+    "desc": "A crisp LED grid rippling in waves of light",
+    "isNew": false,
+    "href": "/docs/components/square-matrix"
+  },
+  {
+    "slug": "star-swipe",
+    "title": "Star Swipe",
+    "desc": "Streaks of light sweeping into a warp",
+    "isNew": false,
+    "href": "/docs/components/star-swipe"
+  },
+  {
+    "slug": "swirl-blend",
+    "title": "Swirl Blend",
+    "desc": "Vivid colors swirling and blending like silk",
+    "isNew": false,
+    "href": "/docs/components/swirl-blend"
+  },
+  {
+    "slug": "text-cube",
+    "title": "Text Cube",
+    "desc": "A 3D cube of text that follows the cursor",
+    "isNew": false,
+    "href": "/docs/components/text-cube"
+  },
+  {
+    "slug": "warped-card",
+    "title": "Warped Card",
+    "desc": "An image card that bulges under the cursor",
+    "isNew": false,
+    "href": "/docs/components/warped-card"
+  },
+  {
+    "slug": "watercolor",
+    "title": "Watercolor",
+    "desc": "Two colors blending like watercolor",
+    "isNew": false,
+    "href": "/docs/components/watercolor"
+  },
+  {
+    "slug": "fog-sphere",
+    "title": "Fog Sphere",
+    "desc": "A soft, swirling sphere of fog",
+    "isNew": false,
+    "href": "/docs/components/fog-sphere"
+  },
+  {
+    "slug": "ascii-tiles",
+    "title": "ASCII Tiles",
+    "desc": "Glassy tiles made of glowing ASCII characters",
+    "isNew": false,
+    "href": "/docs/components/ascii-tiles"
+  },
+  {
+    "slug": "cursor-wave",
+    "title": "Cursor Wave",
+    "desc": "A grid of shapes that ripples with the cursor",
+    "isNew": false,
+    "href": "/docs/components/cursor-wave"
+  },
+  {
+    "slug": "twilight-lines",
+    "title": "Twilight Lines",
+    "desc": "Soft glowing lines that pulse with a warm sweep",
+    "isNew": false,
+    "href": "/docs/components/twilight-lines"
+  },
+  {
+    "slug": "chroma-blinds",
+    "title": "Chroma Blinds",
+    "desc": "Colorful diagonal stripes that bend toward the cursor",
+    "isNew": false,
+    "href": "/docs/components/chroma-blinds"
+  },
+  {
+    "slug": "pixel-reveal",
+    "title": "Pixel Reveal",
+    "desc": "An image that reveals itself through a sweep of pixels",
+    "isNew": false,
+    "href": "/docs/components/pixel-reveal"
+  },
+  {
+    "slug": "parallax-carousel",
+    "title": "Parallax Carousel",
+    "desc": "A draggable image carousel with parallax",
+    "isNew": false,
+    "href": "/docs/components/parallax-carousel"
+  },
+  {
+    "slug": "glass-tiles",
+    "title": "Glass Tiles",
+    "desc": "A shimmering background of colorful glass tiles",
+    "isNew": false,
+    "href": "/docs/components/glass-tiles"
+  },
+  {
+    "slug": "parallax-pills",
+    "title": "Parallax Pills",
+    "desc": "Bouncy labeled pills that drift with the cursor",
+    "isNew": false,
+    "href": "/docs/components/parallax-pills"
+  },
+  {
+    "slug": "blinking-squares",
+    "title": "Blinking Squares",
+    "desc": "A grid of little squares that quietly twinkle",
+    "isNew": false,
+    "href": "/docs/components/blinking-squares"
+  },
+  {
+    "slug": "user-cursor",
+    "title": "User Cursor",
+    "desc": "A cursor with a name tag, like a live collaborator",
+    "isNew": false,
+    "href": "/docs/components/user-cursor"
+  },
+  {
+    "slug": "magic-transform",
+    "title": "Magic Transform",
+    "desc": "Documents fly in and come out as colorful results",
+    "isNew": false,
+    "href": "/docs/components/magic-transform"
+  },
+  {
+    "slug": "circle-stack",
+    "title": "Circle Stack",
+    "desc": "A tilted stack of circles that cycles through your images",
+    "isNew": false,
+    "href": "/docs/components/circle-stack"
+  },
+  {
+    "slug": "particle-image",
+    "title": "Particle Image",
+    "desc": "An image of particles that swirl apart and reform",
+    "isNew": false,
+    "href": "/docs/components/particle-image"
+  },
+  {
+    "slug": "skewed-carousel",
+    "title": "Skewed Carousel",
+    "desc": "A skewed carousel of cards that tilt as they slide",
+    "isNew": false,
+    "href": "/docs/components/skewed-carousel"
+  },
+  {
+    "slug": "tumble-carousel",
+    "title": "Tumble Carousel",
+    "desc": "Cards that tumble end over end as the carousel advances",
+    "isNew": false,
+    "href": "/docs/components/tumble-carousel"
+  },
+  {
+    "slug": "tilted-tiles",
+    "title": "Tilted Tiles",
+    "desc": "A tilted wall of image columns scrolling past",
+    "isNew": false,
+    "href": "/docs/components/tilted-tiles"
+  },
+  {
+    "slug": "squares-terminal",
+    "title": "Squares Terminal",
+    "desc": "A terminal-style grid of squares that flicker on and off",
+    "isNew": false,
+    "href": "/docs/components/squares-terminal"
+  },
+  {
+    "slug": "neural-float",
+    "title": "Neural Float",
+    "desc": "Soft neural filaments drifting through the dark",
+    "isNew": false,
+    "href": "/docs/components/neural-float"
+  },
+  {
+    "slug": "wireframe-ball",
+    "title": "Wireframe Ball",
+    "desc": "A rotating wireframe shape you can drag to spin",
+    "isNew": false,
+    "href": "/docs/components/wireframe-ball"
+  },
+  {
+    "slug": "blinking-dots",
+    "title": "Blinking Dots",
+    "desc": "A field of dots blinking on and off",
+    "isNew": false,
+    "href": "/docs/components/blinking-dots"
+  },
+  {
+    "slug": "specter-orb",
+    "title": "Specter Orb",
+    "desc": "A ghostly orb wrapped in drifting smoke",
+    "isNew": false,
+    "href": "/docs/components/specter-orb"
+  },
+  {
+    "slug": "speeding-text",
+    "title": "Speeding Text",
+    "desc": "Numbers or words that change with a speed blur",
+    "isNew": false,
+    "href": "/docs/components/speeding-text"
+  },
+  {
+    "slug": "pixel-rain",
+    "title": "Pixel Rain",
+    "desc": "Pixelated streaks falling in a quiet digital rain",
+    "isNew": false,
+    "href": "/docs/components/pixel-rain"
+  },
+  {
+    "slug": "mosaic-waves",
+    "title": "Mosaic Waves",
+    "desc": "Waves rolling through a mosaic of shifting tiles",
+    "isNew": false,
+    "href": "/docs/components/mosaic-waves"
+  },
+  {
+    "slug": "pixel-magnet",
+    "title": "Pixel Magnet",
+    "desc": "A swarm of pixels that follows the cursor",
+    "isNew": false,
+    "href": "/docs/components/pixel-magnet"
+  },
+  {
+    "slug": "rolling-blinds",
+    "title": "Rolling Blinds",
+    "desc": "Vertical blinds of light rolling across the frame",
+    "isNew": false,
+    "href": "/docs/components/rolling-blinds"
+  },
+  {
+    "slug": "neural-tunnel",
+    "title": "Neural Tunnel",
+    "desc": "An endless tunnel of pulsing neural strands",
+    "isNew": false,
+    "href": "/docs/components/neural-tunnel"
+  },
+  {
+    "slug": "glowing-wave",
+    "title": "Glowing Wave",
+    "desc": "A single glowing wave rolling across the screen",
+    "isNew": false,
+    "href": "/docs/components/glowing-wave"
+  },
+  {
+    "slug": "minimal-ripple",
+    "title": "Minimal Ripple",
+    "desc": "Concentric ripples spreading from the center",
+    "isNew": false,
+    "href": "/docs/components/minimal-ripple"
+  },
+  {
+    "slug": "glue-dots",
+    "title": "Glue Dots",
+    "desc": "Dots that stick together and stretch apart like glue",
+    "isNew": false,
+    "href": "/docs/components/glue-dots"
+  },
+  {
+    "slug": "card-spread",
+    "title": "Card Spread",
+    "desc": "A fanned deck of cards that spreads open on hover",
+    "isNew": false,
+    "href": "/docs/components/card-spread"
+  },
+  {
+    "slug": "page-flip",
+    "title": "Page Flip",
+    "desc": "A book-style page flip you can drag through",
+    "isNew": false,
+    "href": "/docs/components/page-flip"
+  },
+  {
+    "slug": "bending-marquee",
+    "title": "Bending Marquee",
+    "desc": "A marquee that bends along a curve as it scrolls",
+    "isNew": false,
+    "href": "/docs/components/bending-marquee"
+  },
+  {
+    "slug": "aura-blob",
+    "title": "Aura Blob",
+    "desc": "A soft glowing blob surrounded by a shifting aura",
+    "isNew": false,
+    "href": "/docs/components/aura-blob"
+  },
+  {
+    "slug": "aurora-beam",
+    "title": "Aurora Beam",
+    "desc": "A sweeping beam of aurora light",
+    "isNew": false,
+    "href": "/docs/components/aurora-beam"
+  },
+  {
+    "slug": "thinking-dots",
+    "title": "Thinking Dots",
+    "desc": "A grid of dots that swell under a drifting cloud",
+    "isNew": false,
+    "href": "/docs/components/thinking-dots"
+  },
+  {
+    "slug": "rising-particles",
+    "title": "Rising Particles",
+    "desc": "Soft glowing particles drifting upward",
+    "isNew": false,
+    "href": "/docs/components/rising-particles"
+  },
+  {
+    "slug": "landscape",
+    "title": "Landscape",
+    "desc": "An endless landscape rolling toward the horizon",
+    "isNew": false,
+    "href": "/docs/components/landscape"
+  },
+  {
+    "slug": "tech-wall",
+    "title": "Tech Wall",
+    "desc": "A wall of glowing panels swept by moving light",
+    "isNew": false,
+    "href": "/docs/components/tech-wall"
+  },
+  {
+    "slug": "spectral-clouds",
+    "title": "Spectral Clouds",
+    "desc": "Soft clouds lit by drifting spectral color",
+    "isNew": false,
+    "href": "/docs/components/spectral-clouds"
+  },
+  {
+    "slug": "reel-gallery",
+    "title": "Reel Gallery",
+    "desc": "Tilted reels of images that glide as you scroll",
+    "isNew": false,
+    "href": "/docs/components/reel-gallery"
+  },
+  {
+    "slug": "grid-rise",
+    "title": "Grid Rise",
+    "desc": "A field of tiles that rises and ripples under the cursor",
+    "isNew": false,
+    "href": "/docs/components/grid-rise"
+  },
+  {
+    "slug": "lenticular-carousel",
+    "title": "Lenticular Carousel",
+    "desc": "A gallery whose cards turn over like a lenticular print",
+    "isNew": false,
+    "href": "/docs/components/lenticular-carousel"
+  },
+  {
+    "slug": "scroll-stack",
+    "title": "Scroll Stack",
+    "desc": "Cards that stack and fade away as you scroll",
+    "isNew": false,
+    "href": "/docs/components/scroll-stack"
+  },
+  {
+    "slug": "frame-scrub",
+    "title": "Frame Scrub",
+    "desc": "An image sequence that plays as you scroll",
+    "isNew": false,
+    "href": "/docs/components/frame-scrub"
+  },
+  {
+    "slug": "scroll-mask",
+    "title": "Scroll Mask",
+    "desc": "An image revealed through a mask as you scroll",
+    "isNew": false,
+    "href": "/docs/components/scroll-mask"
+  },
+  {
+    "slug": "particle-morph",
+    "title": "Particle Morph",
+    "desc": "A halftone dot matrix that morphs from one image into the next",
+    "isNew": false,
+    "href": "/docs/components/particle-morph"
+  },
+  {
+    "slug": "eclipse",
+    "title": "Eclipse",
+    "desc": "A dark shape eclipsing a soft, color-shifting corona of light",
+    "isNew": false,
+    "href": "/docs/components/eclipse"
+  },
+  {
+    "slug": "scroll-portal",
+    "title": "Scroll Portal",
+    "desc": "Scroll through frames nested one inside the next",
+    "isNew": false,
+    "href": "/docs/components/scroll-portal"
+  },
+  {
+    "slug": "pixel-sculpt",
+    "title": "Pixel Sculpt",
+    "desc": "An image rebuilt as 3D tiles that ripple under the cursor",
+    "isNew": false,
+    "href": "/docs/components/pixel-sculpt"
+  },
+  {
+    "slug": "neural-flash",
+    "title": "Neural Flash",
+    "desc": "A storm of glowing filaments, like a thought firing",
+    "isNew": false,
+    "href": "/docs/components/neural-flash"
+  },
+  {
+    "slug": "inverted-dome",
+    "title": "Inverted Dome",
+    "desc": "A draggable image grid curved like the inside of a dome",
+    "isNew": false,
+    "href": "/docs/components/inverted-dome"
+  },
+  {
+    "slug": "ravine",
+    "title": "Ravine",
+    "desc": "An endless flight down a dark canyon",
+    "isNew": false,
+    "href": "/docs/components/ravine"
+  },
+  {
+    "slug": "long-exposure",
+    "title": "Long Exposure",
+    "desc": "Light trails streaming along a road at night",
+    "isNew": false,
+    "href": "/docs/components/long-exposure"
+  },
+  {
+    "slug": "glowing-ridges",
+    "title": "Glowing Ridges",
+    "desc": "Iridescent ridges of light rolling like folded silk",
+    "isNew": false,
+    "href": "/docs/components/glowing-ridges"
+  },
+  {
+    "slug": "bend-gallery",
+    "title": "Bend Gallery",
+    "desc": "A column of images that bends away as it scrolls",
+    "isNew": false,
+    "href": "/docs/components/bend-gallery"
+  },
+  {
+    "slug": "twisting-gallery",
+    "title": "Twisting Gallery",
+    "desc": "Images that twist and sway as they scroll past",
+    "isNew": false,
+    "href": "/docs/components/twisting-gallery"
+  },
+  {
+    "slug": "glass-reveal",
+    "title": "Glass Reveal",
+    "desc": "A glass lens that reveals one image through another",
+    "isNew": false,
+    "href": "/docs/components/glass-reveal"
+  },
+  {
+    "slug": "dolly-gallery",
+    "title": "Dolly Gallery",
+    "desc": "Images stacked in depth that you fly through on scroll",
+    "isNew": false,
+    "href": "/docs/components/dolly-gallery"
+  },
+  {
+    "slug": "tile-reveal",
+    "title": "Tile Reveal",
+    "desc": "Image tiles that fly in on scroll to reveal a headline",
+    "isNew": false,
+    "href": "/docs/components/tile-reveal"
+  },
+  {
+    "slug": "depth-image",
+    "title": "Depth Image",
+    "desc": "A photo relit with depth by a light that follows the cursor",
+    "isNew": false,
+    "href": "/docs/components/depth-image"
+  },
+  {
+    "slug": "ascii-ripple",
+    "title": "ASCII Ripple",
+    "desc": "Text that ripples like water under the cursor",
+    "isNew": false,
+    "href": "/docs/components/ascii-ripple"
+  }
+]

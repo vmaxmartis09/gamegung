@@ -3,11 +3,11 @@
  * bot chat, voting and win conditions. Pure functions over a plain state.
  */
 
-export type Role = "wolf" | "seer" | "guard" | "witch" | "hunter" | "villager";
-export type Team = "wolves" | "village";
+export type Role = "wolf" | "white_wolf" | "wolf_cub" | "seer" | "guard" | "witch" | "hunter" | "cupid" | "elder" | "villager";
+export type Team = "wolves" | "village" | "lovers";
 export type Phase = "lobby" | "reveal" | "night" | "dawn" | "discussion" | "vote" | "hunter" | "over";
-export type NightStep = "guard" | "wolves" | "seer" | "witch" | "done";
-export type DeathCause = "wolf" | "vote" | "poison" | "hunter";
+export type NightStep = "cupid" | "guard" | "wolves" | "white_wolf" | "seer" | "witch" | "done";
+export type DeathCause = "wolf" | "vote" | "poison" | "hunter" | "lover" | "white_wolf";
 
 export interface WPlayer {
   id: string;
@@ -40,6 +40,14 @@ export interface WState {
   lastGuarded: string | null;
   guard: string | null;
   wolfTarget: string | null;
+  wolfTarget2?: string | null;
+  whiteWolfTarget: string | null;
+  wolfBonusKills: number;
+  lovers: [string, string] | null;
+  cupidTarget1: string | null;
+  cupidTarget2: string | null;
+  cupidDone: boolean;
+  elderLives: Record<string, number>;
   seerCheck: string | null;
   healed: boolean;
   poisonTarget: string | null;
@@ -68,18 +76,52 @@ export const ROLE_INFO: Record<Role, { name: string; team: Team; emoji: string; 
     desc: "Mỗi đêm cùng bầy chọn 1 người để cắn.",
     tip: "Ban ngày trà trộn, đổ nghi ngờ cho người khác. Có thể nhận vai Tiên tri giả.",
   },
+  white_wolf: {
+    name: "Sói Trắng",
+    team: "wolves",
+    emoji: "🐺⚪",
+    color: "#ffffff",
+    desc: "Mỗi đêm cắn cùng bầy sói. Cứ mỗi 2 đêm được cắn thêm 1 con sói khác để độc chiếm chiến thắng.",
+    tip: "Âm thầm tiêu diệt cả dân làng lẫn đồng bọn sói để là kẻ sống sót cuối cùng.",
+  },
+  wolf_cub: {
+    name: "Sói Con",
+    team: "wolves",
+    emoji: "🐺🐾",
+    color: "#f87171",
+    desc: "Thành viên nhỏ tuổi của bầy sói. Nếu Sói Con chết, đêm tiếp theo bầy sói được cắn 2 người trả thù.",
+    tip: "Cố gắng sống sót, hoặc hi sinh để bầy sói có cú cắn kép vào đêm sau.",
+  },
   seer: { name: "Tiên Tri", team: "village", emoji: "🔮", color: "#e4e4e7", desc: "Mỗi đêm soi 1 người: là Sói hay không.", tip: "Lộ vai sớm dễ bị cắn. Chọn thời điểm công bố." },
   guard: { name: "Bảo Vệ", team: "village", emoji: "🛡️", color: "#d4d4d8", desc: "Mỗi đêm che chở 1 người khỏi Sói. Không bảo vệ 1 người 2 đêm liền.", tip: "Đoán xem Sói định cắn ai." },
   witch: { name: "Phù Thủy", team: "village", emoji: "🧪", color: "#e4e4e7", desc: "1 bình Cứu (hồi sinh nạn nhân của Sói) và 1 bình Độc (giết 1 người).", tip: "Mỗi bình chỉ dùng 1 lần trong cả ván." },
   hunter: { name: "Thợ Săn", team: "village", emoji: "🏹", color: "#d4d4d8", desc: "Khi chết (trừ bị Độc), được bắn chết 1 người.", tip: "Ghi nhớ kẻ khả nghi nhất để bắn khi cần." },
+  cupid: {
+    name: "Thần Tình Yêu",
+    team: "village",
+    emoji: "💘",
+    color: "#f472b6",
+    desc: "Đêm đầu tiên thức dậy ghép đôi 2 người. Nếu 1 người chết, người kia chết theo vì tương tư.",
+    tip: "Nếu ghép 1 Dân và 1 Sói, 2 người trở thành phe thứ 3 phải bảo vệ nhau đến cùng.",
+  },
+  elder: {
+    name: "Già Làng",
+    team: "village",
+    emoji: "👴",
+    color: "#fbbf24",
+    desc: "Có 2 mạng trước đòn cắn của Ma Sói. Nếu bị dân làng treo cổ, toàn bộ dân làng mất hết chức năng.",
+    tip: "Chứng minh mình là Già Làng để làm chỗ dựa cho cả làng, tránh bị treo cổ oan.",
+  },
   villager: { name: "Dân Làng", team: "village", emoji: "🧑‍💼", color: "#a1a1aa", desc: "Không có phép, chỉ có lý luận và lá phiếu.", tip: "Quan sát ai đổ vote vô lý." },
 };
 
 export const ROLE_SETS: Record<number, Role[]> = {
-  8: ["wolf", "wolf", "seer", "guard", "witch", "hunter", "villager", "villager"],
-  10: ["wolf", "wolf", "wolf", "seer", "guard", "witch", "hunter", "villager", "villager", "villager"],
-  12: ["wolf", "wolf", "wolf", "seer", "guard", "witch", "hunter", "villager", "villager", "villager", "villager", "villager"],
+  8: ["wolf", "wolf_cub", "seer", "guard", "witch", "hunter", "villager", "villager"],
+  10: ["wolf", "wolf_cub", "seer", "guard", "witch", "hunter", "cupid", "elder", "villager", "villager"],
+  12: ["wolf", "white_wolf", "wolf_cub", "seer", "guard", "witch", "hunter", "cupid", "elder", "villager", "villager", "villager"],
 };
+
+export const isWolf = (r: Role): boolean => r === "wolf" || r === "white_wolf" || r === "wolf_cub";
 
 const BOT_NAMES = [
   "Linh HR", "Tuấn Dev", "Minh Sale", "Trang Design", "Hùng Kế Toán", "Mai Marketing", "Quân DevOps", "Vy Content",
@@ -115,14 +157,27 @@ export function createGame(count: number, me: { id: string; name: string; avatar
       : { id: `bot-${i}`, name: names[i - 1], avatar: `kokonut:${names[i - 1].toLowerCase()}:${i}`, role, alive: true, isHuman: false, temper: 0.25 + Math.random() * 0.7 }
   );
   const ordered = shuffle(players);
+  const hasCupid = ordered.some((p) => p.role === "cupid");
+  const elderLives: Record<string, number> = {};
+  for (const p of ordered) {
+    if (p.role === "elder") elderLives[p.id] = 2;
+  }
   const s: WState = {
     players: ordered,
     day: 1,
     phase: "reveal",
-    step: "guard",
+    step: hasCupid ? "cupid" : "guard",
     lastGuarded: null,
     guard: null,
     wolfTarget: null,
+    wolfTarget2: null,
+    whiteWolfTarget: null,
+    wolfBonusKills: 0,
+    lovers: null,
+    cupidTarget1: null,
+    cupidTarget2: null,
+    cupidDone: false,
+    elderLives,
     seerCheck: null,
     healed: false,
     poisonTarget: null,
@@ -143,11 +198,11 @@ export function createGame(count: number, me: { id: string; name: string; avatar
     s.sus[p.id] = {};
     for (const q of ordered) {
       if (q.id === p.id) continue;
-      if (p.role === "wolf") s.sus[p.id][q.id] = q.role === "wolf" ? 0 : 0.5;
+      if (isWolf(p.role)) s.sus[p.id][q.id] = isWolf(q.role) ? 0 : 0.5;
       else s.sus[p.id][q.id] = 0.3 + Math.random() * 0.2;
     }
   }
-  addLog(s, "narrator", `Làng có ${count} người, trong đó có ${roles.filter((r) => r === "wolf").length} con Sói. Mỗi người nhận một lá vai bí mật.`);
+  addLog(s, "narrator", `Làng có ${count} người, trong đó có ${roles.filter((r) => isWolf(r)).length} con Sói. Mỗi người nhận một lá vai bí mật.`);
   return s;
 }
 
@@ -178,6 +233,17 @@ function mostSuspicious(s: WState, botId: string, filter: (p: WPlayer) => boolea
 
 export function botNightActions(s: WState) {
   const living = alive(s);
+  // Cupid (Night 1 only)
+  if (s.day === 1 && !s.cupidDone) {
+    const cupid = living.find((p) => p.role === "cupid" && !p.isHuman);
+    if (cupid && !s.lovers) {
+      const candidates = shuffle([...living]);
+      s.lovers = [candidates[0].id, candidates[1].id];
+      s.cupidDone = true;
+      addLog(s, "narrator", "💘 Thần Tình Yêu đã bí mật se duyên cho hai người trong làng.");
+    }
+  }
+
   // Guard
   const guard = living.find((p) => p.role === "guard" && !p.isHuman);
   if (guard && s.guard === null) {
@@ -186,22 +252,38 @@ export function botNightActions(s: WState) {
     const pick = claimedSeer && Math.random() < 0.7 ? claimedSeer : rnd(options.filter((p) => (s.sus[guard.id]?.[p.id] ?? 0.4) < 0.55)) ?? rnd(options);
     s.guard = pick?.id ?? null;
   }
-  // Wolves (if human is not a living wolf, bots decide)
-  const humanWolf = living.find((p) => p.isHuman && p.role === "wolf");
+
+  // Wolves (including Wolf Cub & White Wolf)
+  const humanWolf = living.find((p) => p.isHuman && isWolf(p.role));
   if (!humanWolf && s.wolfTarget === null) {
-    const wolves = living.filter((p) => p.role === "wolf");
-    const prey = living.filter((p) => p.role !== "wolf");
+    const wolves = living.filter((p) => isWolf(p.role));
+    const prey = living.filter((p) => !isWolf(p.role));
     if (wolves.length && prey.length) {
       const claimed = prey.find((p) => p.claim === "seer");
-      // Threat: players who suspect wolves the most get eaten first.
       const threat = (p: WPlayer) => {
         if (p.isHuman) return 0.5 + Math.random() * 0.3;
         const row = s.sus[p.id] || {};
         return wolves.reduce((a, w) => a + (row[w.id] ?? 0.4), 0) / wolves.length + Math.random() * 0.25;
       };
       s.wolfTarget = claimed && Math.random() < 0.8 ? claimed.id : prey.reduce((a, b) => (threat(b) > threat(a) ? b : a), prey[0]).id;
+      if (s.wolfBonusKills > 0 && prey.length > 1) {
+        const remainingPrey = prey.filter((p) => p.id !== s.wolfTarget);
+        s.wolfTarget2 = remainingPrey[0]?.id ?? null;
+      }
     }
   }
+
+  // White Wolf (every 2 nights: day 2, 4...)
+  if (s.day % 2 === 0) {
+    const whiteWolf = living.find((p) => p.role === "white_wolf" && !p.isHuman);
+    if (whiteWolf && !s.whiteWolfTarget) {
+      const otherWolves = living.filter((p) => isWolf(p.role) && p.id !== whiteWolf.id);
+      if (otherWolves.length && Math.random() < 0.75) {
+        s.whiteWolfTarget = rnd(otherWolves)?.id ?? null;
+      }
+    }
+  }
+
   // Seer
   const seer = living.find((p) => p.role === "seer" && !p.isHuman);
   if (seer && s.seerCheck === null) {
@@ -209,8 +291,8 @@ export function botNightActions(s: WState) {
     const t = mostSuspicious(s, seer.id, unknown);
     if (t) {
       s.seerCheck = t.id;
-      s.seerResults[seer.id] = { ...(s.seerResults[seer.id] || {}), [t.id]: t.role === "wolf" };
-      s.sus[seer.id][t.id] = t.role === "wolf" ? 1 : 0;
+      s.seerResults[seer.id] = { ...(s.seerResults[seer.id] || {}), [t.id]: isWolf(t.role) };
+      s.sus[seer.id][t.id] = isWolf(t.role) ? 1 : 0;
     }
   }
 }
@@ -220,7 +302,7 @@ export function botWitch(s: WState) {
   if (!witch) return;
   const victim = byId(s, s.wolfTarget);
   if (victim && !s.healUsed && s.wolfTarget !== s.guard) {
-    const important = victim.claim === "seer" || victim.id === witch.id;
+    const important = victim.claim === "seer" || victim.id === witch.id || victim.role === "elder";
     if (important || (s.day === 1 && Math.random() < 0.65) || Math.random() < 0.25) {
       s.healed = true;
       s.healUsed = true;
@@ -238,12 +320,42 @@ export function botWitch(s: WState) {
 /** Resolve the night; returns ids that died. */
 export function resolveNight(s: WState): string[] {
   const deaths: { id: string; cause: DeathCause }[] = [];
-  if (s.wolfTarget && s.wolfTarget !== s.guard && !s.healed) deaths.push({ id: s.wolfTarget, cause: "wolf" });
-  if (s.poisonTarget && !deaths.some((d) => d.id === s.poisonTarget)) deaths.push({ id: s.poisonTarget, cause: "poison" });
+
+  // 1. Wolves attack target 1
+  if (s.wolfTarget && s.wolfTarget !== s.guard && !s.healed) {
+    const targetP = byId(s, s.wolfTarget);
+    if (targetP && targetP.role === "elder" && (s.elderLives[targetP.id] ?? 2) > 1) {
+      s.elderLives[targetP.id] -= 1;
+      addLog(s, "narrator", `🛡️ Già Làng ${targetP.name} bị bầy Sói cắn nhưng kiên cường sống sót nhờ 2 mạng!`);
+    } else {
+      deaths.push({ id: s.wolfTarget, cause: "wolf" });
+    }
+  }
+
+  // 2. Bonus kill from Wolf Cub death
+  if (s.wolfTarget2 && s.wolfTarget2 !== s.guard && !deaths.some((d) => d.id === s.wolfTarget2)) {
+    deaths.push({ id: s.wolfTarget2, cause: "wolf" });
+  }
+
+  // 3. White wolf kill
+  if (s.whiteWolfTarget && !deaths.some((d) => d.id === s.whiteWolfTarget)) {
+    deaths.push({ id: s.whiteWolfTarget, cause: "white_wolf" });
+  }
+
+  // 4. Witch poison
+  if (s.poisonTarget && !deaths.some((d) => d.id === s.poisonTarget)) {
+    deaths.push({ id: s.poisonTarget, cause: "poison" });
+  }
+
+  // Apply all deaths
   for (const d of deaths) kill(s, d.id, d.cause);
+
   s.lastGuarded = s.guard;
   s.guard = null;
   s.wolfTarget = null;
+  s.wolfTarget2 = null;
+  s.whiteWolfTarget = null;
+  s.wolfBonusKills = 0;
   s.seerCheck = null;
   s.healed = false;
   s.poisonTarget = null;
@@ -257,16 +369,35 @@ export function kill(s: WState, id: string, cause: DeathCause) {
   p.alive = false;
   p.cause = cause;
   p.diedDay = s.day;
+
+  // If Wolf Cub dies, wolves get bonus kill next night
+  if (p.role === "wolf_cub") {
+    s.wolfBonusKills = 1;
+    addLog(s, "narrator", "🐾 Sói Con đã chết! Đêm mai bầy Sói sẽ nổi cơn thịnh nộ và được cắn 2 người.");
+  }
+
   // Deaths reveal roles publicly → everyone updates.
   for (const obs of Object.keys(s.sus)) {
-    if (p.role === "wolf") {
-      // Those who pushed this wolf look better; those who defended look worse.
+    if (isWolf(p.role)) {
       for (const [voter, target] of Object.entries(s.votes)) if (target === id) bump(s, obs, voter, -0.12);
     } else if (cause === "vote") {
       for (const [voter, target] of Object.entries(s.votes)) if (target === id) bump(s, obs, voter, 0.14);
     }
   }
   if (p.role === "hunter" && cause !== "poison") s.pendingHunter = id;
+
+  // Lovers suicide: if one lover dies, the other commits suicide
+  if (s.lovers && s.lovers.includes(id)) {
+    const partnerId = s.lovers[0] === id ? s.lovers[1] : s.lovers[0];
+    const partner = byId(s, partnerId);
+    if (partner && partner.alive) {
+      addLog(s, "death", `💔 ${partner.name} không chịu nổi nỗi đau mất người yêu (${p.name}) nên đã chết theo!`);
+      partner.alive = false;
+      partner.cause = "lover";
+      partner.diedDay = s.day;
+      if (partner.role === "hunter") s.pendingHunter = partner.id;
+    }
+  }
 }
 
 export function botHunterShot(s: WState, hunterId: string): string | null {
@@ -278,7 +409,11 @@ export function botHunterShot(s: WState, hunterId: string): string | null {
 
 export function checkWinner(s: WState): Team | null {
   const living = alive(s);
-  const wolves = living.filter((p) => p.role === "wolf").length;
+  // Lovers win condition: if only the 2 lovers remain alive
+  if (s.lovers && living.length === 2 && living.every((p) => s.lovers!.includes(p.id))) {
+    return "lovers";
+  }
+  const wolves = living.filter((p) => isWolf(p.role)).length;
   if (wolves === 0) return "village";
   if (wolves >= living.length - wolves) return "wolves";
   return null;

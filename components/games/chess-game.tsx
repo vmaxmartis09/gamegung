@@ -40,10 +40,10 @@ const TIME_CONTROLS = [
 type TimeId = (typeof TIME_CONTROLS)[number]["id"];
 
 const THEMES = {
-  mono: { name: "Xám", light: "#ececef", dark: "#8d8d96", hlLast: "rgba(250,204,21,0.38)", hlSel: "rgba(24,24,27,0.28)" },
-  tournament: { name: "Giải đấu", light: "#eeeed2", dark: "#769656", hlLast: "rgba(246,246,105,0.55)", hlSel: "rgba(20,85,30,0.35)" },
-  wood: { name: "Gỗ", light: "#f0d9b5", dark: "#b58863", hlLast: "rgba(205,210,106,0.6)", hlSel: "rgba(20,85,30,0.35)" },
-  ice: { name: "Băng", light: "#dee3e6", dark: "#8ca2ad", hlLast: "rgba(155,199,0,0.41)", hlSel: "rgba(20,85,30,0.3)" },
+  tournament: { name: "Giải đấu", light: "#edeed1", dark: "#779952", hlLast: "rgba(246,246,105,0.65)", hlSel: "rgba(20,85,30,0.4)" },
+  wood: { name: "Gỗ cổ điển", light: "#f0d9b5", dark: "#b58863", hlLast: "rgba(205,210,106,0.65)", hlSel: "rgba(20,85,30,0.4)" },
+  mono: { name: "Đá cẩm thạch", light: "#e2e8f0", dark: "#64748b", hlLast: "rgba(250,204,21,0.45)", hlSel: "rgba(30,41,59,0.35)" },
+  ice: { name: "Băng tuyết", light: "#e0f2fe", dark: "#38bdf8", hlLast: "rgba(125,211,252,0.6)", hlSel: "rgba(3,105,161,0.35)" },
 } as const;
 type ThemeId = keyof typeof THEMES;
 
@@ -122,7 +122,7 @@ interface Settings {
   theme: ThemeId;
 }
 
-const DEFAULT_SETTINGS: Settings = { mode: "ai", level: "medium", color: "w", time: "10+0", ranked: true, theme: "mono" };
+const DEFAULT_SETTINGS: Settings = { mode: "ai", level: "medium", color: "w", time: "10+0", ranked: true, theme: "tournament" };
 
 function loadSettings(): Settings {
   try {
@@ -137,6 +137,13 @@ function loadSettings(): Settings {
 export function ChessGame() {
   const me = useAppStore(useShallow((s) => ({ username: s.currentUser.username, avatar: s.currentUser.avatar, elo: s.currentUser.eloChess })));
   const soundEnabled = useAppStore((s) => s.soundEnabled);
+  const { isChatOpen, isChatCollapsed } = useAppStore(
+    useShallow((s) => ({
+      isChatOpen: s.isChatOpen,
+      isChatCollapsed: s.isChatCollapsed,
+    }))
+  );
+  const isChatVisible = isChatOpen && !isChatCollapsed;
   const { settle, reset: resetSettlement, result, open: resultOpen, setOpen: setResultOpen } = useMatchSettlement("chess");
   const { show: showToast, node: toastNode } = useToast();
   const session = useGameSession<ChessSave>("chess");
@@ -215,13 +222,14 @@ export function ChessGame() {
   }, [selected, viewing, liveFen]);
 
   const play = useCallback(
-    (kind: "move" | "capture" | "check" | "castle" | "end") => {
+    (kind: "move" | "capture" | "check" | "castle" | "promotion" | "end") => {
       if (!soundEnabled) return;
-      if (kind === "capture") soundManager.playCapture();
-      else if (kind === "check") soundManager.playCheck();
-      else if (kind === "castle") soundManager.playPieceDrop();
-      else if (kind === "end") soundManager.playTurn();
-      else soundManager.playMove();
+      if (kind === "capture") soundManager.playChessCapture();
+      else if (kind === "check") soundManager.playChessCheck();
+      else if (kind === "castle") soundManager.playChessCastle();
+      else if (kind === "promotion") soundManager.playChessPromotion();
+      else if (kind === "end") soundManager.playVictory();
+      else soundManager.playChessMove();
     },
     [soundEnabled]
   );
@@ -282,6 +290,7 @@ export function ChessGame() {
       setSelected(null);
       setHint(null);
       if (c.inCheck()) play("check");
+      else if (mv.promotion) play("promotion");
       else if (mv.captured) play("capture");
       else if (mv.flags.includes("k") || mv.flags.includes("q")) play("castle");
       else play("move");
@@ -573,21 +582,26 @@ export function ChessGame() {
   };
 
   return (
-    <div className="mx-auto max-w-[1280px] px-4 sm:px-6">
+    <div
+      className={cn(
+        "flex-1 min-h-0 relative flex flex-col w-full overflow-hidden px-2 sm:px-4 lg:px-6 py-2 transition-[padding] duration-300",
+        isChatVisible ? "lg:pr-[395px] xl:pr-[435px]" : ""
+      )}
+    >
       <GameHeader game="chess" subtitle={opening ? `📖 ${opening}` : "Luật FIDE · Engine 4 cấp · Đồng hồ có cộng giờ"}>
         {phase !== "setup" && (
           <span className={cn("chip", rated ? "border-lime-400/40 text-lime-300" : "")}>{rated ? `Xếp hạng${stake ? ` · ${stake} 🌾` : ""}` : "Tập luyện"}</span>
         )}
       </GameHeader>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        {/* Board column */}
-        <div className="mx-auto w-full max-w-[min(100%,calc(100vh-11rem))]">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-3 lg:gap-6 overflow-y-auto lg:overflow-hidden pb-1">
+        {/* Board column - Maximized Full Area */}
+        <div className="flex-1 min-w-0 h-full w-full flex flex-col items-center justify-center">
           {(() => {
             const p = playerFor(topColor);
             return (
               <PlayerCard
-                className="mb-3 lg:hidden"
+                className="mb-2 w-full max-w-[min(100%,calc(100dvh-12rem))] lg:hidden"
                 name={p.name}
                 avatar={p.avatar}
                 rating={p.rating}
@@ -599,12 +613,12 @@ export function ChessGame() {
             );
           })()}
 
-          <div className="flex gap-2">
+          <div className="relative flex items-center justify-center gap-2 h-full max-h-[calc(100dvh-5.5rem)] aspect-square max-w-[min(100%,calc(100dvh-5.5rem))]">
             {evalCp !== null && !rated && <EvalBar cp={evalCp} orientation={orientation} />}
             <Board
               board={shownBoard}
               orientation={orientation}
-              theme={THEMES[settings.theme] ?? THEMES.mono}
+              theme={THEMES[settings.theme] ?? THEMES.tournament ?? THEMES.mono}
               selected={selected}
               targets={legalTargets}
               lastMove={lastMove ? { from: lastMove.from, to: lastMove.to } : null}
@@ -631,8 +645,8 @@ export function ChessGame() {
                 />
               )}
               {phase === "setup" && (
-                <div className="absolute inset-0 grid place-items-center bg-black/35">
-                  <button type="button" onClick={startGame} className="btn-lime px-6 py-4 text-base">
+                <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-xs">
+                  <button type="button" onClick={startGame} className="btn-lime px-6 py-4 text-base font-bold shadow-lift">
                     <Play className="size-5" /> Bắt đầu ván
                   </button>
                 </div>
@@ -644,7 +658,7 @@ export function ChessGame() {
             const p = playerFor(bottomColor);
             return (
               <PlayerCard
-                className="mt-3 lg:hidden"
+                className="mt-2 w-full max-w-[min(100%,calc(100dvh-12rem))] lg:hidden"
                 name={p.name}
                 avatar={p.avatar}
                 rating={p.rating}
@@ -658,29 +672,28 @@ export function ChessGame() {
         </div>
 
         {/* Side panel */}
-        <aside className="space-y-4">
+        <aside className="w-full lg:w-[280px] xl:w-[320px] shrink-0 h-full max-h-[calc(100dvh-5.5rem)] flex flex-col justify-between gap-2.5 overflow-y-auto no-scrollbar py-0.5">
           {phase !== "setup" && (
-            <div className="hidden space-y-2 lg:block">
-              {([topColor, bottomColor] as ("w" | "b")[]).map((color) => {
-                const p = playerFor(color);
+            <div className="hidden lg:block shrink-0">
+              {(() => {
+                const p = playerFor(topColor);
                 return (
                   <PlayerCard
-                    key={color}
                     name={p.name}
                     avatar={p.avatar}
                     rating={p.rating}
-                    active={phase === "playing" && turn === color}
-                    thinking={thinking && turn === color}
-                    clockMs={tc.base ? clock[color] : undefined}
-                    extra={capturedRow(color)}
+                    active={phase === "playing" && turn === topColor}
+                    thinking={thinking && turn === topColor}
+                    clockMs={tc.base ? clock[topColor] : undefined}
+                    extra={capturedRow(topColor)}
                   />
                 );
-              })}
+              })()}
             </div>
           )}
           {phase === "setup" ? (
-            <div className="panel space-y-4 p-5">
-              <h2 className="font-display text-xl font-extrabold">Thiết lập ván</h2>
+            <div className="panel space-y-3.5 p-4 flex-1 overflow-y-auto no-scrollbar">
+              <h2 className="font-display text-lg font-extrabold">Thiết lập ván</h2>
               <div>
                 <span className="label">Chế độ</span>
                 <Segmented
@@ -696,19 +709,19 @@ export function ChessGame() {
                 <>
                   <div>
                     <span className="label">Độ khó</span>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5">
                       {(Object.keys(ENGINE_LEVELS) as EngineLevel[]).map((k) => (
                         <button
                           key={k}
                           type="button"
                           onClick={() => updateSettings({ level: k })}
                           className={cn(
-                            "rounded-2xl border p-3 text-left transition-colors",
+                            "rounded-xl border p-2.5 text-left transition-colors",
                             settings.level === k ? "border-lime-400 bg-lime-400/10" : "border-white/[0.07] bg-white/[0.02] hover:border-white/20"
                           )}
                         >
-                          <p className="text-sm font-bold">{ENGINE_LEVELS[k].label}</p>
-                          <p className="font-mono text-[11px] text-ink-400">~{ENGINE_LEVELS[k].elo} ELO</p>
+                          <p className="text-xs font-bold">{ENGINE_LEVELS[k].label}</p>
+                          <p className="font-mono text-[10px] text-ink-400">~{ENGINE_LEVELS[k].elo} ELO</p>
                         </button>
                       ))}
                     </div>
@@ -720,7 +733,7 @@ export function ChessGame() {
                       onChange={(v) => updateSettings({ color: v })}
                       options={[
                         { value: "w", label: "♔ Trắng" },
-                        { value: "random", label: "🎲 Ngẫu nhiên" },
+                        { value: "random", label: "🎲 Random" },
                         { value: "b", label: "♚ Đen" },
                       ]}
                     />
@@ -729,19 +742,19 @@ export function ChessGame() {
               )}
               <div>
                 <span className="label">Thời gian</span>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-1.5">
                   {TIME_CONTROLS.map((t) => (
                     <button
                       key={t.id}
                       type="button"
                       onClick={() => updateSettings({ time: t.id })}
                       className={cn(
-                        "rounded-2xl border px-2 py-2.5 text-center transition-colors",
+                        "rounded-xl border px-2 py-2 text-center transition-colors",
                         settings.time === t.id ? "border-lime-400 bg-lime-400/10" : "border-white/[0.07] bg-white/[0.02] hover:border-white/20"
                       )}
                     >
-                      <p className="font-mono text-sm font-bold">{t.label}</p>
-                      <p className="text-[10px] text-ink-400">{t.kind}</p>
+                      <p className="font-mono text-xs font-bold">{t.label}</p>
+                      <p className="text-[9px] text-ink-400">{t.kind}</p>
                     </button>
                   ))}
                 </div>
@@ -754,13 +767,10 @@ export function ChessGame() {
                       value={settings.ranked ? "r" : "t"}
                       onChange={(v) => updateSettings({ ranked: v === "r" })}
                       options={[
-                        { value: "r", label: "Xếp hạng", hint: "Tính ELO & Lúa. Không gợi ý, không đi lại." },
-                        { value: "t", label: "Tập luyện", hint: "Không tính ELO. Có gợi ý, đi lại, thanh đánh giá." },
+                        { value: "r", label: "Xếp hạng" },
+                        { value: "t", label: "Tập luyện" },
                       ]}
                     />
-                    <p className="mt-1.5 text-[11px] text-ink-400">
-                      {settings.ranked ? "Tính ELO & Lúa · không gợi ý / đi lại." : "Không tính ELO · có 3 gợi ý, 3 lần đi lại, thanh đánh giá."}
-                    </p>
                   </div>
                   {settings.ranked && <StakePicker value={stake} onChange={setStake} />}
                 </>
@@ -774,7 +784,7 @@ export function ChessGame() {
                       type="button"
                       onClick={() => updateSettings({ theme: k })}
                       title={THEMES[k].name}
-                      className={cn("grid size-10 grid-cols-2 overflow-hidden rounded-xl border-2", settings.theme === k ? "border-lime-400" : "border-transparent")}
+                      className={cn("grid size-9 grid-cols-2 overflow-hidden rounded-xl border-2 transition-transform hover:scale-105", settings.theme === k ? "border-lime-400" : "border-transparent")}
                     >
                       <span style={{ background: THEMES[k].light }} />
                       <span style={{ background: THEMES[k].dark }} />
@@ -784,35 +794,60 @@ export function ChessGame() {
                   ))}
                 </div>
               </div>
-              <button type="button" onClick={startGame} className="btn-lime w-full py-3">
+              <button type="button" onClick={startGame} className="btn-lime w-full py-2.5 font-bold">
                 <Play className="size-4" /> Bắt đầu
               </button>
             </div>
           ) : (
-            <div className="panel space-y-3 p-4">
-              {phase === "over" && (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-center">
-                  <p className="font-display text-lg font-extrabold">Ván đã kết thúc</p>
-                  <p className="text-xs text-ink-300">{overReason}</p>
+            <div className="flex-1 min-h-0 flex flex-col gap-2.5 overflow-hidden">
+              <div className="panel shrink-0 space-y-2.5 p-3">
+                {phase === "over" && (
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2 text-center">
+                    <p className="font-display text-sm font-extrabold">Ván đã kết thúc</p>
+                    <p className="text-[11px] text-ink-300">{overReason}</p>
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-1.5">
+                  <IconAction label="Cầu hoà" icon={<Handshake className="size-3.5" />} onClick={offerDraw} disabled={phase !== "playing"} />
+                  <IconAction label={`Đi lại ${rated ? "" : takebacksLeft}`} icon={<Undo2 className="size-3.5" />} onClick={takeback} disabled={rated || phase !== "playing" || takebacksLeft <= 0 || moves.length === 0} />
+                  <IconAction label={`Gợi ý ${rated ? "" : hintsLeft}`} icon={<Lightbulb className="size-3.5" />} onClick={askHint} disabled={rated || !humanTurn || hintsLeft <= 0} />
+                  <IconAction label="Xoay bàn" icon={<Repeat className="size-3.5" />} onClick={() => setFlipped((f) => !f)} />
+                  <IconAction label="PGN" icon={<Copy className="size-3.5" />} onClick={copyPgn} disabled={moves.length === 0} />
+                  <IconAction label="Ván mới" icon={<RotateCcw className="size-3.5" />} onClick={() => (phase === "playing" ? setConfirm("new") : backToSetup())} wide />
                 </div>
-              )}
-              <div className="grid grid-cols-3 gap-2">
-                <IconAction label="Cầu hoà" icon={<Handshake className="size-4" />} onClick={offerDraw} disabled={phase !== "playing"} />
-                <IconAction label={`Đi lại ${rated ? "" : takebacksLeft}`} icon={<Undo2 className="size-4" />} onClick={takeback} disabled={rated || phase !== "playing" || takebacksLeft <= 0 || moves.length === 0} />
-                <IconAction label={`Gợi ý ${rated ? "" : hintsLeft}`} icon={<Lightbulb className="size-4" />} onClick={askHint} disabled={rated || !humanTurn || hintsLeft <= 0} />
-                <IconAction label="Xoay bàn" icon={<Repeat className="size-4" />} onClick={() => setFlipped((f) => !f)} />
-                <IconAction label="PGN" icon={<Copy className="size-4" />} onClick={copyPgn} disabled={moves.length === 0} />
-                <IconAction label="Ván mới" icon={<RotateCcw className="size-4" />} onClick={() => (phase === "playing" ? setConfirm("new") : backToSetup())} wide />
+                {phase === "playing" && (
+                  <HoldButton className="w-full text-xs" variant="red" holdingLabel="Giữ để xác nhận…" completeLabel="Đã xin thua" onHoldComplete={resign}>
+                    Giữ để xin thua
+                  </HoldButton>
+                )}
               </div>
-              {phase === "playing" && (
-                <HoldButton className="w-full" variant="red" holdingLabel="Giữ để xác nhận…" completeLabel="Đã xin thua" onHoldComplete={resign}>
-                  Giữ để xin thua
-                </HoldButton>
-              )}
+
+              {/* Flex-1 Move History */}
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <MoveList moves={moves} viewPly={viewPly} onView={setViewPly} total={fens.length - 1} />
+              </div>
             </div>
           )}
 
-          <MoveList moves={moves} viewPly={viewPly} onView={setViewPly} total={fens.length - 1} />
+          {phase !== "setup" && (
+            <div className="hidden lg:block shrink-0">
+              {(() => {
+                const p = playerFor(bottomColor);
+                return (
+                  <PlayerCard
+                    name={p.name}
+                    avatar={p.avatar}
+                    rating={p.rating}
+                    active={phase === "playing" && turn === bottomColor}
+                    thinking={thinking && turn === bottomColor}
+                    clockMs={tc.base ? clock[bottomColor] : undefined}
+                    extra={capturedRow(bottomColor)}
+                  />
+                );
+              })()}
+            </div>
+          )}
+
           {toastNode}
         </aside>
       </div>
@@ -954,7 +989,7 @@ const Board = memo(function Board({
   return (
     <div
       ref={boardRef}
-      className="relative aspect-square w-full select-none overflow-hidden rounded-md touch-none ring-1 ring-white/15"
+      className="relative aspect-square h-full w-full select-none overflow-hidden rounded-xl touch-none ring-1 ring-white/20 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.85)]"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -991,31 +1026,31 @@ const Board = memo(function Board({
               <div key={sq} className="relative" role="gridcell" aria-label={sq}>
                 {isLast && <div className="absolute inset-0" style={{ background: theme.hlLast }} />}
                 {isSel && <div className="absolute inset-0" style={{ background: theme.hlSel }} />}
-                {checkSquare === sq && <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(255,77,94,0.95)_0%,rgba(255,77,94,0.5)_45%,transparent_72%)]" />}
+                {checkSquare === sq && <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(239,68,68,0.95)_0%,rgba(239,68,68,0.5)_45%,transparent_72%)] animate-pulse" />}
                 {ci === 0 && (
-                  <span className="absolute left-1 top-0.5 text-[10px] font-bold sm:text-xs" style={{ color: dark ? theme.light : theme.dark }}>
+                  <span className="absolute left-1 top-0.5 text-[10px] font-bold sm:text-xs select-none pointer-events-none" style={{ color: dark ? theme.light : theme.dark }}>
                     {rank + 1}
                   </span>
                 )}
                 {ri === 7 && (
-                  <span className="absolute bottom-0.5 right-1 text-[10px] font-bold sm:text-xs" style={{ color: dark ? theme.light : theme.dark }}>
+                  <span className="absolute bottom-0.5 right-1 text-[10px] font-bold sm:text-xs select-none pointer-events-none" style={{ color: dark ? theme.light : theme.dark }}>
                     {"abcdefgh"[file]}
                   </span>
                 )}
                 {piece && (
                   <div
                     key={slide ? `s${animKey}` : "p"}
-                    className={cn("absolute inset-[6%] z-10", slide && "animate-piece-slide", dragFrom === sq && "opacity-30")}
+                    className={cn("absolute inset-[3.5%] z-10 flex items-center justify-center", slide && "animate-piece-slide", dragFrom === sq && "opacity-30")}
                     style={slideStyle}
                   >
-                    <ChessIcon type={piece.type} color={piece.color} className="h-full w-full" />
+                    <ChessIcon type={piece.type} color={piece.color} className="h-full w-full pointer-events-none select-none" />
                   </div>
                 )}
                 {isTarget &&
                   (piece ? (
-                    <div className="absolute inset-0 z-20 rounded-full border-[5px] border-black/25" />
+                    <div className="absolute inset-1 z-20 rounded-full border-[3.5px] border-lime-400/80 bg-lime-400/20 shadow-sm" />
                   ) : (
-                    <div className="absolute left-1/2 top-1/2 z-20 size-[30%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/25" />
+                    <div className="absolute left-1/2 top-1/2 z-20 size-[32%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/40 ring-1 ring-white/30 backdrop-blur-[1px]" />
                   ))}
               </div>
             );
@@ -1119,19 +1154,19 @@ function MoveList({ moves, viewPly, onView, total }: { moves: Move[]; viewPly: n
   }, [current]);
   const rows = Math.ceil(moves.length / 2);
   return (
-    <div className="panel p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-display text-sm font-bold">Biên bản · {moves.length} nước</h3>
+    <div className="panel p-3 h-full flex flex-col overflow-hidden">
+      <div className="mb-2 flex items-center justify-between shrink-0">
+        <h3 className="font-display text-xs font-bold">Biên bản · {moves.length} nước</h3>
         <div className="flex gap-1">
-          <NavBtn label="Đầu ván" onClick={() => onView(0)} icon={<ChevronFirst className="size-4" />} />
-          <NavBtn label="Lùi" onClick={() => onView(Math.max(0, current - 1))} icon={<ChevronLeft className="size-4" />} />
-          <NavBtn label="Tiến" onClick={() => onView(current + 1 >= total ? null : current + 1)} icon={<ChevronRight className="size-4" />} />
-          <NavBtn label="Hiện tại" onClick={() => onView(null)} icon={<ChevronLast className="size-4" />} />
+          <NavBtn label="Đầu ván" onClick={() => onView(0)} icon={<ChevronFirst className="size-3.5" />} />
+          <NavBtn label="Lùi" onClick={() => onView(Math.max(0, current - 1))} icon={<ChevronLeft className="size-3.5" />} />
+          <NavBtn label="Tiến" onClick={() => onView(current + 1 >= total ? null : current + 1)} icon={<ChevronRight className="size-3.5" />} />
+          <NavBtn label="Hiện tại" onClick={() => onView(null)} icon={<ChevronLast className="size-3.5" />} />
         </div>
       </div>
-      <div ref={boxRef} className="h-56 overflow-y-auto rounded-xl bg-black/25 p-1.5 font-mono text-[13px]">
+      <div ref={boxRef} className="flex-1 min-h-[120px] no-scrollbar overflow-y-auto rounded-xl bg-black/25 p-1.5 font-mono text-xs">
         {moves.length === 0 ? (
-          <p className="pt-16 text-center text-xs text-ink-500">Chưa có nước nào. Phím ← → để xem lại.</p>
+          <p className="pt-8 text-center text-[11px] text-ink-500">Chưa có nước nào. Phím ← → để xem lại.</p>
         ) : (
           Array.from({ length: rows }, (_, i) => (
             <div key={i} className="grid grid-cols-[2.2rem_1fr_1fr] items-center">

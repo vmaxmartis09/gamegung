@@ -154,10 +154,10 @@ export function XiangqiGame() {
   const sound = useCallback(
     (k: "move" | "capture" | "check" | "end") => {
       if (!soundEnabled) return;
-      if (k === "capture") soundManager.playCapture();
-      else if (k === "check") soundManager.playCheck();
-      else if (k === "end") soundManager.playTurn();
-      else soundManager.playPieceDrop();
+      if (k === "capture") soundManager.playXiangqiCapture();
+      else if (k === "check") soundManager.playXiangqiCheck();
+      else if (k === "end") soundManager.playVictory();
+      else soundManager.playXiangqiMove();
     },
     [soundEnabled]
   );
@@ -456,15 +456,20 @@ export function XiangqiGame() {
   const bottom = playerFor(bottomSide);
 
   return (
-    <div className="mx-auto max-w-[1280px] px-4 sm:px-6">
+    <div
+      className={cn(
+        "flex-1 min-h-0 relative flex flex-col w-full overflow-hidden px-2 sm:px-4 lg:px-6 py-2 transition-[padding] duration-300"
+      )}
+    >
       <GameHeader game="xiangqi" subtitle="Luật WXF · chống chiếu dai">
         {phase !== "setup" && <span className={cn("chip", rated && "border-lime-400/40 text-lime-300")}>{rated ? `Xếp hạng${stake ? ` · ${stake} 🌾` : ""}` : "Tập luyện"}</span>}
       </GameHeader>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="mx-auto w-full max-w-[min(100%,calc((100vh-11rem)*0.909))]">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-3 lg:gap-6 overflow-y-auto lg:overflow-hidden pb-1">
+        {/* Board column */}
+        <div className="flex-1 min-w-0 h-full w-full flex flex-col items-center justify-center">
           <PlayerCard
-            className="mb-3 lg:hidden"
+            className="mb-2 w-full max-w-[min(100%,calc((100dvh-12rem)*0.909))] lg:hidden"
             name={top.name}
             avatar={top.avatar}
             rating={top.rating}
@@ -474,28 +479,32 @@ export function XiangqiGame() {
             accent={topSide === 1 ? "red" : "lime"}
             extra={capturedRow(topSide)}
           />
-          <XqBoard
-            board={shown}
-            bottomSide={bottomSide}
-            theme={THEMES[settings.theme] ?? THEMES.wood}
-            selected={selected}
-            targets={targets}
-            lastMove={lastMove ? { from: lastMove.from, to: lastMove.to } : null}
-            checkSq={checkSq}
-            hint={hint}
-            animKey={viewing ? -1 : animKey}
-            onSquare={onSquare}
-          >
-            {phase === "setup" && (
-              <div className="absolute inset-0 grid place-items-center bg-black/35">
-                <button type="button" onClick={start} className="btn-lime px-6 py-4 text-base">
-                  <Play className="size-5" /> Bắt đầu ván
-                </button>
-              </div>
-            )}
-          </XqBoard>
+
+          <div className="relative flex items-center justify-center h-full max-h-[calc(100dvh-5.5rem)] aspect-[9/10] max-w-[min(100%,calc((100dvh-5.5rem)*0.9))]">
+            <XqBoard
+              board={shown}
+              bottomSide={bottomSide}
+              theme={THEMES[settings.theme] ?? THEMES.wood}
+              selected={selected}
+              targets={targets}
+              lastMove={lastMove ? { from: lastMove.from, to: lastMove.to } : null}
+              checkSq={checkSq}
+              hint={hint}
+              animKey={viewing ? -1 : animKey}
+              onSquare={onSquare}
+            >
+              {phase === "setup" && (
+                <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-xs">
+                  <button type="button" onClick={start} className="btn-lime px-6 py-4 text-base font-bold shadow-lift">
+                    <Play className="size-5" /> Bắt đầu ván
+                  </button>
+                </div>
+              )}
+            </XqBoard>
+          </div>
+
           <PlayerCard
-            className="mt-3 lg:hidden"
+            className="mt-2 w-full max-w-[min(100%,calc((100dvh-12rem)*0.909))] lg:hidden"
             name={bottom.name}
             avatar={bottom.avatar}
             rating={bottom.rating}
@@ -507,30 +516,31 @@ export function XiangqiGame() {
           />
         </div>
 
-        <aside className="space-y-4">
+        {/* Side panel */}
+        <aside className="w-full lg:w-[280px] xl:w-[320px] shrink-0 h-full max-h-[calc(100dvh-5.5rem)] flex flex-col justify-between gap-2.5 overflow-y-auto no-scrollbar py-0.5">
           {phase !== "setup" && (
-            <div className="hidden space-y-2 lg:block">
-              {([topSide, bottomSide] as Side[]).map((side) => {
-                const pl = playerFor(side);
+            <div className="hidden lg:block shrink-0">
+              {(() => {
+                const pl = playerFor(topSide);
                 return (
                   <PlayerCard
-                    key={side}
                     name={pl.name}
                     avatar={pl.avatar}
                     rating={pl.rating}
-                    active={phase === "playing" && turn === side}
-                    thinking={thinking && turn === side}
-                    clockMs={tc.base ? clock[side] : undefined}
-                    accent={side === 1 ? "red" : "lime"}
-                    extra={capturedRow(side)}
+                    active={phase === "playing" && turn === topSide}
+                    thinking={thinking && turn === topSide}
+                    clockMs={tc.base ? clock[topSide] : undefined}
+                    accent={topSide === 1 ? "red" : "lime"}
+                    extra={capturedRow(topSide)}
                   />
                 );
-              })}
+              })()}
             </div>
           )}
+
           {phase === "setup" ? (
-            <div className="panel space-y-4 p-5">
-              <h2 className="font-display text-xl font-extrabold">Thiết lập ván</h2>
+            <div className="panel space-y-3.5 p-4 flex-1 overflow-y-auto no-scrollbar">
+              <h2 className="font-display text-lg font-extrabold">Thiết lập ván</h2>
               <div>
                 <span className="label">Chế độ</span>
                 <Segmented value={settings.mode} onChange={(v) => update({ mode: v })} options={[{ value: "ai", label: "Đấu Engine" }, { value: "local", label: "2 người 1 máy" }]} />
@@ -539,16 +549,16 @@ export function XiangqiGame() {
                 <>
                   <div>
                     <span className="label">Độ khó</span>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5">
                       {(Object.keys(XQ_LEVELS) as XqLevel[]).map((k) => (
                         <button
                           key={k}
                           type="button"
                           onClick={() => update({ level: k })}
-                          className={cn("rounded-2xl border p-3 text-left transition-colors", settings.level === k ? "border-lime-400 bg-lime-400/10" : "border-white/[0.07] bg-white/[0.02] hover:border-white/20")}
+                          className={cn("rounded-xl border p-2.5 text-left transition-colors", settings.level === k ? "border-lime-400 bg-lime-400/10" : "border-white/[0.07] bg-white/[0.02] hover:border-white/20")}
                         >
-                          <p className="text-sm font-bold">{XQ_LEVELS[k].label}</p>
-                          <p className="font-mono text-[11px] text-ink-400">~{XQ_LEVELS[k].elo} ELO</p>
+                          <p className="text-xs font-bold">{XQ_LEVELS[k].label}</p>
+                          <p className="font-mono text-[10px] text-ink-400">~{XQ_LEVELS[k].elo} ELO</p>
                         </button>
                       ))}
                     </div>
@@ -559,7 +569,7 @@ export function XiangqiGame() {
                       value={settings.color}
                       onChange={(v) => update({ color: v })}
                       options={[
-                        { value: 1 as Side | 0, label: "🔴 Đỏ (đi trước)" },
+                        { value: 1 as Side | 0, label: "🔴 Đỏ" },
                         { value: 0 as Side | 0, label: "🎲" },
                         { value: -1 as Side | 0, label: "⚫ Đen" },
                       ]}
@@ -569,16 +579,16 @@ export function XiangqiGame() {
               )}
               <div>
                 <span className="label">Thời gian</span>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-1.5">
                   {TIME_CONTROLS.map((t) => (
                     <button
                       key={t.id}
                       type="button"
                       onClick={() => update({ time: t.id })}
-                      className={cn("rounded-2xl border px-2 py-2.5 text-center", settings.time === t.id ? "border-lime-400 bg-lime-400/10" : "border-white/[0.07] bg-white/[0.02] hover:border-white/20")}
+                      className={cn("rounded-xl border px-2 py-2 text-center", settings.time === t.id ? "border-lime-400 bg-lime-400/10" : "border-white/[0.07] bg-white/[0.02] hover:border-white/20")}
                     >
-                      <p className="font-mono text-sm font-bold">{t.label}</p>
-                      <p className="text-[10px] text-ink-400">{t.kind}</p>
+                      <p className="font-mono text-xs font-bold">{t.label}</p>
+                      <p className="text-[9px] text-ink-400">{t.kind}</p>
                     </button>
                   ))}
                 </div>
@@ -588,7 +598,6 @@ export function XiangqiGame() {
                   <div>
                     <span className="label">Loại ván</span>
                     <Segmented value={settings.ranked ? "r" : "t"} onChange={(v) => update({ ranked: v === "r" })} options={[{ value: "r", label: "Xếp hạng" }, { value: "t", label: "Tập luyện" }]} />
-                    <p className="mt-1.5 text-[11px] text-ink-400">{settings.ranked ? "Tính ELO & Lúa · không gợi ý / đi lại." : "Không tính ELO · có 3 gợi ý và 3 lần đi lại."}</p>
                   </div>
                   {settings.ranked && <StakePicker value={stake} onChange={setStake} />}
                 </>
@@ -597,39 +606,65 @@ export function XiangqiGame() {
                 <span className="label">Bàn cờ</span>
                 <Segmented value={THEMES[settings.theme] ? settings.theme : "wood"} onChange={(v) => update({ theme: v })} size="sm" options={(Object.keys(THEMES) as ThemeId[]).map((k) => ({ value: k, label: THEMES[k].name }))} />
               </div>
-              <button type="button" onClick={start} className="btn-lime w-full py-3">
+              <button type="button" onClick={start} className="btn-lime w-full py-2.5 font-bold">
                 <Play className="size-4" /> Bắt đầu
               </button>
             </div>
           ) : (
-            <div className="panel space-y-3 p-4">
-              {phase === "over" && (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-center">
-                  <p className="font-display text-lg font-extrabold">Ván đã kết thúc</p>
-                  <p className="text-xs text-ink-300">{overReason}</p>
+            <div className="flex-1 min-h-0 flex flex-col gap-2.5 overflow-hidden">
+              <div className="panel shrink-0 space-y-2.5 p-3">
+                {phase === "over" && (
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2 text-center">
+                    <p className="font-display text-sm font-extrabold">Ván đã kết thúc</p>
+                    <p className="text-[11px] text-ink-300">{overReason}</p>
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-1.5">
+                  <Act label="Cầu hoà" icon={<Handshake className="size-3.5" />} onClick={offerDraw} disabled={phase !== "playing"} />
+                  <Act label={`Đi lại ${rated ? "" : takebacksLeft}`} icon={<Undo2 className="size-3.5" />} onClick={takeback} disabled={rated || phase !== "playing" || takebacksLeft <= 0 || !moves.length} />
+                  <Act label={`Gợi ý ${rated ? "" : hintsLeft}`} icon={<Lightbulb className="size-3.5" />} onClick={askHint} disabled={rated || !humanTurn || hintsLeft <= 0} />
+                  <Act label="Xoay bàn" icon={<Repeat className="size-3.5" />} onClick={() => setFlipped((f) => !f)} />
+                  <Act label="Ván mới" icon={<RotateCcw className="size-3.5" />} onClick={() => (phase === "playing" ? setConfirm("new") : backToSetup())} />
                 </div>
-              )}
-              <div className="grid grid-cols-3 gap-2">
-                <Act label="Cầu hoà" icon={<Handshake className="size-4" />} onClick={offerDraw} disabled={phase !== "playing"} />
-                <Act label={`Đi lại ${rated ? "" : takebacksLeft}`} icon={<Undo2 className="size-4" />} onClick={takeback} disabled={rated || phase !== "playing" || takebacksLeft <= 0 || !moves.length} />
-                <Act label={`Gợi ý ${rated ? "" : hintsLeft}`} icon={<Lightbulb className="size-4" />} onClick={askHint} disabled={rated || !humanTurn || hintsLeft <= 0} />
-                <Act label="Xoay bàn" icon={<Repeat className="size-4" />} onClick={() => setFlipped((f) => !f)} />
-                <Act label="Ván mới" icon={<RotateCcw className="size-4" />} onClick={() => (phase === "playing" ? setConfirm("new") : backToSetup())} />
+                {phase === "playing" && (
+                  <HoldButton className="w-full text-xs" variant="red" holdingLabel="Giữ để xác nhận…" completeLabel="Đã xin thua" onHoldComplete={resign}>
+                    Giữ để xin thua
+                  </HoldButton>
+                )}
               </div>
-              {phase === "playing" && (
-                <HoldButton className="w-full" variant="red" holdingLabel="Giữ để xác nhận…" completeLabel="Đã xin thua" onHoldComplete={resign}>
-                  Giữ để xin thua
-                </HoldButton>
-              )}
+
+              <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-2">
+                <XqMoveList moves={moves} viewPly={viewPly} onView={setViewPly} total={boards.length - 1} />
+                <div className="panel shrink-0 p-3 text-[11px] leading-relaxed text-ink-300">
+                  <p className="mb-1 font-bold text-ink-100">Cách đọc ký hiệu</p>
+                  <p>
+                    <b className="text-white">P2-5</b>: Pháo bình · <b className="text-white">M8.7</b>: Mã tiến · <b className="text-white">X1/2</b>: Xe thoái. Cột đếm từ phải→trái.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
-          <XqMoveList moves={moves} viewPly={viewPly} onView={setViewPly} total={boards.length - 1} />
-          <div className="panel p-4 text-xs leading-relaxed text-ink-300">
-            <p className="mb-1 font-bold text-ink-100">Cách đọc ký hiệu</p>
-            <p>
-              <b className="text-white">P2-5</b>: Pháo cột 2 bình sang cột 5 · <b className="text-white">M8.7</b>: Mã cột 8 tiến tới cột 7 · <b className="text-white">X1/2</b>: Xe cột 1 thoái 2 bước. Cột đếm từ phải sang trái của mỗi bên.
-            </p>
-          </div>
+
+          {phase !== "setup" && (
+            <div className="hidden lg:block shrink-0">
+              {(() => {
+                const pl = playerFor(bottomSide);
+                return (
+                  <PlayerCard
+                    name={pl.name}
+                    avatar={pl.avatar}
+                    rating={pl.rating}
+                    active={phase === "playing" && turn === bottomSide}
+                    thinking={thinking && turn === bottomSide}
+                    clockMs={tc.base ? clock[bottomSide] : undefined}
+                    accent={bottomSide === 1 ? "red" : "lime"}
+                    extra={capturedRow(bottomSide)}
+                  />
+                );
+              })()}
+            </div>
+          )}
+
           {toastNode}
         </aside>
       </div>
@@ -719,8 +754,14 @@ const XqBoard = memo(function XqBoard({
   };
 
   return (
-    <div className="relative aspect-[10/11] w-full select-none overflow-hidden rounded-md ring-1 ring-black/30" style={{ background: theme.board }}>
+    <div className="relative aspect-[9/10] h-full w-full select-none overflow-hidden rounded-xl ring-2 ring-black/40 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.85)]" style={{ background: theme.board }}>
       <svg viewBox="-1 -1.05 10 11.1" className="absolute inset-0 h-full w-full" role="grid" aria-label="Bàn cờ tướng" shapeRendering="geometricPrecision">
+        <defs>
+          <radialGradient id="piece-shine" cx="38%" cy="28%" r="55%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.45)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+          </radialGradient>
+        </defs>
         {/* Frame */}
         <rect x="-0.18" y="-0.18" width="8.36" height="9.36" fill="none" stroke={theme.frame} strokeWidth="0.07" />
         <g stroke={L} strokeWidth="0.028" fill="none" strokeLinecap="square">
@@ -765,10 +806,10 @@ const XqBoard = memo(function XqBoard({
           ))}
         </g>
 
-        {/* Last move: corner brackets on both points */}
+        {/* Last move: golden corner brackets */}
         {lastMove && [lastMove.from, lastMove.to].map((sq, i) => {
           const { x, y } = pt(sq);
-          return corner(x, y, "#2563eb", `lm${i}`);
+          return corner(x, y, "#f59e0b", `lm${i}`);
         })}
 
         {/* Pieces + hit targets */}
@@ -780,33 +821,41 @@ const XqBoard = memo(function XqBoard({
           const red = v > 0;
           const t = Math.abs(v);
           const ring = red ? "#b91c1c" : "#18181b";
+          const ringHL = red ? "#dc2626" : "#27272a";
           return (
             <g key={sq} onClick={() => onSquare(sq)} style={{ cursor: "pointer" }} role="gridcell" aria-label={v ? `${red ? "Đỏ" : "Đen"} ${(red ? CHAR_RED : CHAR_BLACK)[t]}` : undefined}>
               <rect x={x - 0.5} y={y - 0.5} width="1" height="1" fill="transparent" />
               {v !== 0 && (
                 <g transform={`translate(${x} ${y})`}>
-                  <circle r="0.45" fill="rgba(0,0,0,0.28)" cy="0.035" />
-                  <circle r="0.44" fill="#f7ead0" stroke={isSel ? "#2563eb" : ring} strokeWidth={isSel ? 0.07 : 0.045} />
-                  <circle r="0.355" fill="none" stroke={ring} strokeWidth="0.022" />
+                  {/* Drop shadow */}
+                  <circle r="0.44" fill="rgba(0,0,0,0.35)" cy="0.045" />
+                  {/* Base disc — ivory for both sides, richer gradient feel */}
+                  <circle r="0.435" fill={red ? "#fdf3e3" : "#f5e6cc"} stroke={isSel ? "#3b82f6" : ring} strokeWidth={isSel ? 0.075 : 0.048} />
+                  {/* Inner ring */}
+                  <circle r="0.348" fill="none" stroke={isSel ? "#3b82f6" : ringHL} strokeWidth="0.025" />
+                  {/* Slight radial highlight */}
+                  <circle r="0.38" fill="url(#piece-shine)" />
                   <text
                     y="0.02"
                     textAnchor="middle"
                     dominantBaseline="central"
                     fontFamily={PIECE_FONT}
-                    fontSize="0.5"
-                    fontWeight="700"
-                    fill={ring}
+                    fontSize="0.51"
+                    fontWeight="800"
+                    fill={red ? "#9b1c1c" : "#111827"}
+                    style={{ textShadow: "none" }}
                   >
                     {(red ? CHAR_RED : CHAR_BLACK)[t]}
                   </text>
-                  {checkSq === sq && t === GENERAL && <circle r="0.48" fill="none" stroke="#ef4444" strokeWidth="0.06" className="animate-pulse" />}
+                  {checkSq === sq && t === GENERAL && <circle r="0.48" fill="none" stroke="#ef4444" strokeWidth="0.07" className="animate-pulse" />}
+                  {isSel && <circle r="0.43" fill="none" stroke="#60a5fa" strokeWidth="0.04" opacity="0.8" />}
                 </g>
               )}
               {isTarget &&
                 (v ? (
-                  <circle cx={x} cy={y} r="0.47" fill="none" stroke="#2563eb" strokeWidth="0.06" />
+                  <circle cx={x} cy={y} r="0.46" fill="none" stroke="#3b82f6" strokeWidth="0.065" opacity="0.9" />
                 ) : (
-                  <circle cx={x} cy={y} r="0.11" fill="#2563eb" />
+                  <circle cx={x} cy={y} r="0.13" fill="#3b82f6" opacity="0.85" />
                 ))}
             </g>
           );
@@ -854,25 +903,25 @@ function XqMoveList({ moves, viewPly, onView, total }: { moves: PlayedMove[]; vi
   }, [cur]);
   const rows = Math.ceil(moves.length / 2);
   return (
-    <div className="panel p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-display text-sm font-bold">Biên bản · {moves.length} nước</h3>
+    <div className="panel p-3 flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="mb-2 flex items-center justify-between shrink-0">
+        <h3 className="font-display text-xs font-bold">Biên bản · {moves.length} nước</h3>
         <div className="flex gap-1">
           {[
-            { l: "Đầu ván", i: <ChevronFirst className="size-4" />, f: () => onView(0) },
-            { l: "Lùi", i: <ChevronLeft className="size-4" />, f: () => onView(Math.max(0, cur - 1)) },
-            { l: "Tiến", i: <ChevronRight className="size-4" />, f: () => onView(cur + 1 >= total ? null : cur + 1) },
-            { l: "Hiện tại", i: <ChevronLast className="size-4" />, f: () => onView(null) },
+            { l: "Đầu ván", i: <ChevronFirst className="size-3.5" />, f: () => onView(0) },
+            { l: "Lùi", i: <ChevronLeft className="size-3.5" />, f: () => onView(Math.max(0, cur - 1)) },
+            { l: "Tiến", i: <ChevronRight className="size-3.5" />, f: () => onView(cur + 1 >= total ? null : cur + 1) },
+            { l: "Hiện tại", i: <ChevronLast className="size-3.5" />, f: () => onView(null) },
           ].map((b) => (
-            <button key={b.l} type="button" onClick={b.f} aria-label={b.l} title={b.l} className="grid size-8 place-items-center rounded-lg bg-white/[0.04] text-ink-200 hover:bg-white/[0.1]">
+            <button key={b.l} type="button" onClick={b.f} aria-label={b.l} title={b.l} className="grid size-7 place-items-center rounded-lg bg-white/[0.04] text-ink-200 hover:bg-white/[0.1]">
               {b.i}
             </button>
           ))}
         </div>
       </div>
-      <div ref={box} className="h-52 overflow-y-auto rounded-xl bg-black/25 p-1.5 font-mono text-[13px]">
+      <div ref={box} className="flex-1 min-h-[100px] no-scrollbar overflow-y-auto rounded-xl bg-black/25 p-1.5 font-mono text-xs">
         {moves.length === 0 ? (
-          <p className="pt-16 text-center text-xs text-ink-500">Đỏ đi trước. Phím ← → để xem lại.</p>
+          <p className="pt-8 text-center text-[11px] text-ink-500">Đỏ đi trước. Phím ← → để xem lại.</p>
         ) : (
           Array.from({ length: rows }, (_, i) => (
             <div key={i} className="grid grid-cols-[2.2rem_1fr_1fr] items-center">

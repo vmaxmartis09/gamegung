@@ -131,7 +131,14 @@ export function ArcadeGame() {
 
   const sfx = useCallback((k: "slash" | "hit" | "coin" | "hurt" | "level" | "boss") => {
     if (!soundRef.current) return;
-    ({ slash: () => soundManager.playPieceDrop(), hit: () => soundManager.playCapture(), coin: () => soundManager.playCoin(), hurt: () => soundManager.playCheck(), level: () => soundManager.playTurn(), boss: () => soundManager.playNightAmbient() })[k]();
+    ({
+      slash: () => soundManager.playCyberSlash(),
+      hit: () => soundManager.playCyberHit(),
+      coin: () => soundManager.playCoin(),
+      hurt: () => soundManager.playDefeat(),
+      level: () => soundManager.playVictory(),
+      boss: () => soundManager.playCyberBoss(),
+    })[k]();
   }, []);
 
   /* ------------------------------ Canvas size ------------------------------ */
@@ -693,7 +700,7 @@ export function ArcadeGame() {
         ) : null}
       </GameHeader>
 
-      <div className="mx-auto w-full max-w-[min(100%,calc((100vh-11rem)*1.6))]">
+      <div className="mx-auto w-full max-w-[min(100%,calc((100dvh-8.5rem)*1.6))]">
         <div
           ref={wrapRef}
           className="relative aspect-[16/10] w-full touch-none select-none overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0e]"

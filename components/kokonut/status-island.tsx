@@ -98,7 +98,7 @@ function TaskIcon({ task }: { task: IslandTask }) {
     return (
       <svg
         aria-hidden="true"
-        className="size-4 shrink-0 text-lime-400"
+        className="size-4 shrink-0 text-white"
         fill="none"
         viewBox="0 0 16 16"
       >
@@ -176,7 +176,7 @@ function TaskTrailing({ task }: { task: IslandTask }) {
     const { label, onClick } = task.action;
     return (
       <button
-        className="-my-1 shrink-0 rounded-full bg-lime-400 px-2.5 py-1 font-bold text-black text-xs transition-colors duration-150 hover:bg-lime-300 focus-visible:outline-2 focus-visible:outline-white/60"
+        className="-my-1 shrink-0 rounded-full bg-white px-2.5 py-1 font-bold text-black text-xs transition-colors duration-150 hover:bg-neutral-200 focus-visible:outline-2 focus-visible:outline-white/60"
         onClick={(event) => {
           event.stopPropagation();
           onClick();
@@ -437,7 +437,7 @@ export function StatusIsland({
 function TaskTrailingInert({ task }: { task: IslandTask }) {
   if (task.action) {
     return (
-      <span className="-my-1 inline-block rounded-full bg-lime-400 px-2.5 py-1 font-bold text-black text-xs">
+      <span className="-my-1 inline-block rounded-full bg-white px-2.5 py-1 font-bold text-black text-xs">
         {task.action.label}
       </span>
     );

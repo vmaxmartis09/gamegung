@@ -387,7 +387,7 @@ export function DeadlineGame() {
       </GameHeader>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="panel relative flex min-h-[calc(100vh-11rem)] flex-col justify-between overflow-hidden p-4 sm:p-6">
+        <div className="panel relative flex min-h-[min(calc(100dvh-8.5rem),720px)] flex-col justify-between overflow-hidden p-4 sm:p-6">
           {/* Opponents */}
           <div className="flex flex-wrap justify-center gap-3 sm:gap-6">
             {opponents.map((p, i) => {
@@ -576,7 +576,7 @@ export function DeadlineGame() {
           </div>
           <div className="panel p-4">
             <p className="mb-2 text-xs font-bold uppercase tracking-widest text-ink-400">Diễn biến</p>
-            <div className="max-h-[42vh] space-y-1 overflow-y-auto text-[12px] text-ink-300">
+            <div className="max-h-[42vh] space-y-1 no-scrollbar overflow-y-auto text-[12px] text-ink-300">
               {[...s.log].reverse().map((l, i) => (
                 <p key={i} className={i === 0 ? "text-white" : ""}>
                   {l}

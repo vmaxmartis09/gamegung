@@ -4,7 +4,19 @@ import { useEffect, useRef } from "react";
 import { animate, useInView, useReducedMotion } from "framer-motion";
 
 /** Counts up to `value` once visible (React Bits Count Up). */
-export function CountUp({ value, duration = 1.1, locale = "vi-VN", className }: { value: number; duration?: number; locale?: string; className?: string }) {
+export function CountUp({
+  to,
+  value = to ?? 0,
+  duration = 1.1,
+  locale = "vi-VN",
+  className,
+}: {
+  to?: number;
+  value?: number;
+  duration?: number;
+  locale?: string;
+  className?: string;
+}) {
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true });
   const reduce = useReducedMotion();

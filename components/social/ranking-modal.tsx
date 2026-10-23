@@ -503,7 +503,7 @@ export function RankingModal({
                                 {badge.icon}
                               </span>
                               {isUnlocked ? (
-                                <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-500/30">
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-white/15 text-white border border-white/30">
                                   ĐÃ MỞ KHÓA
                                 </span>
                               ) : (

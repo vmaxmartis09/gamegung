@@ -112,7 +112,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                       Số dư, điểm danh và lịch sử giao dịch
                     </p>
                     {isSupabaseConfigured && (
-                      <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/30">
+                      <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/10 text-white border border-white/20">
                         <Database className="w-2.5 h-2.5" /> Supabase Trigger
                       </span>
                     )}
@@ -138,14 +138,14 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                   className={cn(
                     "p-3 rounded-xl my-2 text-xs flex items-center gap-2 border font-mono",
                     notification.type === "success"
-                      ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
-                      : "bg-rose-950/60 border-rose-500/40 text-rose-300"
+                      ? "bg-white/10 border-white/30 text-white"
+                      : "bg-neutral-900 border-neutral-700 text-neutral-300"
                   )}
                 >
                   {notification.type === "success" ? (
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-white" />
                   ) : (
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    <AlertCircle className="w-4 h-4 shrink-0 text-neutral-400" />
                   )}
                   <span>{notification.text}</span>
                 </motion.div>
@@ -293,8 +293,8 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                             className={cn(
                               "w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0",
                               isPositive
-                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                                : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                ? "bg-white/10 text-white border border-white/20"
+                                : "bg-neutral-800 text-neutral-400 border border-neutral-700"
                             )}
                           >
                             {isPositive ? (
@@ -320,7 +320,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                           <span
                             className={cn(
                               "font-mono font-bold text-xs",
-                              isPositive ? "text-emerald-400" : "text-rose-400"
+                              isPositive ? "text-white" : "text-neutral-400"
                             )}
                           >
                             {isPositive ? `+${tx.amount}` : tx.amount} 🌾

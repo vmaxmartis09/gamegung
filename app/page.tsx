@@ -4,63 +4,33 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useShallow } from "zustand/react/shallow";
-import { ArrowUpRight, BookOpen, Clock, Coins, Gift, Users, X } from "lucide-react";
+import { ArrowUpRight, BookOpen, Clock, Trophy, Users, X } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { usePresenceStore, sortPeers } from "@/lib/presence";
 import { useUiStore } from "@/lib/ui-store";
 import { useSessionStore, sessionsFor } from "@/lib/session-store";
 import { GameCover, GameIcon, GAMES, GAME_BY_ID, GameMeta } from "@/components/art/game-art";
-import { UserAvatar, STATUS_META } from "@/components/ui/user-avatar";
 import { StatusIsland, type IslandTask } from "@/components/kokonut/status-island";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
-const DAY_MS = 24 * 3600 * 1000;
-
-function greetingFor(hour: number) {
-  if (hour < 5) return "Chào buổi khuya";
-  if (hour < 11) return "Chào buổi sáng";
-  if (hour < 14) return "Chào buổi trưa";
-  if (hour < 18) return "Chào buổi chiều";
-  return "Chào buổi tối";
-}
+import { TextReveal3D, CountUp, BorderBeam } from "@/components/reactbits";
 
 export default function HomePage() {
   const router = useRouter();
-  const user = useAppStore(
-    useShallow((s) => ({
-      id: s.currentUser.id,
-      username: s.currentUser.username,
-      avatar: s.currentUser.avatar,
-      lua: s.currentUser.lua,
-      lastDailyClaim: s.currentUser.lastDailyClaim,
-      stats: s.currentUser.stats,
-    }))
-  );
-  const myStatus = usePresenceStore((s) => s.myStatus);
+  const currentUserId = useAppStore((s) => s.currentUser.id);
   const peers = usePresenceStore((s) => s.peers);
   const peerList = useMemo(() => sortPeers(Object.values(peers)), [peers]);
   const open = useUiStore((s) => s.open);
-  const claimDailyBonus = useAppStore((s) => s.claimDailyBonus);
   const rawSessions = useSessionStore((s) => s.sessions);
   const clearSession = useSessionStore((s) => s.clear);
-  const [claimMsg, setClaimMsg] = useState<string | null>(null);
-  // Resolved after mount so server and client markup agree.
-  const [greeting, setGreeting] = useState("Xin chào");
-  useEffect(() => setGreeting(greetingFor(new Date().getHours())), []);
 
-  const canClaim = !user.lastDailyClaim || Date.now() - user.lastDailyClaim > DAY_MS;
-  const totalGames = Object.values(user.stats).reduce((a, s) => a + (s?.games ?? 0), 0);
-  const totalWins = Object.values(user.stats).reduce((a, s) => a + (s?.wins ?? 0), 0);
-  const winRate = totalGames > 0 ? `${Math.round((totalWins / totalGames) * 100)}%` : "—";
   const playing = (label: string) => peerList.filter((p) => p.status === "in-game" && p.currentGame === label).length;
   const inMatch = peerList.filter((p) => p.status === "in-game").length;
 
   const tasks: IslandTask[] = useMemo(
     () =>
-      sessionsFor(user.id, rawSessions)
+      sessionsFor(currentUserId, rawSessions)
         .sort((a, b) => a.savedAt - b.savedAt)
         .map((s) => ({
           id: s.game,
@@ -71,7 +41,7 @@ export default function HomePage() {
           icon: <GameIcon game={s.game} className="size-7" />,
           action: { label: "Chơi tiếp", onClick: () => router.push(GAME_BY_ID[s.game].href) },
         })),
-    [rawSessions, user.id, router]
+    [rawSessions, currentUserId, router]
   );
 
   return (
@@ -85,46 +55,65 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Welcome + figures */}
-      <section className="flex flex-col gap-6 border-b border-white/[0.075] pb-8 pt-2 md:flex-row md:items-end md:justify-between">
-        <div className="flex items-center gap-4">
-          <UserAvatar src={user.avatar} name={user.username} status={myStatus} className="size-14" />
-          <div className="min-w-0">
-            <p className="eyebrow">{greeting}</p>
-            <h1 className="truncate font-display text-display-md font-medium sm:text-display-lg">
-              <span className="italic text-accent-300">{user.username}</span>
-            </h1>
-            <p className="mt-1 flex items-center gap-2 text-sm text-ink-300">
-              <span className={cn("size-1.5 rounded-full", STATUS_META[myStatus].dot)} aria-hidden />
-              {STATUS_META[myStatus].label}
-              {inMatch > 0 && <span className="text-ink-400">· {inMatch} người đang trong ván</span>}
-            </p>
+      {/* Luxury Editorial Arena Header - Clean & Monochrome */}
+      <section className="flex flex-col gap-6 border-b border-white/[0.08] pb-8 pt-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1 text-[11px] font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
+            <span className="size-1.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)] shrink-0" />
+            <TextReveal3D
+              items={[
+                "Office Arena · Private Lounge",
+                "Typing Battle · Esports Realtime",
+                "Cờ Vua & Cờ Tướng · Chuẩn Quốc Tế",
+                "Ma Sói & Uno · Đấu Trí Đỉnh Cao",
+              ]}
+              interval={3200}
+              cylinderRadius={20}
+              className="h-4 w-72"
+              itemClassName="text-[11px] font-mono tracking-[0.16em] text-neutral-300"
+            />
           </div>
+          <h1 className="font-display text-3xl font-light tracking-tight text-white sm:text-4xl lg:text-5xl">
+            Đấu Trường <span className="italic font-normal text-white">Nghỉ Trưa</span>
+          </h1>
+          <p className="mt-2 text-sm text-neutral-400 max-w-xl leading-relaxed">
+            Không gian thi đấu trí tuệ và giải trí văn phòng chuẩn quốc tế. Cờ vua, cờ tướng, ma sói và các môn giải trí đối kháng realtime.
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-stretch gap-3">
-          <div className="panel flex divide-x divide-white/[0.075]">
-            <FigureButton label="Credit" value={user.lua.toLocaleString("vi-VN")} icon={<Coins className="size-3.5" />} aria="Mở ví Credit" onClick={() => open("wallet")} />
-            <FigureButton label="Thắng / Trận" value={`${totalWins} / ${totalGames}`} aria="Mở hồ sơ" onClick={() => open("profile")} />
-            <FigureButton label="Tỉ lệ thắng" value={winRate} aria="Mở hồ sơ" onClick={() => open("profile")} />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="panel flex divide-x divide-white/[0.08] bg-black/60 border border-white/10">
+            <div className="flex min-w-[6.5rem] flex-col gap-1 px-4 py-3 text-left">
+              <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-neutral-400">Danh mục</span>
+              <span className="num text-xl font-medium text-white">
+                <CountUp value={GAMES.length} duration={1} /> môn
+              </span>
+            </div>
+            <div className="flex min-w-[6.5rem] flex-col gap-1 px-4 py-3 text-left">
+              <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-neutral-400">Trực tuyến</span>
+              <span className="num text-xl font-medium text-white">
+                <CountUp value={peerList.length + 1} duration={1.2} /> người
+              </span>
+            </div>
+            {inMatch > 0 && (
+              <div className="flex min-w-[6.5rem] flex-col gap-1 px-4 py-3 text-left">
+                <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-neutral-400">Đang đấu</span>
+                <span className="num text-xl font-medium text-white">
+                  <CountUp value={inMatch} duration={1} /> bàn
+                </span>
+              </div>
+            )}
           </div>
-          {canClaim && (
-            <Button
-              variant="primary"
-              className="self-stretch px-5"
-              onClick={() => {
-                const r = claimDailyBonus();
-                setClaimMsg(r.success ? `+${r.amount.toLocaleString("vi-VN")} Credit` : r.message);
-              }}
-            >
-              <Gift className="size-4" /> Nhận thưởng ngày
-            </Button>
-          )}
+          <button
+            type="button"
+            onClick={() => open("ranking")}
+            className="group relative btn border border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.1] hover:border-white/30 text-xs px-4 py-3 rounded-2xl flex items-center gap-2 self-stretch overflow-hidden shadow-lg transition-all"
+          >
+            <BorderBeam size={90} duration={8} colorFrom="#ffffff" colorTo="transparent" />
+            <Trophy className="size-4 text-amber-300" /> Xếp hạng
+          </button>
         </div>
       </section>
-      <p role="status" aria-live="polite" className={cn("pt-3 text-sm text-accent-300", !claimMsg && "sr-only")}>
-        {claimMsg}
-      </p>
 
       {/* Games */}
       <section className="pt-8">
@@ -147,23 +136,6 @@ export default function HomePage() {
         </div>
       </section>
     </div>
-  );
-}
-
-function FigureButton({ label, value, icon, aria, onClick }: { label: string; value: string; icon?: React.ReactNode; aria: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`${label}: ${value}. ${aria}`}
-      className="flex min-w-[7.5rem] flex-col gap-1.5 px-5 py-3.5 text-left transition-colors first:rounded-l-2xl last:rounded-r-2xl hover:bg-white/[0.04]"
-    >
-      <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink-400">
-        {icon}
-        {label}
-      </span>
-      <span className="num text-2xl font-medium leading-none text-ink-100">{value}</span>
-    </button>
   );
 }
 
@@ -191,6 +163,9 @@ function GameCard({
       )}
       style={{ animationDelay: `${index * 60}ms` }}
     >
+      {featured && (
+        <BorderBeam size={280} duration={12} colorFrom="#38bdf8" colorTo="transparent" />
+      )}
       <div className={cn("relative overflow-hidden", featured ? "aspect-[16/7]" : "aspect-[16/10]")}>
         {/* Interim toning until the covers are redrawn (Phase 3) */}
         <GameCover game={game.id} className="saturate-[0.45] brightness-[0.8] transition duration-500 ease-lounge group-hover:scale-[1.03] group-hover:saturate-[0.6]" />

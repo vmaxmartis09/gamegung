@@ -213,7 +213,7 @@ function RecoveryDialog() {
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 p-4">
       <form onSubmit={save} className="panel w-full max-w-sm p-6">
-        <div className="mb-4 grid size-12 place-items-center rounded-2xl bg-lime-400 text-black">
+        <div className="mb-4 grid size-12 place-items-center rounded-2xl bg-white text-black">
           <KeyRound className="size-6" />
         </div>
         <h2 className="font-display text-xl font-extrabold">Đặt mật khẩu mới</h2>

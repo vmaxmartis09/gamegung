@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Play, RotateCcw } from "lucide-react";
+import { Crosshair, Play, RotateCcw, Shield, Sparkles, Swords, Trophy, Zap } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/lib/store";
 import { soundManager } from "@/lib/audio";
@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { ChibiAvatar } from "@/components/character/chibi-avatar";
 import {
-  CardFrame,
   FUSIONS,
   FusionDef,
   HAND_HOLD,
@@ -18,6 +17,7 @@ import {
   ItemType,
   LEFT_KEYS,
   RIGHT_KEYS,
+  findFusion,
 } from "@/lib/games/typing-battle-data";
 import {
   Banner,
@@ -25,9 +25,9 @@ import {
   Game,
   Hooks,
   Item,
+  LANES,
   H,
   Mode,
-  SLOTS,
   W,
   createGame,
   keyOf,
@@ -37,135 +37,455 @@ import {
 } from "@/lib/games/typing-battle-engine";
 import { MatchResultModal } from "./match-result-modal";
 import { GameHeader, Segmented, StakePicker, useMatchSettlement } from "./shared";
+import type { AsciiRippleRef } from "@/components/reactbits";
 
-const P_COL = ["#3ad0ff", "#ff4f88"] as const;
+/* --------------------------------- Hằng số --------------------------------- */
+
+const P_COL = ["#38bdf8", "#f43f5e"] as const;
+const P_GLOW = ["rgba(56,189,248,0.45)", "rgba(244,63,94,0.45)"] as const;
 const BOTS = [
-  { name: "Linh HR", seed: "linh hr:1" },
-  { name: "Tuấn Dev", seed: "tuan dev:2" },
-  { name: "Sếp Tổng", seed: "sep tong:3" },
+  { name: "Linh HR", seed: "linh hr:1", title: "Kỳ Thủ Văn Phòng" },
+  { name: "Tuấn Dev", seed: "tuan dev:2", title: "Kỹ Sư Bậc Thầy" },
+  { name: "Sếp Tổng", seed: "sep tong:3", title: "Đại Kiện Tướng" },
 ];
-const FS = 1.5; // độ phân giải canvas so với toạ độ logic
+const FS = 1.5;
 
 /* --------------------------------- Canvas --------------------------------- */
 
 function makeBackdrop() {
   const c = document.createElement("canvas");
-  c.width = W * FS; c.height = H * FS;
+  c.width = W * FS;
+  c.height = H * FS;
   const x = c.getContext("2d")!;
   x.scale(FS, FS);
-  let g: CanvasGradient = x.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "#03041a"); g.addColorStop(0.6, "#0a0d33"); g.addColorStop(1, "#150f3a");
-  x.fillStyle = g; x.fillRect(0, 0, W, H);
-  const blob = (bx: number, by: number, r: number, col: string) => {
-    const q = x.createRadialGradient(bx, by, 0, bx, by, r);
-    q.addColorStop(0, col); q.addColorStop(1, "rgba(0,0,0,0)");
-    x.fillStyle = q; x.fillRect(0, 0, W, H);
-  };
-  blob(300, 200, 420, "rgba(90,60,200,.28)"); blob(820, 380, 460, "rgba(200,60,160,.2)"); blob(560, 520, 380, "rgba(40,120,220,.18)");
-  const px = 560, py = 790, pr = 330;
-  g = x.createRadialGradient(px - 90, py - 120, 40, px, py, pr);
-  g.addColorStop(0, "#5a4fd0"); g.addColorStop(0.5, "#2a2a80"); g.addColorStop(1, "#0a0b2c");
-  x.fillStyle = g; x.beginPath(); x.arc(px, py, pr, 0, 6.283); x.fill();
-  x.strokeStyle = "rgba(150,170,255,.55)"; x.lineWidth = 3; x.shadowColor = "#7a8cff"; x.shadowBlur = 40;
-  x.beginPath(); x.arc(px, py, pr, Math.PI * 1.12, Math.PI * 1.88); x.stroke();
-  x.shadowBlur = 0;
-  x.strokeStyle = "rgba(120,140,255,.07)"; x.lineWidth = 1;
-  for (let i = -10; i <= 10; i++) { x.beginPath(); x.moveTo(W / 2 + i * 40, 440); x.lineTo(W / 2 + i * 160, H); x.stroke(); }
-  for (let i = 0; i < 8; i++) { const y = 440 + Math.pow(i / 7, 2) * 180; x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); }
+
+  // Nền tối sang trọng, chiều sâu cao cấp
+  const g = x.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#050813");
+  g.addColorStop(0.5, "#080d1e");
+  g.addColorStop(1, "#04060f");
+  x.fillStyle = g;
+  x.fillRect(0, 0, W, H);
+
+  // Vùng sáng trung tâm đấu trường
+  const centerGlow = x.createRadialGradient(W / 2, H / 2, 80, W / 2, H / 2, 520);
+  centerGlow.addColorStop(0, "rgba(30, 41, 59, 0.45)");
+  centerGlow.addColorStop(0.6, "rgba(15, 23, 42, 0.2)");
+  centerGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+  x.fillStyle = centerGlow;
+  x.fillRect(0, 0, W, H);
+
+  // Vành đấu trường trung tâm (vòng tròn đấu kỳ thủ)
+  x.save();
+  x.strokeStyle = "rgba(148, 163, 184, 0.05)";
+  x.lineWidth = 1.5;
+  x.beginPath();
+  x.arc(W / 2, H / 2 + 10, 240, 0, Math.PI * 2);
+  x.stroke();
+
+  x.strokeStyle = "rgba(148, 163, 184, 0.03)";
+  x.beginPath();
+  x.arc(W / 2, H / 2 + 10, 310, 0, Math.PI * 2);
+  x.stroke();
+
+  // Dải sân của 2 đấu thủ: đối thủ phía trên, bạn phía dưới
+  x.restore();
+  for (const [y0, col] of [[0, "244, 63, 94"], [H - 130, "56, 189, 248"]] as const) {
+    const bandGrad = x.createLinearGradient(0, y0, 0, y0 + 130);
+    const top = y0 === 0;
+    bandGrad.addColorStop(top ? 0 : 1, `rgba(${col}, 0.10)`);
+    bandGrad.addColorStop(top ? 1 : 0, "rgba(0,0,0,0)");
+    x.fillStyle = bandGrad;
+    x.fillRect(0, y0, W, 130);
+  }
+  x.strokeStyle = "rgba(148, 163, 184, 0.08)";
+  x.lineWidth = 1;
+  for (const y of [130, H - 130]) { x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); }
+
   return c;
 }
 
-interface Star { x: number; y: number; s: number; v: number; ph: number }
+interface Star {
+  x: number;
+  y: number;
+  s: number;
+  v: number;
+  ph: number;
+}
 const makeStars = (): Star[][] =>
-  [0, 1, 2].map((l) => Array.from({ length: 50 - l * 10 }, () => ({ x: Math.random() * W, y: Math.random() * H, s: 0.6 + l * 0.7, v: 6 + l * 16, ph: Math.random() * 6 })));
+  [0, 1].map((l) =>
+    Array.from({ length: 30 - l * 8 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      s: 0.6 + l * 0.5,
+      v: 8 + l * 12,
+      ph: Math.random() * 6,
+    }))
+  );
 
-function drawFx(ctx: CanvasRenderingContext2D, bg: HTMLCanvasElement, stars: Star[][], g: Game | null, clock: number) {
+function drawFx(
+  ctx: CanvasRenderingContext2D,
+  bg: HTMLCanvasElement,
+  stars: Star[][],
+  g: Game | null,
+  clock: number
+) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(bg, 0, 0);
   ctx.setTransform(FS, 0, 0, FS, 0, 0);
+
+  // Hạt bụi năng lượng nền
+  for (const L of stars) {
+    for (const s of L) {
+      ctx.fillStyle = `rgba(180, 200, 240, ${0.15 + 0.2 * Math.abs(Math.sin(clock * 1.2 + s.ph))})`;
+      ctx.fillRect(s.x, s.y, s.s, s.s);
+    }
+  }
+
+  // 3 Làn băng chuyền chạy ngang qua màn hình
   ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (const [x, col] of [[0, P_COL[0]], [W, P_COL[1]]] as const) {
-    const gr = ctx.createRadialGradient(x, 300, 0, x, 300, 520);
-    gr.addColorStop(0, col + "30"); gr.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+  for (const lane of LANES) {
+    const y = lane.y;
+    // Đường ray năng lượng chính
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.07)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+
+    // Vạch biên phát sáng nhẹ của làn
+    ctx.strokeStyle = lane.dir > 0 ? "rgba(56, 189, 248, 0.12)" : "rgba(244, 63, 94, 0.12)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([12, 28]);
+    ctx.lineDashOffset = -clock * 45 * lane.dir;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
   ctx.restore();
-  for (const L of stars) for (const s of L) {
-    ctx.fillStyle = `rgba(210,222,255,${0.35 + 0.4 * Math.abs(Math.sin(clock * 1.5 + s.ph))})`;
-    ctx.fillRect(s.x, s.y, s.s, s.s);
-  }
+
   if (!g) return;
+
   ctx.save();
-  if (g.shake > 0) ctx.translate((Math.random() - 0.5) * 18 * g.shake, (Math.random() - 0.5) * 18 * g.shake);
+  // Rung màn hình khi trúng đòn
+  if (g.shake > 0) {
+    ctx.translate((Math.random() - 0.5) * 12 * g.shake, (Math.random() - 0.5) * 12 * g.shake);
+  }
+
+  // Tia laser khoá mục tiêu (Target Lock Tether)
+  for (const f of g.fighters) {
+    if (f.lock && f.lock.state === "live") {
+      const it = f.lock;
+      const startX = f.x;
+      const startY = f.id === 0 ? f.y - 55 : f.y + 55;
+      const col = P_COL[f.id];
+
+      ctx.save();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.8;
+      ctx.shadowColor = col;
+      ctx.shadowBlur = 10;
+      ctx.globalAlpha = 0.65 + Math.sin(clock * 8) * 0.25;
+      ctx.setLineDash([8, 6]);
+      ctx.lineDashOffset = -clock * 70 * (f.id === 0 ? 1 : -1);
+
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(it.x, it.y);
+      ctx.stroke();
+
+      // Hạt năng lượng chạy dọc tia laser
+      const pulseK = (clock * 2.5) % 1;
+      const px = startX + (it.x - startX) * pulseK;
+      const py = startY + (it.y - startY) * pulseK;
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(px, py, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+  }
+
+  // Vòng sóng xung kích chấn động
   for (const r of g.rings) {
     const k = r.t / r.life;
-    ctx.globalAlpha = 1 - k; ctx.strokeStyle = r.col; ctx.lineWidth = 4 * (1 - k) + 1;
-    ctx.shadowColor = r.col; ctx.shadowBlur = 18;
-    ctx.beginPath(); ctx.arc(r.x, r.y, r.r + (r.max - r.r) * Math.sqrt(k), 0, 6.283); ctx.stroke();
+    ctx.globalAlpha = 1 - k;
+    ctx.strokeStyle = r.col;
+    ctx.lineWidth = 3 * (1 - k) + 1;
+    ctx.shadowColor = r.col;
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, r.r + (r.max - r.r) * Math.sqrt(k), 0, 6.283);
+    ctx.stroke();
   }
-  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+
+  // Tên lửa chiến thuật tốc độ cao
   for (const m of g.missiles) {
-    ctx.save(); ctx.translate(m.x, m.yy); if (m.dir < 0) ctx.scale(-1, 1);
-    const c = m.reflected ? "#d8a0ff" : m.big ? "#fff07a" : "#ffc860", k = m.big ? 1.5 : 1;
+    ctx.save();
+    ctx.translate(m.x + Math.sin(m.ph) * 5, m.yy);
+    ctx.rotate(m.dir * Math.PI / 2);
+
+    const c = m.reflected ? "#c084fc" : m.big ? "#fde047" : m.owner === 0 ? "#38bdf8" : "#f43f5e";
+    const k = m.big ? 1.4 : 1;
     ctx.scale(k, k);
-    ctx.globalCompositeOperation = "lighter";
-    const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, 38);
-    gr.addColorStop(0, c + "aa"); gr.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(0, 0, 38, 0, 6.283); ctx.fill();
-    const tr = ctx.createLinearGradient(-14, 0, -90, 0);
-    tr.addColorStop(0, c); tr.addColorStop(1, "rgba(255,100,30,0)");
-    ctx.fillStyle = tr; ctx.beginPath(); ctx.moveTo(-14, -4); ctx.lineTo(-90, 0); ctx.lineTo(-14, 4); ctx.fill();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = "#e8ecff"; ctx.beginPath(); ctx.moveTo(24, 0); ctx.quadraticCurveTo(10, -7, -12, -6); ctx.lineTo(-12, 6); ctx.quadraticCurveTo(10, 7, 24, 0); ctx.fill();
-    ctx.fillStyle = "#ff4a4a"; ctx.beginPath(); ctx.moveTo(24, 0); ctx.quadraticCurveTo(18, -4, 12, -5); ctx.lineTo(12, 5); ctx.quadraticCurveTo(18, 4, 24, 0); ctx.fill();
-    ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(-8, -6); ctx.lineTo(-18, -12); ctx.lineTo(-14, 0); ctx.lineTo(-18, 12); ctx.lineTo(-8, 6); ctx.fill();
+
+    // Đuôi lửa plasma vệt dài
+    const tr = ctx.createLinearGradient(-10, 0, -80, 0);
+    tr.addColorStop(0, c);
+    tr.addColorStop(0.5, c + "55");
+    tr.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = tr;
+    ctx.beginPath();
+    ctx.moveTo(-8, -3.5);
+    ctx.lineTo(-85, 0);
+    ctx.lineTo(-8, 3.5);
+    ctx.fill();
+
+    // Thân tên lửa động năng
+    ctx.fillStyle = "#f8fafc";
+    ctx.beginPath();
+    ctx.moveTo(22, 0);
+    ctx.quadraticCurveTo(8, -5, -12, -4);
+    ctx.lineTo(-12, 4);
+    ctx.quadraticCurveTo(8, 5, 22, 0);
+    ctx.fill();
+
+    // Mũi nhọn
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.moveTo(22, 0);
+    ctx.lineTo(12, -3);
+    ctx.lineTo(12, 3);
+    ctx.fill();
+
+    // Đốm sáng đầu mũi tên lửa
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(20, 0, 2, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
   }
+
+  // Hạt tia lửa năng lượng
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   for (const q of g.parts) {
-    ctx.globalAlpha = Math.max(0, q.life / q.max); ctx.fillStyle = q.col;
+    ctx.globalAlpha = Math.max(0, q.life / q.max);
+    ctx.fillStyle = q.col;
     const s = q.sz * (0.5 + q.life / q.max / 2);
     ctx.fillRect(q.x - s / 2, q.y - s / 2, s, s);
   }
   ctx.restore();
+
+  // Chữ nổi sát thương & thông báo kỹ năng
   ctx.globalAlpha = 1;
   for (const t of g.texts) {
-    const k = t.t / 1.3, pop = t.big ? 1 + Math.max(0, 0.5 - t.t * 3) : 1, size = t.big ? 28 : 20;
-    ctx.save(); ctx.globalAlpha = Math.max(0, 1 - k * k); ctx.translate(t.x, t.y); ctx.scale(pop, pop);
-    ctx.font = `900 ${size}px ui-sans-serif, system-ui, sans-serif`; ctx.textAlign = "center";
-    ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,.7)"; ctx.strokeText(t.txt, 0, 0);
-    ctx.fillStyle = t.col; ctx.shadowColor = t.col; ctx.shadowBlur = 14; ctx.fillText(t.txt, 0, 0);
+    const k = t.t / 1.3;
+    const pop = t.big ? 1 + Math.max(0, 0.4 - t.t * 2.8) : 1;
+    const size = t.big ? 24 : 17;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 1 - k * k);
+    ctx.translate(t.x, t.y);
+    ctx.scale(pop, pop);
+    ctx.font = `800 ${size}px var(--font-mono), ui-monospace, system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
+    ctx.strokeText(t.txt, 0, 0);
+    ctx.fillStyle = t.col;
+    ctx.shadowColor = t.col;
+    ctx.shadowBlur = 12;
+    ctx.fillText(t.txt, 0, 0);
     ctx.restore();
   }
   ctx.restore();
-  if (g.flashA > 0) { ctx.globalAlpha = g.flashA; ctx.fillStyle = g.flashC; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+
+  // Chớp sáng toàn màn hình khi va chạm mạnh
+  if (g.flashA > 0) {
+    ctx.globalAlpha = g.flashA;
+    ctx.fillStyle = g.flashC;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  // Viền bóng mờ điện ảnh quanh 4 góc
   const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, H * 0.95);
-  v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,10,.55)");
-  ctx.fillStyle = v; ctx.fillRect(-20, -20, W + 40, H + 40);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, "rgba(0, 0, 8, 0.65)");
+  ctx.fillStyle = v;
+  ctx.fillRect(-20, -20, W + 40, H + 40);
 }
 
-/* ----------------------------- Thẻ kiểu Yu-Gi-Oh ----------------------------- */
+/* ------------------ Item chạy ngang giữa màn hình (Stream Capsule) ------------------ */
 
-const FRAME_BG: Record<CardFrame, string> = {
-  monster: "linear-gradient(160deg,#f0cf7a,#b07a22 60%,#7a4e12)",
-  spell: "linear-gradient(160deg,#35c4a6,#0f6b60 60%,#073a38)",
-  trap: "linear-gradient(160deg,#c45acb,#6a2278 60%,#3a1048)",
-  fusion: "linear-gradient(160deg,#8f66ff,#3a2a9a 55%,#1a1050)",
-};
+interface RunningItemProps {
+  it: Item;
+  g: Game;
+}
 
-/** Đếm số chữ (bỏ khoảng trắng) đã gõ đúng để tô màu đoạn text trên thẻ. */
-function Typed({ text, n, col }: { text: string; n: number; col: string }) {
+const RunningItemCapsule = memo(function RunningItemCapsule({ it, g }: RunningItemProps) {
+  const [f0, f1] = g.fighters;
+  const def = ITEMS[it.type];
+  const isP1Locked = f0.lock === it;
+  const isP2Locked = f1.lock === it;
+  const taken = it.state === "taken";
+  const expired = it.state === "expired";
+  const target = taken && it.by >= 0 ? g.fighters[it.by as 0 | 1] : null;
+
+  const leftTime = Math.max(0, it.life - it.age);
+  const timePct = Math.min(100, Math.max(0, (leftTime / it.life) * 100));
+
+  // Tọa độ nội suy mượt 60fps từ engine
+  const x = it.x;
+  const y = it.y;
+
+  return (
+    <div
+      className={cn(
+        "absolute select-none pointer-events-none transition-opacity duration-200",
+        expired && "opacity-0 scale-90",
+        taken && "opacity-0 scale-50 transition-all duration-300"
+      )}
+      style={{
+        transform: `translate3d(${x - 98}px, ${y - 36}px, 0)`,
+        width: 196,
+        height: 72,
+        zIndex: isP1Locked || isP2Locked ? 25 : 15,
+        willChange: "transform",
+      }}
+    >
+      {/* Vòng hào quang khi được người chơi khoá mục tiêu */}
+      {(isP1Locked || isP2Locked) && (
+        <span
+          className="absolute -inset-1.5 rounded-2xl animate-pulse blur-sm"
+          style={{
+            background: isP1Locked && isP2Locked ? "#a855f7" : isP1Locked ? P_COL[0] : P_COL[1],
+            opacity: 0.55,
+          }}
+        />
+      )}
+
+      {/* Thân capsule dạng thẻ pha lê công nghệ */}
+      <div
+        className={cn(
+          "relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border px-3 py-2 shadow-2xl backdrop-blur-md transition-colors",
+          isP1Locked
+            ? "border-sky-400/80 bg-slate-900/95 ring-2 ring-sky-400/50"
+            : isP2Locked
+            ? "border-rose-400/80 bg-slate-900/95 ring-2 ring-rose-400/50"
+            : "border-white/15 bg-slate-950/85"
+        )}
+        style={{
+          boxShadow: isP1Locked
+            ? "0 0 24px rgba(56,189,248,0.35)"
+            : isP2Locked
+            ? "0 0 24px rgba(244,63,94,0.35)"
+            : `0 8px 24px -6px ${def.col}25`,
+        }}
+      >
+        {/* Hàng trên: Icon + Tên vật phẩm + Dấu chỉ hướng chạy */}
+        <div className="flex items-center justify-between text-[11px] leading-tight">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]">{def.icon}</span>
+            <span className="font-sans font-bold tracking-wide text-slate-200">{def.name}</span>
+          </div>
+          <span
+            className="flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-mono font-bold"
+            style={{ color: def.col, backgroundColor: `${def.col}18` }}
+          >
+            {it.dir > 0 ? "▶" : "◀"} {Math.ceil(leftTime)}s
+          </span>
+        </div>
+
+        {/* Chữ hiển thị cho P1 & P2 gõ tranh chấp */}
+        <div className="my-0.5 flex flex-col justify-center gap-1 rounded-lg bg-black/45 px-2 py-1">
+          {/* P1 Dòng chữ */}
+          <div className="flex items-center justify-between font-mono text-[13px] leading-none">
+            <div className="flex items-center gap-1 truncate">
+              <span className="size-1.5 rounded-full shrink-0" style={{ background: P_COL[0] }} />
+              <TypedWord
+                text={it.disp[0]}
+                bufLen={isP1Locked ? f0.buf.length : 0}
+                activeCol={P_COL[0]}
+                idleCol="#cbd5e1"
+              />
+            </div>
+            {isP1Locked && <span className="text-[9px] font-bold text-sky-400">P1 KHÓA</span>}
+          </div>
+
+          {/* P2 Dòng chữ (nếu đấu 2 người hoặc bot) */}
+          {(!f1.bot || isP2Locked) && (
+            <div className="flex items-center justify-between font-mono text-[11px] leading-none opacity-85">
+              <div className="flex items-center gap-1 truncate">
+                <span className="size-1.5 rounded-full shrink-0" style={{ background: P_COL[1] }} />
+                <TypedWord
+                  text={it.disp[1]}
+                  bufLen={isP2Locked ? f1.buf.length : 0}
+                  activeCol={P_COL[1]}
+                  idleCol="#94a3b8"
+                />
+              </div>
+              {isP2Locked && <span className="text-[9px] font-bold text-rose-400">P2 KHÓA</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Thanh đếm ngược thời gian chạy qua màn hình */}
+        <div className="h-1 w-full overflow-hidden rounded-full bg-slate-800/80">
+          <div
+            className="h-full rounded-full transition-[width] duration-100 ease-linear"
+            style={{
+              width: `${timePct}%`,
+              background: timePct < 25 ? "#f43f5e" : def.col,
+              boxShadow: `0 0 6px ${def.col}`,
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+});
+
+function TypedWord({
+  text,
+  bufLen,
+  activeCol,
+  idleCol,
+}: {
+  text: string;
+  bufLen: number;
+  activeCol: string;
+  idleCol: string;
+}) {
   let seen = 0;
   return (
-    <span className="font-mono tracking-tight">
+    <span className="tracking-[0.16em] font-medium font-mono">
       {Array.from(text).map((ch, i) => {
-        if (ch === " ") return <span key={i}>&nbsp;</span>;
-        const done = seen < n;
+        if (ch === " ") return <span key={i} className="inline-block w-1.5">&nbsp;</span>;
+        const done = seen < bufLen;
+        const isCurrent = seen === bufLen;
         seen++;
         return (
-          <span key={i} style={done ? { color: "#58ffa6", textShadow: "0 0 8px #58ffa6" } : { color: col }}>
+          <span
+            key={i}
+            className={cn(
+              "transition-colors duration-100",
+              isCurrent && "border-b-2 border-white animate-pulse font-bold"
+            )}
+            style={{
+              color: done ? "#34d399" : idleCol,
+              textShadow: done
+                ? "0 0 10px rgba(52, 211, 153, 0.8), 0 0 2px rgba(255, 255, 255, 0.9)"
+                : "none",
+            }}
+          >
             {ch}
           </span>
         );
@@ -174,335 +494,278 @@ function Typed({ text, n, col }: { text: string; n: number; col: string }) {
   );
 }
 
-interface CardProps {
-  frame: CardFrame;
-  name: string;
-  icon: string;
-  stars: number;
-  type: string;
-  desc: string;
-  accent: string;
-  lines?: { text: string; n: number; col: string; locked: boolean }[];
+/* --------------------- Bệ đấu kỳ thủ đối diện trực tiếp (Duel Stations) --------------------- */
+
+interface DuelistStationProps {
+  f: Fighter;
+  opponent: Fighter;
+  isP1: boolean;
+  src: string;
+  chibi: boolean;
+  mode: Mode;
 }
 
-/** Một lá bài 112×168: tên, nguyên tố, ảnh minh hoạ, sao, loại, ô text hiệu ứng. */
-const YgoCard = memo(function YgoCard({ frame, name, icon, stars, type, desc, accent, lines }: CardProps) {
+const DuelistStation = memo(function DuelistStation({
+  f,
+  isP1,
+  src,
+  chibi,
+  mode,
+}: DuelistStationProps) {
+  const col = P_COL[f.id];
+  const frac = mode === 3 ? (f.text.length ? f.idx / f.text.length : 0) : f.hp / (f.maxHp || 1);
+  const ghost = mode === 3 ? frac : f.ghost / (f.maxHp || 1);
+  const hpCol =
+    frac > 0.5 ? "from-emerald-400 to-teal-500" : frac > 0.25 ? "from-amber-400 to-orange-500" : "from-rose-500 to-red-600";
+  const shove = f.fireN > 0 ? (isP1 ? "-translate-y-2" : "translate-y-2") : "";
+
+  const badges: [string, string][] = [];
+  if (f.armor > 0) badges.push([`🛡 ${Math.ceil(f.armor)}`, "#7dd3fc"]);
+  if (f.reflectT > 0) badges.push([`🔄 ${f.reflectT.toFixed(1)}s`, "#d8b4fe"]);
+  if (f.lifeT > 0) badges.push([`🩸 ${f.lifeT.toFixed(1)}s`, "#6ee7b7"]);
+  if (f.slowT > 0) badges.push(["🐌 Chậm", "#fcd34d"]);
+  if (f.freezeT > 0) badges.push(["❄️ Băng", "#a5f3fc"]);
+
   return (
     <div
-      className="tb-holo relative h-[168px] w-[112px] select-none overflow-hidden rounded-[10px] p-[5px] text-[#16110a]"
-      style={{ background: FRAME_BG[frame], boxShadow: `0 0 0 2px #1a1208, 0 0 22px ${accent}88, 0 12px 24px -8px #000` }}
+      className={cn(
+        "pointer-events-none absolute inset-x-5 z-20 grid h-[112px] grid-cols-[1fr_auto_1fr] items-center gap-4 select-none",
+        isP1 ? "bottom-3" : "top-3"
+      )}
     >
-      <div className="flex h-full flex-col rounded-[6px] bg-gradient-to-b from-[#f4e6bd] to-[#d8c28a] p-[3px]">
-        <div className="flex items-center justify-between rounded-[3px] bg-white/70 px-1 py-[1px]">
-          <span className="truncate text-[9.5px] font-black uppercase leading-tight tracking-tight">{name}</span>
-          <span className="ml-1 size-2.5 shrink-0 rounded-full" style={{ background: accent, boxShadow: `0 0 6px ${accent}` }} />
+      {/* Trái: tên + thanh máu + trạng thái */}
+      <div
+        className={cn("rounded-2xl border bg-slate-950/85 px-3 py-2.5 backdrop-blur-md", f.err > 0 && "ring-2 ring-rose-500/70")}
+        style={{ borderColor: col + "44" }}
+      >
+        <div className="flex items-baseline justify-between">
+          <span className="text-xs font-bold" style={{ color: col }}>
+            {f.name} <span className="font-normal text-slate-500">{isP1 ? "· Bạn" : f.bot ? "· Máy" : "· P2"}</span>
+          </span>
+          <span className="font-mono text-xs font-bold text-white">
+            {mode === 3 ? `${Math.round(frac * 100)}%` : `${Math.ceil(f.hp)}`}
+          </span>
         </div>
-        <div className="mt-[1px] flex justify-end gap-[1px] text-[8px] leading-none text-[#c8102e]">
-          {Array.from({ length: stars }).map((_, i) => (
-            <span key={i}>★</span>
-          ))}
-        </div>
-        <div className="relative mt-[1px] grid h-[56px] place-items-center overflow-hidden rounded-[3px] border border-[#7a5a1a]" style={{ background: `radial-gradient(circle at 50% 55%, ${accent}aa, #0a0c28 70%)` }}>
-          <span className="tb-art text-[34px] drop-shadow-[0_0_10px_rgba(255,255,255,.7)]">{icon}</span>
-          <span className="tb-shine pointer-events-none absolute inset-0" />
-        </div>
-        <p className="mt-[1px] text-right text-[7.5px] font-bold italic leading-none text-[#4a3510]">[{type}]</p>
-        <div className="mt-[1px] flex flex-1 flex-col justify-center gap-[2px] rounded-[3px] bg-[#0b0f2c] px-[3px] py-[2px] text-[11px] leading-none">
-          {lines ? (
-            lines.map((l, i) => (
-              <div key={i} className={cn("flex items-center gap-1 whitespace-nowrap rounded-sm px-[2px] py-[1px]", l.locked && "bg-white/10 ring-1 ring-white/40")}>
-                <span className="size-1.5 shrink-0 rounded-full" style={{ background: P_COL[i] }} />
-                <Typed text={l.text} n={l.n} col={P_COL[i]} />
-              </div>
-            ))
-          ) : (
-            <p className="text-[8px] font-medium leading-tight text-[#dfe6ff]">{desc}</p>
+        <div className="relative mt-1.5 h-3 overflow-hidden rounded-full border border-white/10 bg-slate-900">
+          <div className="absolute inset-y-0 left-0 bg-white/40 transition-[width] duration-300" style={{ width: `${Math.max(frac, ghost) * 100}%` }} />
+          <div className={cn("absolute inset-y-0 left-0 bg-gradient-to-r transition-[width] duration-150", hpCol)} style={{ width: `${frac * 100}%` }} />
+          {f.armor > 0 && (
+            <div className="absolute inset-y-0 left-0 bg-sky-400/70" style={{ width: `${Math.min(100, (f.armor / f.maxHp) * 100)}%` }} />
           )}
         </div>
+        <div className="mt-1.5 flex min-h-[18px] flex-wrap items-center gap-1 text-[10px] font-semibold">
+          {badges.map(([t, c]) => (
+            <span key={t} className="rounded-full border border-white/10 bg-black/40 px-1.5 py-0.5" style={{ color: c }}>
+              {t}
+            </span>
+          ))}
+          {f.combo > 1 && <span className="text-amber-300">COMBO ×{f.combo}</span>}
+          {mode === 2 && f.ammo > 0 && <span className="text-amber-300">🚀 ×{f.ammo}</span>}
+        </div>
+      </div>
+
+      {/* Giữa: avatar (đúng trục bắn tên lửa) */}
+      <div className={cn("relative transition-transform duration-200", shove, f.hitN > 0 && "brightness-150")}>
+        <span className="absolute -inset-3 rounded-full opacity-30 blur-xl" style={{ background: col }} />
+        <div
+          className="relative grid size-[96px] place-items-center overflow-hidden rounded-2xl border-2 bg-slate-950/80"
+          style={{ borderColor: col + "99", boxShadow: `0 0 22px ${col}44` }}
+        >
+          {chibi ? <ChibiAvatar size={90} animate={false} /> : <UserAvatar src={src} name={f.name} className="size-[88px]" />}
+          {f.freezeT > 0 && <span className="absolute inset-0 grid place-items-center bg-cyan-400/30 text-3xl">❄️</span>}
+        </div>
+      </div>
+
+      {/* Phải: kho thẻ + ô gõ */}
+      <div className="rounded-2xl border bg-slate-950/85 px-3 py-2.5 backdrop-blur-md" style={{ borderColor: col + "33" }}>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-bold uppercase text-slate-500">Thẻ</span>
+          {f.hand.length === 0 ? (
+            <span className="text-[10px] italic text-slate-600">trống</span>
+          ) : (
+            f.hand.map((c, i) => {
+              const def = ITEMS[c.type];
+              const partner = f.hand.some((o, oi) => oi !== i && findFusion(o.type, c.type));
+              return (
+                <div
+                  key={`${c.type}-${i}`}
+                  className={cn("relative grid size-7 place-items-center rounded-md border text-xs", partner && "ring-2 ring-amber-400")}
+                  style={{ borderColor: def.col, backgroundColor: `${def.col}22` }}
+                  title={`${def.name} · tự kích hoạt sau ${c.t.toFixed(1)}s`}
+                >
+                  {def.icon}
+                  <div className="absolute inset-x-0 bottom-0 h-0.5 bg-black/60">
+                    <div className="h-full bg-white" style={{ width: `${(c.t / HAND_HOLD) * 100}%` }} />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        {mode === 1 && (
+          <div className="mt-1.5 rounded-lg bg-black/50 px-2 py-1 text-center font-mono text-sm font-bold tracking-widest">
+            {Array.from(f.word).map((ch, i) => (
+              <span key={i} style={{ color: i < f.buf.length ? "#34d399" : "#94a3b8" }}>
+                {ch}
+              </span>
+            ))}
+          </div>
+        )}
+        {mode === 2 && (
+          <div className="mt-1.5 flex items-center justify-between rounded-lg bg-black/50 px-2 py-1 font-mono text-sm">
+            <span className="truncate font-bold text-white">{f.freezeT > 0 ? "❄️ Bị đóng băng" : f.buf || <span className="opacity-30">▍</span>}</span>
+            <span className="ml-2 shrink-0 text-[9px] text-amber-300">{isP1 ? "SPACE" : f.bot ? "" : "ENTER"}</span>
+          </div>
+        )}
       </div>
     </div>
   );
 });
 
-function itemCard(type: ItemType, lines?: CardProps["lines"]) {
-  const d = ITEMS[type];
-  return <YgoCard frame={d.frame} name={d.name} icon={d.icon} stars={d.stars} type={d.type} desc={d.desc} accent={d.col} lines={lines} />;
-}
-function fusionCard(fu: FusionDef) {
-  return <YgoCard frame="fusion" name={fu.name} icon={fu.icon} stars={5} type="Hợp thể / Kỹ năng đặc biệt" desc={fu.desc} accent={fu.col} />;
-}
+/* ------------------ Banner Hợp Thể & Kích Hoạt Tinh Tế ------------------ */
 
-function CardSlot({ it, g }: { it: Item; g: Game }) {
-  const s = SLOTS[it.slot];
-  const [a, b] = g.fighters;
-  const taken = it.state === "taken", expired = it.state === "expired";
-  const target = taken ? g.fighters[it.by as 0 | 1] : null;
-  const left = Math.max(0, it.life - it.age);
-  const lines = ([a, b] as Fighter[]).map((f, i) => ({
-    text: it.disp[i],
-    n: f.lock === it ? f.buf.length : 0,
-    col: P_COL[i] as string,
-    locked: f.lock === it,
-  }));
-  return (
-    <motion.div
-      className="absolute"
-      style={{ left: s.x - 56, top: s.y - 84, perspective: 700, zIndex: taken ? 30 : 10 }}
-      initial={{ scale: 0.2, rotateY: 180, y: -90, opacity: 0 }}
-      animate={
-        taken && target
-          ? { x: target.x - s.x, y: target.y - s.y, scale: 0.2, rotate: target.id ? 40 : -40, opacity: 0, rotateY: 0 }
-          : expired
-          ? { opacity: 0, scale: 0.8, y: 30, rotateY: 0 }
-          : { scale: 1, rotateY: 0, y: 0, opacity: 1, x: 0 }
-      }
-      transition={taken ? { duration: 0.55, ease: "easeIn" } : expired ? { duration: 0.4 } : { type: "spring", stiffness: 140, damping: 14 }}
-    >
-      {/* vòng sáng triệu hồi */}
-      <motion.span
-        className="pointer-events-none absolute -inset-6 rounded-full"
-        style={{ background: `radial-gradient(circle, ${ITEMS[it.type].col}, transparent 65%)` }}
-        initial={{ opacity: 0.9, scale: 0.4 }}
-        animate={{ opacity: 0, scale: 2.2 }}
-        transition={{ duration: 0.7 }}
-      />
-      <div className="tb-float" style={{ animationDelay: `${-it.id * 0.7}s` }}>
-        {itemCard(it.type, lines)}
-        <div className="absolute -bottom-3 left-1 right-1 h-1 overflow-hidden rounded-full bg-black/60">
-          <div className="h-full rounded-full" style={{ width: `${(left / it.life) * 100}%`, background: left < 3 ? "#ff5a5a" : ITEMS[it.type].col }} />
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-/** Banner kích hoạt: lá bài phóng to giữa màn hình như Yu-Gi-Oh. */
-function ActivateBanner({ b, names }: { b: Banner; names: [string, string] }) {
-  const d = ITEMS[b.type!];
-  const dir = b.owner ? 1 : -1;
-  return (
-    <motion.div className="pointer-events-none absolute inset-x-0 top-[26%] z-40 flex items-center justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.25 } }}>
-      <motion.div
-        className="absolute inset-x-0 h-[120px]"
-        style={{ background: `linear-gradient(90deg, transparent, ${d.col}55 25%, ${d.col}55 75%, transparent)` }}
-        initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.25 }}
-      />
-      <motion.div className="relative flex items-center gap-5" initial={{ x: 220 * dir, scale: 0.3, rotate: 25 * dir, opacity: 0 }} animate={{ x: 0, scale: 1, rotate: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 180, damping: 15 }}>
-        <div style={{ transform: "scale(1.15)" }}>{itemCard(b.type!)}</div>
-        <div className={cn("max-w-[260px]", b.owner ? "order-first text-right" : "")}>
-          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: P_COL[b.owner] }}>{names[b.owner]} kích hoạt</p>
-          <p className="font-display text-3xl font-black uppercase leading-tight text-white" style={{ textShadow: `0 0 18px ${d.col}` }}>{d.name}</p>
-          <p className="mt-1 text-xs text-white/70">{d.desc}</p>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-/** Banner hợp thể: 2 thẻ xoáy vào nhau rồi hiện thẻ kỹ năng đặc biệt. */
 function FusionBanner({ b, names }: { b: Banner; names: [string, string] }) {
   const fu = b.fusion!;
   return (
-    <motion.div className="pointer-events-none absolute inset-0 z-50 grid place-items-center overflow-hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.35 } }}>
-      <div className="absolute inset-0 bg-black/55" />
+    <motion.div
+      className="pointer-events-none absolute inset-0 z-50 grid place-items-center overflow-hidden bg-black/60 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.3 } }}
+    >
       <motion.div
-        className="tb-vortex absolute size-[520px] rounded-full"
-        style={{ background: `conic-gradient(from 0deg, transparent, ${fu.col}, transparent 30%, #ffffff88, transparent 60%, ${fu.col}, transparent)` }}
-        initial={{ scale: 0, opacity: 0 }} animate={{ scale: [0, 1, 1, 2.2], opacity: [0, 0.9, 0.9, 0] }} transition={{ duration: 2.2, times: [0, 0.2, 0.7, 1] }}
-      />
-      {[fu.a, fu.b].map((t, i) => (
-        <motion.div
-          key={t}
-          className="absolute"
-          initial={{ x: i ? 340 : -340, rotate: i ? 30 : -30, scale: 0.9, opacity: 0 }}
-          animate={{ x: [i ? 340 : -340, i ? 120 : -120, 0], rotate: [0, 360, 720], scale: [0.9, 0.9, 0.2], opacity: [0, 1, 0] }}
-          transition={{ duration: 1.0, times: [0, 0.55, 1], ease: "easeInOut" }}
+        className="relative flex flex-col items-center rounded-3xl border border-white/20 bg-slate-950/95 px-8 py-6 shadow-2xl"
+        style={{
+          boxShadow: `0 0 50px ${fu.col}55`,
+        }}
+        initial={{ scale: 0.7, y: 30, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 190, damping: 16 }}
+      >
+        <span
+          className="text-xs font-mono font-bold uppercase tracking-[0.3em]"
+          style={{ color: fu.col }}
         >
-          {itemCard(t)}
-        </motion.div>
-      ))}
-      <motion.div className="absolute inset-0 bg-white" initial={{ opacity: 0 }} animate={{ opacity: [0, 0, 1, 0] }} transition={{ duration: 1.3, times: [0, 0.6, 0.78, 1] }} />
-      <motion.div className="relative flex flex-col items-center gap-2" initial={{ scale: 0, rotate: -180, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ delay: 0.95, type: "spring", stiffness: 160, damping: 13 }}>
-        <p className="font-display text-sm font-black uppercase tracking-[0.4em]" style={{ color: fu.col, textShadow: `0 0 16px ${fu.col}` }}>
-          {names[b.owner]} · hợp thể
-        </p>
-        <div style={{ transform: "scale(1.35)", margin: "26px 0" }}>{fusionCard(fu)}</div>
-        <p className="font-display text-4xl font-black uppercase text-white" style={{ textShadow: `0 0 26px ${fu.col}` }}>{fu.name}</p>
-        <p className="max-w-[320px] text-center text-xs text-white/75">{fu.desc}</p>
+          KỸ NĂNG HỢP THỂ CHIẾN LƯỢC · {names[b.owner]}
+        </span>
+
+        <div className="my-3 flex items-center gap-3">
+          <span className="text-4xl drop-shadow-[0_0_16px_rgba(255,255,255,0.7)]">{fu.icon}</span>
+          <span className="font-display text-4xl font-extrabold uppercase text-white tracking-wide drop-shadow-[0_0_24px_rgba(168,85,247,0.7)]">{fu.name}</span>
+        </div>
+
+        <p className="max-w-[340px] text-center text-xs leading-relaxed text-slate-300">{fu.desc}</p>
       </motion.div>
     </motion.div>
   );
 }
 
-/* ------------------------------ Nhân vật + HUD ------------------------------ */
-
-function Fighters({ f, src, chibi }: { f: Fighter; src: string; chibi: boolean }) {
-  const col = P_COL[f.id];
+function ActivateBanner({ b, names }: { b: Banner; names: [string, string] }) {
+  const def = ITEMS[b.type!];
   return (
-    <div className="absolute" style={{ left: f.x - 80, top: f.y - 110, width: 160, height: 220 }}>
-      <span className="absolute left-1/2 top-[120px] h-5 w-36 -translate-x-1/2 rounded-full blur-md" style={{ background: col + "88" }} />
-      <div key={`fire${f.fireN}`} className={f.fireN > 0 ? (f.id ? "tb-lunge-l" : "tb-lunge-r") : ""}>
-        <div key={`hit${f.hitN}`} className={cn("relative grid place-items-center", f.hitN > 0 && "tb-hit", "tb-idle")} style={{ height: 170 }}>
-          {f.armor > 0 && <span className="absolute size-[150px] rounded-full border-2 border-sky-400/80 bg-sky-400/15 shadow-[0_0_26px_#3aa0ffaa]" />}
-          {f.reflectT > 0 && <span className="tb-spin absolute size-[168px] rounded-full border-[3px] border-dashed border-violet-400 shadow-[0_0_22px_#b878ffaa]" />}
-          {f.lifeT > 0 && <span className="tb-pulse absolute size-[184px] rounded-full border-2 border-emerald-400/80" />}
-          {f.slowT > 0 && <span className="tb-spin absolute size-[196px] rounded-full border-2 border-dotted border-yellow-300/80" />}
-          {chibi ? (
-            <ChibiAvatar size={150} animate={false} />
-          ) : (
-            <span className="rounded-full p-[3px]" style={{ background: `linear-gradient(160deg,${col},#10163c)`, boxShadow: `0 0 28px ${col}88` }}>
-              <UserAvatar src={src} name={f.name} className="size-[128px]" />
-            </span>
-          )}
-          {f.freezeT > 0 && (
-            <span className="absolute inset-3 grid place-items-center rounded-full bg-cyan-200/35 text-5xl backdrop-grayscale">❄️</span>
-          )}
-        </div>
-      </div>
-      <p className="mt-1 text-center font-display text-sm font-extrabold" style={{ color: col, textShadow: `0 0 10px ${col}` }}>
-        {f.name}
-      </p>
-      {f.combo > 1 && <p className="text-center text-xs font-black text-yellow-300">COMBO x{f.combo}</p>}
-      {/* đạn dự trữ */}
-      {f.ammo > 0 && (
-        <p className="text-center text-xs font-bold text-amber-300">
-          {"▲".repeat(Math.min(f.ammo, 10))}
-          {f.ammo > 10 ? ` +${f.ammo - 10}` : ""}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function Hud({ f, mode }: { f: Fighter; mode: Mode }) {
-  const left = f.id === 0, col = P_COL[f.id];
-  const frac = mode === 3 ? f.idx / f.text.length : f.hp / f.maxHp;
-  const ghost = mode === 3 ? frac : f.ghost / f.maxHp;
-  const hpCol = frac > 0.5 ? "from-emerald-300 to-emerald-600" : frac > 0.25 ? "from-yellow-300 to-orange-500" : "from-red-400 to-red-700";
-  const chips: [string, string][] = [];
-  if (mode === 2) chips.push([`🚀 ${f.ammo}`, "#ffb020"]);
-  if (f.armor > 0) chips.push([`🛡️ ${Math.ceil(f.armor)}`, "#5ab4ff"]);
-  if (f.reflectT > 0) chips.push([`🔄 ${f.reflectT.toFixed(1)}s${f.reflectMul > 1 ? " ×1.5" : ""}`, "#b878ff"]);
-  if (f.lifeT > 0) chips.push([`🩸 ${f.lifeT.toFixed(1)}s`, "#40e880"]);
-  if (f.slowT > 0) chips.push([`🐌 ${f.slowT.toFixed(1)}s`, "#ffe040"]);
-  if (f.freezeT > 0) chips.push([`❄️ ${f.freezeT.toFixed(1)}s`, "#a0f0ff"]);
-  return (
-    <div className={cn("absolute top-3 w-[440px]", left ? "left-6" : "right-6")}>
-      <div className="rounded-2xl border bg-ink-900/80 px-4 py-2 backdrop-blur" style={{ borderColor: col, boxShadow: `0 0 18px ${col}55` }}>
-        <div className={cn("flex items-baseline justify-between", !left && "flex-row-reverse")}>
-          <span className="font-display text-base font-extrabold" style={{ color: col }}>{f.name}</span>
-          <span className="font-mono text-sm font-bold text-white/90">{mode === 3 ? `${Math.round(frac * 100)}%` : Math.ceil(f.hp)}</span>
-        </div>
-        <div className={cn("relative mt-1 h-4 overflow-hidden rounded-full bg-black/60", !left && "[direction:rtl]")}>
-          <div className="absolute inset-y-0 left-0 bg-white/60" style={{ width: `${Math.max(frac, ghost) * 100}%` }} />
-          <div className={cn("absolute inset-y-0 left-0 bg-gradient-to-b transition-[width] duration-150", hpCol)} style={{ width: `${frac * 100}%` }} />
-          <div className="absolute inset-0 bg-[repeating-linear-gradient(90deg,transparent_0_4.6%,rgba(0,0,0,.35)_4.6%_5%)]" />
-        </div>
-      </div>
-      <div className={cn("mt-1.5 flex flex-wrap items-start gap-1.5", !left && "justify-end")}>
-        {chips.map(([s, c]) => (
-          <span key={s} className="rounded-full border bg-ink-900/70 px-2 py-0.5 text-[11px] font-bold" style={{ borderColor: c, color: c }}>{s}</span>
-        ))}
-        {/* tay bài: 2 thẻ khớp công thức sẽ hợp thể */}
-        {f.hand.map((c, i) => (
-          <motion.span
-            key={`${c.type}${i}`}
-            layout
-            initial={{ y: -20, opacity: 0, scale: 0.6 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            className="relative grid size-9 place-items-center overflow-hidden rounded-md border-2 text-lg"
-            style={{ borderColor: ITEMS[c.type].col, background: FRAME_BG[ITEMS[c.type].frame] }}
-            title={`${ITEMS[c.type].name} · tự kích hoạt sau ${c.t.toFixed(1)}s`}
-          >
-            {ITEMS[c.type].icon}
-            <span className="absolute inset-x-0 bottom-0 h-1 bg-black/60">
-              <span className="block h-full bg-white" style={{ width: `${(c.t / HAND_HOLD) * 100}%` }} />
-            </span>
-          </motion.span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function WordBox({ f, label, hint, ready }: { f: Fighter; label: string; hint: string; ready: boolean }) {
-  const col = ready ? "#ffe040" : f.err > 0 ? "#ff4a4a" : P_COL[f.id];
-  return (
-    <div className={cn("absolute bottom-4 w-[500px] rounded-2xl border bg-ink-900/85 px-4 pb-2 pt-3 text-center backdrop-blur", f.err > 0 && "tb-shake")} style={{ [f.id ? "right" : "left"]: 24, borderColor: col, boxShadow: `0 0 22px ${col}55` } as React.CSSProperties}>
-      <p className="absolute -top-2.5 left-4 rounded-full bg-ink-900 px-2 text-[10px] font-bold tracking-widest" style={{ color: P_COL[f.id] }}>{label}</p>
-      {f.freezeT > 0 ? (
-        <p className="py-2 font-display text-2xl font-black text-cyan-200">❄️ BỊ ĐÓNG BĂNG</p>
-      ) : (
-        <p className="font-mono text-[44px] leading-[1.15]">
-          {Array.from(f.word).map((ch, i) => (
-            <span key={i} className={cn(i === f.buf.length && "tb-caret")} style={i < f.buf.length ? { color: "#58ffa6", textShadow: "0 0 14px #58ffa6" } : { color: "#e6ebff" }}>{ch}</span>
-          ))}
-        </p>
-      )}
-      <div className="mx-auto mt-1 h-1.5 w-[90%] overflow-hidden rounded-full bg-black/60">
-        <div className="h-full rounded-full transition-[width] duration-100" style={{ width: `${f.word ? (f.buf.length / f.word.length) * 100 : 0}%`, background: col }} />
-      </div>
-      <p className={cn("mt-1 text-xs font-semibold", ready ? "animate-pulse text-yellow-300" : "text-white/45")}>{hint}</p>
-    </div>
-  );
-}
-
-function BufferBox({ f, hint }: { f: Fighter; hint: string }) {
-  const col = f.err > 0 ? "#ff4a4a" : P_COL[f.id];
-  return (
-    <div className={cn("absolute bottom-4 w-[300px] rounded-2xl border bg-ink-900/85 px-4 py-2 text-center backdrop-blur", f.err > 0 && "tb-shake")} style={{ [f.id ? "right" : "left"]: 24, borderColor: col, boxShadow: `0 0 18px ${col}55` } as React.CSSProperties}>
-      <p className="font-mono text-2xl text-white">{f.freezeT > 0 ? "❄️ BỊ ĐÓNG BĂNG" : f.buf || "▍"}</p>
-      <p className="text-[10px] font-bold tracking-widest text-white/45">{hint}</p>
-    </div>
-  );
-}
-
-function RacePanel({ f, top, src, chibi, active }: { f: Fighter; top: number; src: string; chibi: boolean; active: boolean }) {
-  const col = P_COL[f.id], pct = f.idx / f.text.length;
-  const lines: { st: number; text: string }[] = [];
-  let cur = "", st = 0;
-  for (const w of f.text.split(" ")) {
-    if ((cur + " " + w).trim().length > 58) { lines.push({ st, text: cur }); st += cur.length + 1; cur = w; }
-    else cur = (cur + " " + w).trim();
-  }
-  lines.push({ st, text: cur });
-  return (
-    <div className={cn("absolute left-6 right-6 rounded-2xl border bg-ink-900/80 px-5 pb-3 pt-2 backdrop-blur", f.err > 0 && "tb-shake")} style={{ top, height: 220, borderColor: f.err > 0 ? "#ff4a4a" : col, boxShadow: `0 0 20px ${col}44` }}>
-      <div className="flex items-center justify-between">
-        <span className="font-display text-base font-extrabold" style={{ color: col }}>{f.name}{active ? "  ★ DẪN ĐẦU" : ""}</span>
-        <span className="font-mono text-sm text-white/80">LỖI {f.errors}</span>
-      </div>
-      <div className="relative my-2 mr-4 h-2 rounded-full bg-black/60">
-        <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: col, boxShadow: `0 0 10px ${col}` }} />
-        <span className="absolute -top-5 grid size-9 -translate-x-1/2 place-items-center" style={{ left: `${pct * 100}%` }}>
-          {chibi ? <ChibiAvatar size={40} animate={false} /> : <UserAvatar src={src} name={f.name} className="size-9" />}
+    <motion.div
+      className="pointer-events-none absolute inset-x-0 top-16 z-40 flex justify-center"
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -15, transition: { duration: 0.2 } }}
+    >
+      <div
+        className="flex items-center gap-2.5 rounded-full border border-white/20 bg-slate-950/90 px-4 py-1.5 shadow-xl backdrop-blur-md"
+        style={{ boxShadow: `0 0 20px ${def.col}44` }}
+      >
+        <span className="text-lg">{def.icon}</span>
+        <span className="font-sans text-xs font-bold text-white tracking-wide">
+          <span style={{ color: P_COL[b.owner] }}>{names[b.owner]}</span> kích hoạt{" "}
+          <span className="inline text-amber-300">{def.name}</span>!
         </span>
-        <span className="absolute -right-5 -top-2 text-lg">🏁</span>
       </div>
-      <div className="mt-5 font-mono text-[25px] leading-[40px]">
-        {lines.map((l) => (
-          <div key={l.st} className="whitespace-pre">
-            {Array.from(l.text).map((ch, i) => {
-              const gi = l.st + i;
-              if (gi === f.idx) return <span key={i} className="rounded px-[1px] text-[#04081a]" style={{ background: f.err > 0 ? "#ff4a4a" : col, boxShadow: `0 0 14px ${col}` }}>{ch}</span>;
-              return <span key={i} style={{ color: gi < f.idx ? "#58ffa6" : "#7e89bd" }}>{ch}</span>;
-            })}
-          </div>
+    </motion.div>
+  );
+}
+
+/* ------------------------- Mode 3: Đua Gõ Đoạn Văn ------------------------- */
+
+function RaceTrack({
+  f,
+  top,
+  src,
+  chibi,
+  active,
+}: {
+  f: Fighter;
+  top: number;
+  src: string;
+  chibi: boolean;
+  active: boolean;
+}) {
+  const col = P_COL[f.id];
+  const pct = f.text.length ? f.idx / f.text.length : 0;
+
+  return (
+    <div
+      className="absolute left-16 right-16 rounded-2xl border bg-slate-950/85 p-4 backdrop-blur-md shadow-xl"
+      style={{
+        top,
+        height: 165,
+        borderColor: col + "44",
+        boxShadow: `0 4px 20px -4px ${col}25`,
+      }}
+    >
+      <div className="flex items-center justify-between text-xs font-bold">
+        <span style={{ color: col }}>
+          {f.name} {active ? "★ DẪN ĐẦU" : ""}
+        </span>
+        <span className="font-mono text-slate-400">LỖI: {f.errors}</span>
+      </div>
+
+      <div className="relative my-3 h-2 w-full rounded-full bg-slate-900 border border-white/10">
+        <div
+          className="h-full rounded-full transition-[width] duration-150"
+          style={{ width: `${pct * 100}%`, background: col, boxShadow: `0 0 10px ${col}` }}
+        />
+        <span
+          className="absolute -top-3.5 -translate-x-1/2 size-7 rounded-full border-2 border-white bg-slate-900 overflow-hidden shadow-lg"
+          style={{ left: `${pct * 100}%` }}
+        >
+          {chibi ? <ChibiAvatar size={26} animate={false} /> : <UserAvatar src={src} name={f.name} className="size-full" />}
+        </span>
+      </div>
+
+      <div className="font-mono text-sm leading-relaxed tracking-wider text-slate-400 line-clamp-3 select-none">
+        {Array.from(f.text).map((ch, i) => (
+          <span
+            key={i}
+            className={cn(i === f.idx && "rounded bg-sky-400 px-[1px] text-black font-bold")}
+            style={{
+              color: i < f.idx ? "#34d399" : i === f.idx ? "#000000" : "#64748b",
+            }}
+          >
+            {ch}
+          </span>
         ))}
       </div>
     </div>
   );
 }
 
-/* ---------------------------------- Game ---------------------------------- */
+/* ---------------------------------- Main Component ---------------------------------- */
 
 export function TypingBattleGame() {
-  const me = useAppStore(useShallow((s) => ({ id: s.currentUser.id, username: s.currentUser.username, avatar: s.currentUser.avatar, has: !!s.currentUser.hasCreatedCharacter })));
+  const me = useAppStore(
+    useShallow((s) => ({
+      id: s.currentUser.id,
+      username: s.currentUser.username,
+      avatar: s.currentUser.avatar,
+      has: !!s.currentUser.hasCreatedCharacter,
+    }))
+  );
   const soundEnabled = useAppStore((s) => s.soundEnabled);
-  const { settle, reset: resetSettlement, result, open: resultOpen, setOpen: setResultOpen } = useMatchSettlement("typing");
+  const { settle, reset: resetSettlement, result, open: resultOpen, setOpen: setResultOpen } =
+    useMatchSettlement("typing");
 
   const [phase, setPhase] = useState<"setup" | "playing" | "over">("setup");
-  const [mode, setMode] = useState<Mode>(1);
+  // Mặc định chọn chế độ 2: Tranh thẻ & Băng chuyền chữ chạy ngang theo yêu cầu người dùng
+  const [mode, setMode] = useState<Mode>(2);
   const [vsBot, setVsBot] = useState(true);
   const [diff, setDiff] = useState(3);
   const [stake, setStake] = useState(0);
@@ -513,6 +776,7 @@ export function TypingBattleGame() {
   const botRef = useRef(BOTS[0]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const asciiRef = useRef<AsciiRippleRef>(null);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
   const soundRef = useRef(soundEnabled);
@@ -524,9 +788,24 @@ export function TypingBattleGame() {
 
   const hooks = useRef<Hooks>({
     sfx: (n) => {
+      if (n === "hit") asciiRef.current?.triggerRipple(0.5, 0.5, 2.0);
+      else if (n === "fuse") asciiRef.current?.triggerRipple(0.5, 0.5, 2.5);
+      else if (n === "win") asciiRef.current?.triggerRipple(0.5, 0.5, 3.0);
+      else if (n === "fire") asciiRef.current?.triggerRipple(0.25, 0.7, 1.2);
+      else if (n === "collect") asciiRef.current?.triggerRipple(0.5, 0.35, 1.5);
+      else if (n === "go") asciiRef.current?.triggerRipple(0.5, 0.5, 2.0);
+
       if (!soundRef.current) return;
       try {
-        ({ fire: () => soundManager.playPieceDrop(), hit: () => soundManager.playCapture(), collect: () => soundManager.playCoin(), fuse: () => soundManager.playTurn(), win: () => soundManager.playTurn(), count: () => {}, go: () => soundManager.playTurn() })[n]();
+        ({
+          fire: () => soundManager.playTypingKeystroke(),
+          hit: () => soundManager.playCyberHit(),
+          collect: () => soundManager.playCoin(),
+          fuse: () => soundManager.playTurn(),
+          win: () => soundManager.playVictory(),
+          count: () => soundManager.playTypingKeystroke(),
+          go: () => soundManager.playVictory(),
+        })[n]();
       } catch {}
     },
   }).current;
@@ -546,25 +825,42 @@ export function TypingBattleGame() {
   }, []);
 
   const start = useCallback(() => {
-    const opp = vsBot ? BOTS[Math.floor(Math.random() * BOTS.length)] : { name: "P2", seed: "player two:0" };
+    const opp = vsBot ? BOTS[Math.floor(Math.random() * BOTS.length)] : { name: "P2", seed: "player two:0", title: "Đấu Thủ" };
     botRef.current = opp;
     gRef.current = createGame({ mode, vsBot, diff, names: [me.username || "P1", opp.name] });
     resetSettlement();
     setPhase("playing");
   }, [mode, vsBot, diff, me.username, resetSettlement]);
 
-  // vòng lặp: cập nhật engine + vẽ canvas, DOM cập nhật ~15Hz
+  // Vòng lặp cập nhật engine + vẽ canvas mượt mà 60fps
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
     const ctx = cv.getContext("2d")!;
     const bg = makeBackdrop();
     const stars = makeStars();
-    let raf = 0, last = performance.now(), clock = 0, acc = 0, ended = false;
+    let raf = 0,
+      last = performance.now(),
+      clock = 0,
+      acc = 0,
+      ended = false;
+
     const loop = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
-      last = now; clock += dt; acc += dt;
-      for (const L of stars) for (const s of L) { s.x -= s.v * dt; if (s.x < 0) { s.x = W; s.y = Math.random() * H; } }
+      last = now;
+      clock += dt;
+      acc += dt;
+
+      for (const L of stars) {
+        for (const s of L) {
+          s.x -= s.v * dt;
+          if (s.x < 0) {
+            s.x = W;
+            s.y = Math.random() * H;
+          }
+        }
+      }
+
       const g = gRef.current;
       if (g && phaseRef.current === "playing") {
         update(g, dt, hooks);
@@ -572,37 +868,74 @@ export function TypingBattleGame() {
           ended = true;
           const w = g.winner;
           setTimeout(() => {
-            if (cfgRef.current.vsBot && w >= 0) settleRef.current(w === 0 ? "win" : "loss", { name: botRef.current.name, elo: 1000 + cfgRef.current.diff * 120 }, cfgRef.current.stake);
+            if (cfgRef.current.vsBot && w >= 0) {
+              settleRef.current(
+                w === 0 ? "win" : "loss",
+                { name: botRef.current.name, elo: 1000 + cfgRef.current.diff * 120 },
+                cfgRef.current.stake
+              );
+            }
             setPhase("over");
           }, 1400);
         }
         if (g.phase !== "over") ended = false;
       }
+
       drawFx(ctx, bg, stars, phaseRef.current === "setup" ? null : g, clock);
-      if (acc > 0.066) { acc = 0; force(); }
+
+      // Cập nhật DOM ở tần số mượt mà ~60Hz
+      if (acc > 0.016) {
+        acc = 0;
+        force();
+      }
       raf = requestAnimationFrame(loop);
     };
+
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [hooks]);
 
-  // bàn phím: P1 nửa trái + Space, P2 nửa phải + Enter
+  // Bàn phím: P1 gõ phím bên trái + Space, P2 gõ phím bên phải + Enter
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t?.closest("input,textarea,select,[contenteditable='true']")) return;
       const g = gRef.current;
-      if (phaseRef.current === "playing" && e.key === "Escape") { setPhase("setup"); return; }
+      if (phaseRef.current === "playing" && e.key === "Escape") {
+        setPhase("setup");
+        return;
+      }
       if (!g || phaseRef.current !== "playing" || g.phase === "over") return;
-      if (e.code === "Space") { e.preventDefault(); onFire(g, g.fighters[0], hooks); force(); return; }
-      if (e.key === "Enter") { e.preventDefault(); if (!g.fighters[1].bot) onFire(g, g.fighters[1], hooks); force(); return; }
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        onFire(g, g.fighters[0], hooks);
+        asciiRef.current?.triggerRipple(0.2, 0.75, 1.8);
+        force();
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (!g.fighters[1].bot) {
+          onFire(g, g.fighters[1], hooks);
+          asciiRef.current?.triggerRipple(0.8, 0.75, 1.8);
+        }
+        force();
+        return;
+      }
+
       if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
       const ch = e.key.toLowerCase();
-      if (LEFT_KEYS.includes(ch)) onKey(g, g.fighters[0], ch, hooks);
-      else if (RIGHT_KEYS.includes(ch) && !g.fighters[1].bot) onKey(g, g.fighters[1], ch, hooks);
-      else return;
+      if (LEFT_KEYS.includes(ch)) {
+        onKey(g, g.fighters[0], ch, hooks);
+        asciiRef.current?.triggerRipple(0.18, 0.75, 0.7);
+      } else if (RIGHT_KEYS.includes(ch) && !g.fighters[1].bot) {
+        onKey(g, g.fighters[1], ch, hooks);
+        asciiRef.current?.triggerRipple(0.82, 0.75, 0.7);
+      } else return;
       force();
     };
+
     window.addEventListener("keydown", onDown);
     return () => window.removeEventListener("keydown", onDown);
   }, [hooks]);
@@ -616,150 +949,295 @@ export function TypingBattleGame() {
   const winner = g && g.winner !== -1 ? g.fighters[g.winner] : null;
 
   return (
-    <div className="mx-auto max-w-[1280px] px-4 sm:px-6">
-      <style>{`
-        @keyframes tb-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
-        @keyframes tb-float{0%,100%{transform:translateY(0) rotate(-1.2deg)}50%{transform:translateY(-8px) rotate(1.2deg)}}
-        @keyframes tb-lr{0%{transform:translateX(0)}30%{transform:translateX(-26px)}100%{transform:translateX(0)}}
-        @keyframes tb-ll{0%{transform:translateX(0)}30%{transform:translateX(26px)}100%{transform:translateX(0)}}
-        @keyframes tb-hit{0%,100%{transform:translateX(0);filter:none}15%{transform:translateX(-12px);filter:brightness(2) saturate(2) hue-rotate(-30deg)}35%{transform:translateX(10px)}55%{transform:translateX(-7px)}75%{transform:translateX(4px)}}
-        @keyframes tb-spin{to{transform:rotate(360deg)}}
-        @keyframes tb-pulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.08);opacity:.4}}
-        @keyframes tb-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
-        @keyframes tb-shine{0%{transform:translateX(-120%) skewX(-20deg)}60%,100%{transform:translateX(220%) skewX(-20deg)}}
-        @keyframes tb-caret{50%{border-color:transparent}}
-        .tb-idle{animation:tb-bob 2.6s ease-in-out infinite}
-        .tb-float{animation:tb-float 3.4s ease-in-out infinite;position:relative}
-        .tb-lunge-r{animation:tb-lr .35s ease-out}.tb-lunge-l{animation:tb-ll .35s ease-out}
-        .tb-hit{animation:tb-hit .45s ease-out}
-        .tb-spin{animation:tb-spin 4s linear infinite}
-        .tb-vortex{animation:tb-spin 1.4s linear infinite}
-        .tb-pulse{animation:tb-pulse 1s ease-in-out infinite}
-        .tb-shake{animation:tb-shake .25s linear}
-        .tb-shine{background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.55) 50%,transparent 65%);animation:tb-shine 2.8s ease-in-out infinite}
-        .tb-caret{border-bottom:4px solid #3ad0ff;animation:tb-caret 1s steps(1) infinite}
-      `}</style>
+    <div className="mx-auto max-w-[1280px] px-4 sm:px-6 py-2">
+      <GameHeader
+        game="typing"
+        subtitle={
+          phase === "setup"
+            ? "Đấu trường gõ phím đối kháng trực diện"
+            : mode === 2
+            ? "Băng chuyền vật phẩm · Khóa mục tiêu & Hợp thể"
+            : mode === 1
+            ? "Đọ tên lửa động năng · 5000 HP"
+            : "Đua gõ đoạn văn"
+        }
+      />
 
-      <GameHeader game="typing" subtitle={phase === "setup" ? "Gõ phím đối kháng · 3 chế độ" : mode === 1 ? "Đọ tên lửa · 5000 máu" : mode === 2 ? "Tranh vật phẩm · gộp thẻ hợp thể" : "Đua gõ đoạn văn"} />
 
-      <div className="mx-auto w-full max-w-[min(100%,calc((100vh-11rem)*1.774))]">
-        <div ref={wrapRef} className="relative w-full overflow-hidden rounded-3xl border border-white/10 bg-[#04061a]" style={{ aspectRatio: `${W}/${H}` }}>
-          <div className="absolute left-0 top-0 origin-top-left" style={{ width: W, height: H, transform: `scale(${scale})` }}>
-            <canvas ref={canvasRef} width={W * FS} height={H * FS} className="absolute inset-0 h-full w-full" />
+      <div className="mx-auto w-full max-w-[min(100%,calc((100dvh-8.5rem)*1.774))]">
+        <div
+          ref={wrapRef}
+          className="relative w-full overflow-hidden rounded-3xl border border-white/10 bg-[#050813] shadow-2xl"
+          style={{ aspectRatio: `${W}/${H}` }}
+        >
+          <div
+            className="absolute left-0 top-0 origin-top-left"
+            style={{ width: W, height: H, transform: `scale(${scale})` }}
+          >
+
+            {/* Canvas kết xuất hiệu ứng nền, tia laser, tên lửa, va chạm */}
+            <canvas ref={canvasRef} width={W * FS} height={H * FS} className="absolute inset-0 size-full" />
 
             {show && g && (
               <>
-                {g.mode !== 3 && g.fighters.map((f) => <Fighters key={f.id} f={f} src={srcs[f.id]} chibi={chibi[f.id]} />)}
-                {g.fighters.map((f) => <Hud key={f.id} f={f} mode={g.mode} />)}
+                {/* 1. HAI BÊN KỲ THỦ ĐỨNG ĐỐI DIỆN TRỰC TIẾP (NHƯ ĐÁNH CỜ) */}
+                <DuelistStation
+                  f={g.fighters[0]}
+                  opponent={g.fighters[1]}
+                  isP1={true}
+                  src={srcs[0]}
+                  chibi={chibi[0]}
+                  mode={g.mode}
+                />
+                <DuelistStation
+                  f={g.fighters[1]}
+                  opponent={g.fighters[0]}
+                  isP1={false}
+                  src={srcs[1]}
+                  chibi={chibi[1]}
+                  mode={g.mode}
+                />
 
-                {g.mode === 1 &&
-                  g.fighters.map((f) => {
-                    const ready = !!f.word && f.buf === f.word;
-                    return <WordBox key={f.id} f={f} ready={ready} label={f.name} hint={ready ? (f.id ? (f.bot ? "..." : "▶ NHẤN ENTER ĐỂ BẮN ◀") : "▶ NHẤN SPACE ĐỂ BẮN ◀") : `Gõ đúng từ rồi bắn · sát thương ${f.word.length * 60}`} />;
-                  })}
-
+                {/* 2. Ở GIỮA: CÁC ITEM CHẠY NGANG QUA MÀN HÌNH VỚI HIỆU ỨNG MƯỢT (MODE 2) */}
                 {g.mode === 2 && (
                   <>
-                    <p className="absolute left-1/2 top-[112px] -translate-x-1/2 text-[11px] font-bold uppercase tracking-[0.3em] text-indigo-200/40">Khu tranh giành thẻ · ghép 2 thẻ để hợp thể</p>
-                    {g.items.map((it) => <CardSlot key={it.id} it={it} g={g} />)}
-                    {g.fighters.map((f) => <BufferBox key={f.id} f={f} hint={f.id ? (f.bot ? "" : "ENTER = BẮN / KÍCH HOẠT") : "SPACE = BẮN / KÍCH HOẠT"} />)}
+
+                    {g.items.map((it) => (
+                      <RunningItemCapsule key={it.id} it={it} g={g} />
+                    ))}
                   </>
                 )}
 
+                {/* 3. MODE 3: ĐUA ĐOẠN VĂN */}
                 {g.mode === 3 &&
                   g.fighters.map((f) => (
-                    <RacePanel key={f.id} f={f} top={110 + f.id * 250} src={srcs[f.id]} chibi={chibi[f.id]} active={g.fighters[0].idx !== g.fighters[1].idx && g.fighters[0].idx > g.fighters[1].idx === !f.id} />
+                    <RaceTrack
+                      key={f.id}
+                      f={f}
+                      top={f.id === 1 ? 138 : 318}
+                      src={srcs[f.id]}
+                      chibi={chibi[f.id]}
+                      active={
+                        g.fighters[0].idx !== g.fighters[1].idx &&
+                        g.fighters[0].idx > g.fighters[1].idx === !f.id
+                      }
+                    />
                   ))}
 
+                {/* 4. BANNER HỢP THỂ & KÍCH HOẠT */}
                 <AnimatePresence>
-                  {g.banners.map((b) => (b.kind === "fusion" ? <FusionBanner key={b.id} b={b} names={names} /> : <ActivateBanner key={b.id} b={b} names={names} />))}
+                  {g.banners.map((b) =>
+                    b.kind === "fusion" ? (
+                      <FusionBanner key={b.id} b={b} names={names} />
+                    ) : (
+                      <ActivateBanner key={b.id} b={b} names={names} />
+                    )
+                  )}
                 </AnimatePresence>
 
+                {/* 5. ĐẾM NGƯỢC BẮT ĐẦU */}
                 {g.phase === "count" && (
-                  <div className="absolute inset-0 z-40 grid place-items-center bg-black/50">
-                    <motion.p key={Math.ceil(g.count)} className="font-display text-[150px] font-black text-white" style={{ textShadow: "0 0 40px #fff" }} initial={{ scale: 1.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-                      {Math.max(1, Math.ceil(g.count))}
-                    </motion.p>
+                  <div className="absolute inset-0 z-40 grid place-items-center bg-black/60 backdrop-blur-[2px]">
+                    <motion.div
+                      key={Math.ceil(g.count)}
+                      initial={{ scale: 1.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                    >
+                      <span className="font-display text-[140px] font-black text-white drop-shadow-[0_0_35px_rgba(255,255,255,0.8)]">{String(Math.max(1, Math.ceil(g.count)))}</span>
+                    </motion.div>
                   </div>
                 )}
+
                 {g.goT > 0 && (
-                  <p className="pointer-events-none absolute inset-0 z-40 grid place-items-center font-display text-[130px] font-black text-emerald-300" style={{ textShadow: "0 0 40px #58ffa6", opacity: Math.min(1, g.goT * 2.5) }}>GO!</p>
+                  <div
+                    className="pointer-events-none absolute inset-0 z-40 grid place-items-center"
+                    style={{ opacity: Math.min(1, g.goT * 2.5) }}
+                  >
+                    <span className="font-display text-[110px] font-black text-emerald-400 drop-shadow-[0_0_40px_#34d399]">BẮT ĐẦU!</span>
+                  </div>
                 )}
+
                 {g.phase === "over" && (
-                  <p className="pointer-events-none absolute inset-0 z-40 grid place-items-center bg-black/40 font-display text-[120px] font-black" style={{ color: winner ? P_COL[winner.id] : "#fff", textShadow: "0 0 50px currentColor" }}>K.O.</p>
+                  <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center bg-black/45 backdrop-blur-[2px]">
+                    <span className="font-display text-[130px] font-black" style={{
+                        color: winner ? P_COL[winner.id] : "#f43f5e",
+                        textShadow: "0 0 45px currentColor",
+                      }}>K. O.</span>
+                  </div>
                 )}
               </>
             )}
 
-            {/* Thiết lập */}
+            {/* MÀN HÌNH THIẾT LẬP (SETUP) TRƯỞNG THÀNH, TINH TẾ */}
             {phase === "setup" && (
-              <div className="absolute inset-0 z-50 grid place-items-center bg-black/65 p-4">
-                <div className="panel w-[560px] space-y-4 p-6">
-                  <div>
-                    <span className="label">Chế độ</span>
-                    <Segmented value={mode} onChange={setMode} options={[{ value: 1 as Mode, label: "🚀 Đọ tên lửa" }, { value: 2 as Mode, label: "🃏 Tranh thẻ" }, { value: 3 as Mode, label: "🏁 Đua gõ" }]} />
-                    <p className="mt-2 text-xs leading-relaxed text-ink-300">
-                      {mode === 1 && "Gõ đúng từ rồi bấm bắn tên lửa. Hết 5000 máu là thua."}
-                      {mode === 2 && "Thẻ vật phẩm lơ lửng giữa đấu trường, thẻ hiếm là cả đoạn text dài. Gom 2 thẻ khớp công thức để hợp thể thành kỹ năng đặc biệt."}
-                      {mode === 3 && "Mỗi bên gõ một đoạn văn dài bằng nhau, ai xong trước thắng."}
+              <div className="absolute inset-0 z-50 grid place-items-center bg-black/75 backdrop-blur-md p-6">
+                <div className="w-[min(580px,92vw)] rounded-3xl border border-white/15 bg-slate-950/95 p-6 shadow-2xl space-y-5">
+                  <div className="border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-2 text-sky-400">
+                      <Swords className="size-5" />
+                      <span className="text-xs font-mono font-bold uppercase tracking-widest">
+                        Office Arena · Typing Duel
+                      </span>
+                    </div>
+                    <h2 className="mt-1 font-display text-2xl font-extrabold text-white tracking-wide">Đấu Trường Gõ Chữ Trực Diện</h2>
+                    <p className="mt-1 text-xs text-slate-400 leading-relaxed">
+                      Thiết lập trận đấu đối kháng hai kỳ thủ. Vật phẩm chạy ngang qua màn hình theo từng
+                      làn, gõ đúng từ để khóa mục tiêu, tích trữ đạn và hợp thể kỹ năng.
                     </p>
                   </div>
+
                   <div>
-                    <span className="label">Đối thủ</span>
-                    <Segmented value={vsBot ? 1 : 0} onChange={(v) => setVsBot(v === 1)} options={[{ value: 1, label: "🤖 Đấu với máy" }, { value: 0, label: "👥 2 người 1 bàn phím" }]} />
-                  </div>
-                  {vsBot && (
-                    <>
-                      <div>
-                        <span className="label">Độ khó của máy</span>
-                        <Segmented value={diff} onChange={setDiff} size="sm" options={[1, 2, 3, 4, 5].map((v) => ({ value: v, label: ["Rất dễ", "Dễ", "Vừa", "Khó", "Rất khó"][v - 1] }))} />
-                      </div>
-                      <StakePicker value={stake} onChange={setStake} />
-                    </>
-                  )}
-                  {mode === 2 && (
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 rounded-xl bg-black/30 p-3 text-[11px] text-ink-200">
-                      {FUSIONS.map((f) => (
-                        <p key={f.id}>
-                          <span className="font-bold" style={{ color: f.col }}>{ITEMS[f.a].icon}+{ITEMS[f.b].icon} {f.name}</span>
-                        </p>
-                      ))}
+                    <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-300">
+                      Chế độ đối kháng
+                    </label>
+                    <Segmented
+                      value={mode}
+                      onChange={setMode}
+                      options={[
+                        { value: 2 as Mode, label: "🃏 Băng chuyền thẻ (Đề xuất)" },
+                        { value: 1 as Mode, label: "🚀 Đọ tên lửa" },
+                        { value: 3 as Mode, label: "🏁 Đua gõ tốc độ" },
+                      ]}
+                    />
+                    <div className="mt-2 text-xs text-slate-300">
+                      {mode === 2 && (
+                        <span>Vật phẩm lướt ngang qua màn hình. Gõ chữ trên vật phẩm để cướp về tay, gom 2 thẻ để hợp thể chiêu thức.</span>
+                      )}
+                      {mode === 1 && (
+                        <span>Gõ đúng từ khóa để nạp tên lửa, bấm Space phóng đòn hạ gục đối thủ trước khi cạn máu.</span>
+                      )}
+                      {mode === 3 && (
+                        <span>Hai đấu thủ đua tốc độ gõ đoạn văn bản chuẩn xác, ai cán đích trước sẽ chiến thắng.</span>
+                      )}
                     </div>
-                  )}
-                  <div className="flex flex-wrap gap-1.5 text-[11px] text-ink-300">
-                    <span className="kbd">P1 nửa trái</span><span className="kbd">Space bắn</span>
-                    <span className="kbd">P2 nửa phải</span><span className="kbd">Enter bắn</span><span className="kbd">Esc thoát</span>
                   </div>
-                  <button type="button" className="btn-lime w-full py-3" onClick={start}>
-                    <Play className="size-4" /> Bắt đầu
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-300">
+                        Đối thủ
+                      </label>
+                      <Segmented
+                        value={vsBot ? 1 : 0}
+                        onChange={(v) => setVsBot(v === 1)}
+                        options={[
+                          { value: 1, label: "🤖 Đấu với Máy" },
+                          { value: 0, label: "👥 2 Người (1 phím)" },
+                        ]}
+                      />
+                    </div>
+
+                    {vsBot && (
+                      <div>
+                        <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-300">
+                          Độ khó AI
+                        </label>
+                        <Segmented
+                          value={diff}
+                          onChange={setDiff}
+                          size="sm"
+                          options={[1, 2, 3, 4, 5].map((v) => ({
+                            value: v,
+                            label: ["Tập sự", "Dễ", "Chuẩn", "Cao thủ", "Kiện tướng"][v - 1],
+                          }))}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {vsBot && <StakePicker value={stake} onChange={setStake} />}
+
+                  {/* Bảng hướng dẫn phím gõ tinh tế */}
+                  <div className="flex flex-wrap items-center justify-between rounded-xl bg-slate-900/80 border border-white/10 px-3.5 py-2.5 text-xs text-slate-300">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-sky-400">P1 (Bạn):</span>
+                      <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-[11px]">
+                        Nửa trái phím
+                      </kbd>
+                      <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-[11px]">
+                        Space: Bắn
+                      </kbd>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-rose-400">P2:</span>
+                      <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-[11px]">
+                        Nửa phải phím
+                      </kbd>
+                      <kbd className="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 font-mono text-[11px]">
+                        Enter: Bắn
+                      </kbd>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:brightness-110 active:scale-[0.99]"
+                    onClick={start}
+                  >
+                    <Play className="size-4" /> BẮT ĐẦU ĐỐI ĐẦU
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Kết quả */}
+            {/* MÀN HÌNH KẾT QUẢ KHI KẾT THÚC VÁN */}
             {phase === "over" && winner && (
-              <div className="absolute inset-0 z-50 grid place-items-center bg-black/70">
-                <div className="text-center">
-                  <p className="text-sm text-ink-300">{g!.mode === 3 ? "Về đích đầu tiên" : "Đối thủ đã hết máu"}</p>
-                  <p className="font-display text-5xl font-extrabold" style={{ color: P_COL[winner.id], textShadow: `0 0 30px ${P_COL[winner.id]}` }}>
-                    {winner.name} THẮNG 🏆
-                  </p>
-                  <div className="mt-5 flex justify-center gap-2">
-                    <button type="button" className="btn-lime" onClick={start}>
-                      <RotateCcw className="size-4" /> Chơi lại
+              <div className="absolute inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-md">
+                <div className="text-center space-y-4">
+                  <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-amber-400/40 bg-amber-400/10 text-amber-300 shadow-xl">
+                    <Trophy className="size-8" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-mono uppercase tracking-[0.2em] text-slate-400">
+                      {g!.mode === 3 ? "Về đích chuẩn xác nhất" : "Đối thủ đã cạn kiệt HP"}
+                    </p>
+                    <h2
+                      className="mt-1 font-display text-4xl font-extrabold"
+                      style={{
+                        color: P_COL[winner.id],
+                        textShadow: `0 0 28px ${P_COL[winner.id]}`,
+                      }}
+                    >
+                      {winner.name.toUpperCase()} THẮNG CUỘC
+                    </h2>
+                  </div>
+
+                  <div className="flex justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-xs font-bold text-black shadow-lg transition-all hover:bg-slate-200"
+                      onClick={start}
+                    >
+                      <RotateCcw className="size-3.5" /> Chơi Lại
                     </button>
-                    <button type="button" className="btn-ghost" onClick={() => setPhase("setup")}>Thiết lập</button>
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-white/20 bg-slate-900 px-5 py-2.5 text-xs font-bold text-white shadow-lg transition-all hover:bg-slate-800"
+                      onClick={() => setPhase("setup")}
+                    >
+                      Thiết Lập Mới
+                    </button>
                   </div>
                 </div>
               </div>
             )}
           </div>
         </div>
-        <p className="mt-2 text-center text-xs text-ink-400">P1: nửa trái bàn phím + Space · P2: nửa phải + Enter · Esc về thiết lập</p>
+
+        <p className="mt-2.5 text-center text-xs text-slate-400 font-sans">
+          P1: Nửa trái bàn phím + <kbd className="rounded bg-slate-800 px-1 py-0.5 border border-slate-700">Space</kbd> bắn · 
+          P2: Nửa phải bàn phím + <kbd className="rounded bg-slate-800 px-1 py-0.5 border border-slate-700">Enter</kbd> bắn · 
+          <kbd className="rounded bg-slate-800 px-1 py-0.5 border border-slate-700 ml-1">Esc</kbd> về thiết lập
+        </p>
       </div>
 
-      <MatchResultModal isOpen={resultOpen && phase === "over"} onClose={() => setResultOpen(false)} onPlayAgain={() => setPhase("setup")} resultData={result} reason={g?.mode === 3 ? "Về đích đầu tiên" : "Hạ gục đối thủ bằng tên lửa"} />
+      <MatchResultModal
+        isOpen={resultOpen && phase === "over"}
+        onClose={() => setResultOpen(false)}
+        onPlayAgain={() => setPhase("setup")}
+        resultData={result}
+        reason={g?.mode === 3 ? "Về đích đầu tiên" : "Hạ gục đối thủ bằng tên lửa động năng"}
+      />
     </div>
   );
 }

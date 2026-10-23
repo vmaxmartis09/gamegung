@@ -14,12 +14,27 @@ import {
 
 export const W = 1100;
 export const H = 620;
-/** Vị trí các ô đặt thẻ ở giữa đấu trường (tâm thẻ). */
+
+export interface LaneDef {
+  id: number;
+  y: number;
+  dir: 1 | -1; // 1: Trái sang Phải, -1: Phải sang Trái
+  speed: number;
+}
+
+/** 3 làn băng chuyền chạy ngang qua giữa màn hình */
+export const LANES: LaneDef[] = [
+  { id: 0, y: 215, dir: 1, speed: 92 },
+  { id: 1, y: 310, dir: -1, speed: 92 },
+  { id: 2, y: 405, dir: 1, speed: 92 },
+];
+
+/** Tương thích ngược: vị trí mặc định nếu cần */
 export const SLOTS = [
-  { x: 360, y: 238 },
-  { x: 484, y: 352 },
-  { x: 608, y: 238 },
-  { x: 732, y: 352 },
+  { x: 360, y: 195 },
+  { x: 550, y: 295 },
+  { x: 740, y: 195 },
+  { x: 550, y: 395 },
 ];
 
 export type Mode = 1 | 2 | 3;
@@ -37,6 +52,11 @@ export interface HandCard {
 export interface Item {
   id: number;
   type: ItemType;
+  lane: number;
+  dir: 1 | -1;
+  x: number;
+  y: number;
+  vx: number;
   slot: number;
   /** đoạn text hiển thị cho P1 / P2 */
   disp: [string, string];
@@ -156,7 +176,7 @@ export interface Game {
 
 const fighter = (id: 0 | 1, name: string, bot: boolean): Fighter => ({
   id, name, bot,
-  x: id ? W - 130 : 130, y: 300,
+  x: W / 2, y: id ? 64 : H - 64,
   hp: 0, maxHp: 0, ghost: 0, buf: "", word: "", ammo: 0, armor: 0,
   reflectT: 0, reflectMul: 1, lifeT: 0, slowT: 0, freezeT: 0, lastKey: 0,
   combo: 0, err: 0, idx: 0, text: "", errors: 0, hand: [], lock: null,
@@ -204,14 +224,14 @@ export function burst(g: Game, x: number, y: number, col: string, n = 26, sp = 2
   }
 }
 const ring = (g: Game, x: number, y: number, max: number, life: number, col: string, r = 10) => g.rings.push({ x, y, r, max, life, t: 0, col });
-const popText = (g: Game, x: number, y: number, txt: string, col: string, big = false) => g.texts.push({ x, y, txt, col, t: 0, big });
+const popText = (g: Game, x: number, y: number, txt: string, col: string, big = false) => g.texts.push({ x, y: Math.max(40, Math.min(H - 30, y)), txt, col, t: 0, big });
 
 export function launch(g: Game, f: Fighter, dmg: number, big = false, h?: Hooks) {
   f.fireN++;
-  const x = f.x + (f.id ? -80 : 80);
-  g.missiles.push({ x, y: f.y, dir: f.id ? -1 : 1, owner: f.id, dmg, reflected: false, big, ph: Math.random() * 6, age: 0, yy: f.y });
-  burst(g, x, f.y, f.id ? "#ff4f88" : "#3ad0ff", 10, 140);
-  ring(g, x, f.y, 40, 0.3, f.id ? "#ff4f88" : "#3ad0ff", 6);
+  const x = f.x, y = f.y + (f.id ? 70 : -70);
+  g.missiles.push({ x, y, dir: f.id ? 1 : -1, owner: f.id, dmg, reflected: false, big, ph: Math.random() * 6, age: 0, yy: y });
+  burst(g, x, y, f.id ? "#ff4f88" : "#3ad0ff", 10, 140);
+  ring(g, x, y, 40, 0.3, f.id ? "#ff4f88" : "#3ad0ff", 6);
   h?.sfx("fire");
 }
 
@@ -222,8 +242,8 @@ function hit(g: Game, m: Missile, h: Hooks) {
     t.reflectT = 0; t.reflectMul = 1;
     popText(g, t.x, t.y - 110, "PHẢN DAME!", "#b878ff", true);
     burst(g, t.x, t.y, "#b878ff", 34);
-    ring(g, t.x + (t.id ? -80 : 80), t.y, 110, 0.5, "#b878ff");
-    g.missiles.push({ x: t.x + (t.id ? -80 : 80), y: t.y, dir: t.id ? -1 : 1, owner: t.id, dmg: Math.round(m.dmg * mul), reflected: true, big: m.big, ph: 0, age: 0, yy: t.y });
+    ring(g, t.x, t.y + (t.id ? 70 : -70), 110, 0.5, "#b878ff");
+    g.missiles.push({ x: t.x, y: t.y + (t.id ? 70 : -70), dir: t.id ? 1 : -1, owner: t.id, dmg: Math.round(m.dmg * mul), reflected: true, big: m.big, ph: 0, age: 0, yy: t.y + (t.id ? 70 : -70) });
     t.hitN++;
     return;
   }
@@ -307,10 +327,9 @@ function collect(g: Game, f: Fighter, it: Item, h: Hooks) {
   it.state = "taken"; it.by = f.id; it.st = 0;
   f.buf = ""; f.lock = null;
   if (o.lock === it) { o.lock = null; o.buf = ""; }
-  const s = SLOTS[it.slot];
-  burst(g, s.x, s.y, def.col, 30, 240); ring(g, s.x, s.y, 90, 0.45, def.col);
+  burst(g, it.x, it.y, def.col, 34, 260); ring(g, it.x, it.y, 90, 0.45, def.col);
   h.sfx("collect");
-  if (it.type === "ammo") { f.ammo += 3; popText(g, s.x, s.y - 40, "+3 🚀", def.col, true); return; }
+  if (it.type === "ammo") { f.ammo += 3; popText(g, it.x, it.y - 40, "+3 🚀", def.col, true); return; }
   const pi = f.hand.findIndex((c) => findFusion(c.type, it.type));
   if (pi >= 0) {
     const partner = f.hand.splice(pi, 1)[0];
@@ -319,7 +338,7 @@ function collect(g: Game, f: Fighter, it: Item, h: Hooks) {
   }
   if (f.hand.length >= HAND_MAX) activate(g, f, f.hand.shift()!.type, h);
   f.hand.push({ type: it.type, t: HAND_HOLD });
-  popText(g, s.x, s.y - 40, "+ " + def.name, def.col, true);
+  popText(g, it.x, it.y - 40, "+ " + def.name, def.col, true);
 }
 
 /* -------------------------------- phím -------------------------------- */
@@ -420,17 +439,38 @@ function phrase(pid: 0 | 1, words: number, used: string[]): string | null {
 }
 
 function spawnItem(g: Game) {
-  const live = g.items.filter((i) => i.state !== "expired");
-  const free = SLOTS.map((_, i) => i).filter((i) => !live.some((it) => it.slot === i));
-  if (!free.length) return;
+  const live = g.items.filter((i) => i.state === "live");
+  if (live.length >= 4) return;
+  // Tìm các lane chưa có item xuất hiện gần điểm xuất phát
+  const laneCandidates = LANES.filter((lane) => {
+    const spawnX = lane.dir > 0 ? -90 : W + 90;
+    return !live.some((it) => it.lane === lane.id && Math.abs(it.x - spawnX) < 260);
+  });
+  if (!laneCandidates.length) return;
+  const lane = rnd(laneCandidates);
   const type = rnd(ITEM_BAG), def = ITEMS[type];
   const liveOnly = g.items.filter((i) => i.state === "live");
   const a = phrase(0, def.words, liveOnly.map((i) => i.keys[0][0]));
   const b = phrase(1, def.words, liveOnly.map((i) => i.keys[1][0]));
   if (!a || !b) return;
+  const startX = lane.dir > 0 ? -100 : W + 100;
+  const speed = lane.speed + (Math.random() - 0.5) * 6;
   g.items.push({
-    id: g.uid++, type, slot: rnd(free), disp: [a, b], keys: [a.replace(/ /g, ""), b.replace(/ /g, "")],
-    age: 0, life: def.words > 1 ? 15 : 11, state: "live", by: -1, st: 0,
+    id: g.uid++,
+    type,
+    lane: lane.id,
+    dir: lane.dir,
+    x: startX,
+    y: lane.y,
+    vx: lane.dir * speed,
+    slot: lane.id,
+    disp: [a, b],
+    keys: [a.replace(/ /g, ""), b.replace(/ /g, "")],
+    age: 0,
+    life: 16,
+    state: "live",
+    by: -1,
+    st: 0,
   });
 }
 
@@ -466,27 +506,38 @@ export function update(g: Game, dt: number, h: Hooks) {
 
   if (g.mode === 2 && g.phase === "play") {
     g.spawnT -= dt;
-    if (g.spawnT <= 0) { spawnItem(g); g.spawnT = 1.4 + Math.random() * 1.0; }
+    if (g.spawnT <= 0) { spawnItem(g); g.spawnT = 1.2 + Math.random() * 0.8; }
   }
   for (let i = g.items.length - 1; i >= 0; i--) {
     const it = g.items[i];
     if (it.state === "live") {
-      if (g.phase === "play") it.age += dt;
-      if (it.age > it.life) {
-        it.state = "expired"; it.st = 0;
+      if (g.phase === "play") {
+        it.age += dt;
+        const locked = g.fighters.some((f) => f.lock === it);
+        const curVx = locked ? it.vx * 0.72 : it.vx;
+        it.x += curVx * dt;
+        it.y = LANES[it.lane].y + Math.sin(it.age * 2.5 + it.id) * 3;
+      }
+      const expiredByX = (it.dir > 0 && it.x > W + 110) || (it.dir < 0 && it.x < -110);
+      if (it.age > it.life || expiredByX) {
+        it.state = "expired";
+        it.st = 0;
         for (const f of g.fighters) if (f.lock === it) { f.lock = null; f.buf = ""; }
       }
-    } else { it.st += dt; if (it.st > 0.6) g.items.splice(i, 1); }
+    } else {
+      it.st += dt;
+      if (it.st > 0.5) g.items.splice(i, 1);
+    }
   }
 
   for (let i = g.missiles.length - 1; i >= 0; i--) {
     const m = g.missiles[i], t = g.fighters[1 - m.owner];
-    m.age += dt; m.x += m.dir * (560 + Math.min(500, m.age * 900)) * dt; m.ph += dt * 10;
-    m.yy = m.y + Math.sin(m.ph) * 6;
+    m.age += dt; m.y += m.dir * (480 + Math.min(420, m.age * 800)) * dt; m.ph += dt * 10;
+    m.yy = m.y;
     for (let k = 0; k < 2; k++) {
-      g.parts.push({ x: m.x - m.dir * 22, y: m.yy + (Math.random() - 0.5) * 6, vx: -m.dir * (60 + Math.random() * 60), vy: (Math.random() - 0.5) * 50, life: 0.4, max: 0.4, col: m.reflected ? "#d8a0ff" : m.big ? "#fff07a" : Math.random() < 0.5 ? "#ffd070" : "#ff8a40", sz: 1.5 + Math.random() * 2.5 });
+      g.parts.push({ x: m.x + Math.sin(m.ph) * 5 + (Math.random() - 0.5) * 6, y: m.yy - m.dir * 22, vx: (Math.random() - 0.5) * 50, vy: -m.dir * (60 + Math.random() * 60), life: 0.4, max: 0.4, col: m.reflected ? "#d8a0ff" : m.big ? "#fff07a" : Math.random() < 0.5 ? "#ffd070" : "#ff8a40", sz: 1.5 + Math.random() * 2.5 });
     }
-    if ((m.dir > 0 && m.x >= t.x - 50) || (m.dir < 0 && m.x <= t.x + 50)) {
+    if ((m.dir > 0 && m.y >= t.y - 60) || (m.dir < 0 && m.y <= t.y + 60)) {
       g.missiles.splice(i, 1);
       if (g.phase !== "over") hit(g, m, h);
     }
