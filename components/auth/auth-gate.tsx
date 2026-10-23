@@ -9,10 +9,11 @@ import { useAppStore } from "@/lib/store";
 import { usePresenceStore, locationFromPath, AWAY_HIDDEN_MS, AWAY_IDLE_MS } from "@/lib/presence";
 import { supabase } from "@/lib/supabase";
 import dynamic from "next/dynamic";
-import Loader from "@/components/kokonut/loader";
+import { BlackHole, type BlackHoleRef } from "@/components/reactbits";
+import { cn } from "@/lib/utils";
 
 // Only signed-out visitors need the sign-up screen (avatar picker, forms).
-const AuthScreen = dynamic(() => import("./auth-screen").then((m) => m.AuthScreen), { ssr: false, loading: () => <Splash /> });
+const AuthScreen = dynamic(() => import("./auth-screen").then((m) => m.AuthScreen), { ssr: false, loading: () => <BlackHoleLoading /> });
 
 /**
  * Everything behind this gate requires a signed-in account.
@@ -29,7 +30,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     import("@/components/social/chat-drawer");
   }, [init]);
 
-  if (status === "loading") return <Splash />;
+  if (status === "loading") return <BlackHoleLoading />;
   if (status === "guest") return <AuthScreen />;
   return (
     <>
@@ -42,18 +43,94 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Splash() {
+export function BlackHoleLoading({ message = "Đang mở sảnh…", subMessage = "Khởi tạo đấu trường Office Arena" }: { message?: string; subMessage?: string }) {
+  const blackHoleRef = useRef<BlackHoleRef>(null);
+  const skipToGuest = useAuthStore((s) => s.skipToGuest);
+  const [showFallback, setShowFallback] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowFallback(true), 3500);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <div className="relative z-10 grid min-h-screen place-items-center">
-      <div className="flex flex-col items-center gap-4">
-        <Loader className="text-white">
-          <span className="font-display text-xl font-black">OA</span>
-        </Loader>
-        <p className="font-mono text-xs text-ink-400">Đang mở sảnh…</p>
-        {/* CSS-only fallback: appears after 6s even if the JS bundle never loaded. */}
-        <a href="" className="animate-fade-up text-xs font-semibold text-ink-200 underline underline-offset-4 hover:text-white" style={{ animationDelay: "6s" }}>
-          Lâu quá? Tải lại trang
-        </a>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black overflow-hidden select-none">
+      {/* React Bits Pro: Smoky Black Hole Shader Animation */}
+      <div className="absolute inset-0">
+        <BlackHole
+          ref={blackHoleRef}
+          className="h-full w-full"
+          speed={1.15}
+          zoom={2.2}
+          particleCount={14}
+          orbSize={0.72}
+          glow={0.08}
+          contrast={3.2}
+          bloom={1.2}
+          ringIntensity={1.35}
+          mirrorSplits={2}
+          warpEnabled={true}
+          distanceFade={0.32}
+          cursorInteraction={true}
+          cursorIntensity={1.2}
+          backgroundColor="#000000"
+        />
+      </div>
+
+      {/* Center Singularity & UI */}
+      <div className="relative z-10 flex flex-col items-center gap-5 px-4 text-center pointer-events-auto">
+        {/* Core Event Horizon Badge */}
+        <button
+          type="button"
+          onClick={() => blackHoleRef.current?.gulp(1.5)}
+          className="group relative flex size-20 items-center justify-center rounded-full bg-black/85 border border-white/20 shadow-[0_0_35px_rgba(255,255,255,0.18)] backdrop-blur-md transition-all duration-300 hover:scale-105 active:scale-90 hover:border-white/50 focus:outline-none"
+          title="Bấm để kích hoạt lực hấp dẫn"
+        >
+          <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
+          <span className="font-display text-2xl font-black tracking-widest text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.85)]">
+            OA
+          </span>
+          <div className="absolute -inset-1 rounded-full border border-white/20 animate-ping opacity-25 pointer-events-none" />
+        </button>
+
+        {/* Loading Indicator */}
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="flex items-center gap-2">
+            <span className="inline-block size-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+            <p className="font-mono text-xs font-semibold tracking-wider text-ink-200">
+              {message}
+            </p>
+          </div>
+          <p className="font-mono text-[11px] text-ink-500">
+            {subMessage}
+          </p>
+        </div>
+
+        {/* Fallback escape options if taking longer than 3.5s */}
+        <div
+          className={cn(
+            "flex items-center gap-3 transition-all duration-500",
+            showFallback ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none"
+          )}
+        >
+          <button
+            type="button"
+            onClick={skipToGuest}
+            className="rounded-full bg-white/10 px-3.5 py-1 text-xs font-medium text-ink-100 backdrop-blur-sm border border-white/15 hover:bg-white/20 hover:text-white transition-colors"
+          >
+            Vào ngay (Khách)
+          </button>
+          <a
+            href=""
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.reload();
+            }}
+            className="text-xs text-ink-400 underline underline-offset-4 hover:text-white transition-colors"
+          >
+            Tải lại trang
+          </a>
+        </div>
       </div>
     </div>
   );

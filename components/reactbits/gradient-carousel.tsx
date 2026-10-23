@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Skull, AlertTriangle, Flame, ShieldAlert, Award } from "lucide-react";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { playRouletteTick, playWerewolfClawSlash, playHeartbeat } from "@/lib/audio";
 
 export interface VoteCandidate {
@@ -205,7 +206,7 @@ export function GradientCarousel({
                         : "ring-2 ring-white/10 bg-slate-900 shadow-black"
                     }`}
                   >
-                    {cand.avatar}
+                    <UserAvatar src={cand.avatar} name={cand.name} className="size-full rounded-3xl" />
 
                     {isCenter && showVerdict && !isTie && (
                       <motion.div
@@ -309,5 +310,118 @@ function Vote(props: React.SVGProps<SVGSVGElement>) {
       <path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5V7Z" />
       <path d="M22 19H2" />
     </svg>
+  );
+}
+
+export interface PickerItem {
+  id: string;
+  name: string;
+  avatar: string;
+  disabled?: boolean;
+  badge?: string;
+  votes?: number;
+}
+
+/** Swipeable 3D carousel used to choose a player (night targets, secret vote). */
+export function GradientCarouselPicker({
+  items,
+  title,
+  confirmLabel,
+  onConfirm,
+  onClose,
+  onAbstain,
+  abstainLabel,
+}: {
+  items: PickerItem[];
+  title: string;
+  confirmLabel: string;
+  onConfirm: (id: string) => void;
+  onClose?: () => void;
+  onAbstain?: () => void;
+  abstainLabel?: string;
+}) {
+  const total = items.length;
+  const firstOk = Math.max(0, items.findIndex((i) => !i.disabled));
+  const [idx, setIdx] = useState(firstOk);
+  const move = (d: number) => {
+    let n = idx;
+    for (let k = 0; k < total; k++) {
+      n = (n + d + total) % total;
+      if (!items[n].disabled) break;
+    }
+    setIdx(n);
+    try {
+      playRouletteTick();
+    } catch {}
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") move(-1);
+      else if (e.key === "ArrowRight") move(1);
+      else if (e.key === "Enter" && !items[idx]?.disabled) onConfirm(items[idx].id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+  const cur = items[idx];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-xl select-none overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,rgba(99,102,241,0.25),rgba(5,5,15,0.95)_70%)]" />
+      <div className="relative z-10 flex w-full max-w-2xl flex-col items-center text-center">
+        <div className="mb-1 flex w-full items-center justify-between px-2">
+          <span className="font-mono text-xs font-bold text-amber-400">{title}</span>
+          {onClose && (
+            <button type="button" onClick={onClose} className="rounded-lg bg-white/5 px-2.5 py-1 text-xs text-slate-400 hover:bg-white/10 hover:text-white">
+              Đóng (chọn trên bàn)
+            </button>
+          )}
+        </div>
+        <div className="relative my-2 flex h-[340px] w-full items-center justify-center" style={{ perspective: 1200 }}>
+          {items.map((it, i) => {
+            let o = (i - idx + total) % total;
+            if (o > total / 2) o -= total;
+            if (Math.abs(o) > 2) return null;
+            const center = o === 0;
+            return (
+              <motion.button
+                key={it.id}
+                type="button"
+                onClick={() => (center ? undefined : setIdx(i))}
+                animate={{ x: o * 170, z: -Math.abs(o) * 160, rotateY: -o * 22, scale: center ? 1.08 : 0.82, opacity: it.disabled ? 0.35 : center ? 1 : Math.max(0.25, 0.65 - Math.abs(o) * 0.2) }}
+                transition={{ type: "spring", stiffness: 260, damping: 25 }}
+                className={`absolute flex h-72 w-52 flex-col items-center justify-between rounded-3xl border p-5 ${
+                  center ? "border-indigo-400/70 bg-gradient-to-b from-slate-900 via-slate-950 to-black shadow-[0_0_35px_rgba(99,102,241,0.35)] ring-2 ring-indigo-400/30" : "border-slate-800 bg-slate-950/80"
+                }`}
+                style={{ transformStyle: "preserve-3d" }}
+              >
+                <span className="h-5 text-[11px] font-bold text-amber-300">{it.badge}</span>
+                <div className="flex flex-col items-center">
+                  <UserAvatar src={it.avatar} name={it.name} className="size-24 rounded-3xl" />
+                  <h3 className="mt-3 line-clamp-1 max-w-[170px] text-lg font-black text-white">{it.name}</h3>
+                </div>
+                <span className="text-[11px] text-slate-400">{it.disabled ? "Không thể chọn" : it.votes ? `${it.votes} phiếu` : " "}</span>
+              </motion.button>
+            );
+          })}
+        </div>
+        <div className="mt-2 flex items-center gap-3">
+          <button type="button" onClick={() => move(-1)} className="rounded-xl bg-white/10 px-4 py-2 font-bold text-white hover:bg-white/20" aria-label="Trước">‹</button>
+          <button
+            type="button"
+            disabled={!cur || cur.disabled}
+            onClick={() => cur && onConfirm(cur.id)}
+            className="rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 px-6 py-3 text-sm font-black uppercase tracking-wider text-white shadow-lg disabled:opacity-40"
+          >
+            {confirmLabel}: {cur?.name}
+          </button>
+          <button type="button" onClick={() => move(1)} className="rounded-xl bg-white/10 px-4 py-2 font-bold text-white hover:bg-white/20" aria-label="Sau">›</button>
+        </div>
+        {onAbstain && (
+          <button type="button" onClick={onAbstain} className="mt-3 rounded-xl bg-white/10 px-4 py-2 text-xs font-bold text-slate-300 hover:bg-white/20">
+            {abstainLabel ?? "Bỏ qua"}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

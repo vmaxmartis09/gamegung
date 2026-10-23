@@ -22,6 +22,7 @@ interface AuthState {
   recovery: boolean;
   endRecovery: () => void;
   init: () => void;
+  skipToGuest: () => void;
   signOut: () => Promise<void>;
 }
 
@@ -62,6 +63,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
   recovery: false,
   endRecovery: () => set({ recovery: false }),
 
+  skipToGuest: () => {
+    set({ status: "guest", email: null });
+  },
+
   init: () => {
     if (initialised || typeof window === "undefined") return;
     initialised = true;
@@ -74,8 +79,15 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return;
     }
 
-    supabase.auth
-      .getSession()
+    // Never let session resolution hang indefinitely (timeout fallback to guest after 4s)
+    const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) =>
+      setTimeout(() => resolve({ data: { session: null } }), 4000)
+    );
+
+    Promise.race([
+      supabase.auth.getSession().catch(() => ({ data: { session: null } })),
+      timeoutPromise,
+    ])
       .then(({ data }) => {
         const user = data.session?.user;
         if (user) {

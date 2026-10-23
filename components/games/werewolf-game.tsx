@@ -32,12 +32,12 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 import { MatchResultModal } from "./match-result-modal";
 import { GameHeader, Segmented, StakePicker, useGameSession, useMatchSettlement } from "./shared";
+import { WerewolfRoleGallery } from "./werewolf-role-gallery";
 import { WerewolfRoleRandomizer } from "./werewolf-role-randomizer";
 import { WerewolfRoundtable } from "./werewolf-roundtable";
 import { WerewolfActionFxOverlay, WerewolfFxEvent } from "./werewolf-action-fx";
 import { useWerewolfVoice, WerewolfMicButton } from "./werewolf-voice";
-import { RotatingCards } from "@/components/reactbits/rotating-cards";
-import { GradientCarousel, VoteCandidate } from "@/components/reactbits/gradient-carousel";
+import { GradientCarousel, GradientCarouselPicker, VoteCandidate } from "@/components/reactbits/gradient-carousel";
 import { playNarratorVoice } from "@/lib/narrator-audio";
 
 const DISCUSS_MS = 60_000;
@@ -78,7 +78,12 @@ export function WerewolfGame() {
   const [showRole, setShowRole] = useState(false);
   const [roleModalMode, setRoleModalMode] = useState<"roulette" | "inspect">("roulette");
   const [demoRole, setDemoRole] = useState<import("@/lib/games/werewolf-engine").Role | null>(null);
-  const [currentFx, setCurrentFx] = useState<WerewolfFxEvent | null>(null);
+  // FX run as a queue so rapid events (dawn deaths, hunter chains) never cut each other off.
+  const [fxQueue, setFxQueue] = useState<WerewolfFxEvent[]>([]);
+  const currentFx = fxQueue[0] ?? null;
+  const playFx = useCallback((ev: WerewolfFxEvent) => setFxQueue((q) => [...q, ev]), []);
+  const popFx = useCallback(() => setFxQueue((q) => q.slice(1)), []);
+  const [phaseBanner, setPhaseBanner] = useState<{ key: string; night: boolean; text: string } | null>(null);
   const [viewMode, setViewMode] = useState<"circle" | "grid">("circle");
   const [latestChats, setLatestChats] = useState<Record<string, string>>({});
   const [voteRevealState, setVoteRevealState] = useState<{
@@ -88,7 +93,7 @@ export function WerewolfGame() {
     count: Map<string, number>;
   } | null>(null);
   const [showRotatingVoteModal, setShowRotatingVoteModal] = useState(false);
-  const [rotatingVoteSelected, setRotatingVoteSelected] = useState<string | null>(null);
+  const [pickerDismissed, setPickerDismissed] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -212,6 +217,7 @@ export function WerewolfGame() {
           if (deaths.length) {
             for (const id of deaths) {
               const p = byId(s, id)!;
+              playFx({ id: `${Date.now()}-${id}`, type: p.cause === "poison" ? "poison" : "claw", targetName: p.name });
               addLog(s, "death", `☠️ ${p.name} đã chết${p.cause === "poison" ? " (trúng độc)" : p.cause === "lover" ? " (chết vì người yêu)" : ""}. Vai: ${ROLE_INFO[p.role].emoji} ${ROLE_INFO[p.role].name}.`);
             }
             if (soundEnabled) soundManager.playWerewolfDeath();
@@ -240,6 +246,15 @@ export function WerewolfGame() {
     // Pretend-think so roles can't be inferred from timing.
     later(advanceStep, (actorAlive ? 1100 : 900) * pace);
   }, [g?.phase, g?.step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Announce day/night swaps with a short cinematic banner.
+  useEffect(() => {
+    if (!g || (g.phase !== "night" && g.phase !== "discussion")) return;
+    const night = g.phase === "night";
+    setPhaseBanner({ key: `${g.phase}-${g.day}`, night, text: night ? `🌙 Đêm ${g.day}` : `☀️ Ngày ${g.day}` });
+    const t = setTimeout(() => setPhaseBanner(null), 1900);
+    return () => clearTimeout(t);
+  }, [g?.phase, g?.day]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dawn → hunter or discussion.
   useEffect(() => {
@@ -279,6 +294,7 @@ export function WerewolfGame() {
         const t = byId(s, target)!;
         addLog(s, "death", `🏹 Thợ Săn ${hunter.name} bắn hạ ${t.name}! Vai: ${ROLE_INFO[t.role].emoji} ${ROLE_INFO[t.role].name}.`);
         kill(s, target, "hunter");
+        playFx({ id: `${Date.now()}-h`, type: "hunter", targetName: t.name });
         if (soundEnabled) soundManager.playWerewolfHunter();
       } else addLog(s, "narrator", `🏹 Thợ Săn ${hunter.name} quyết định không bắn.`);
       if (endIfWinner(s)) return;
@@ -292,7 +308,7 @@ export function WerewolfGame() {
       }
       s.afterHunter = null;
     },
-    [endIfWinner, goNight, soundEnabled]
+    [endIfWinner, goNight, soundEnabled, playFx]
   );
 
   // Discussion: bots talk over time.
@@ -432,7 +448,7 @@ export function WerewolfGame() {
           `🪢 ${p.name} bị trục xuất với ${count.get(executed)} phiếu. Vai thật: ${ROLE_INFO[p.role].emoji} ${ROLE_INFO[p.role].name}.`
         );
         kill(s, executed, "vote");
-        setCurrentFx({ id: Date.now().toString(), type: "execution", targetName: p.name });
+        playFx({ id: Date.now().toString(), type: "execution", targetName: p.name });
         if (soundEnabled) soundManager.playWerewolfExecution();
       }
       if (endIfWinner(s)) return;
@@ -502,6 +518,11 @@ export function WerewolfGame() {
     return null;
   }, [g, meP, seerReveal, witchChoice]);
 
+  const pickKey = pick ? `${pick.kind}-${g?.day}-${g?.cupidTarget1 ?? ""}` : "";
+  useEffect(() => {
+    setPickerDismissed(false);
+  }, [pickKey]);
+
   const canTarget = (p: WPlayer) => {
     if (!pick || !g || !meP || !p.alive) return false;
     switch (pick.kind) {
@@ -539,13 +560,13 @@ export function WerewolfGame() {
             addLog(s, "narrator", `💘 Thần Tình Yêu đã se duyên cho ${byId(s, p1)?.name} và ${byId(s, p2)?.name}!`);
           });
           if (soundEnabled) soundManager.playCupidArrow();
-          setCurrentFx({ id: Date.now().toString(), type: "cupid", targetName: `${byId(g, p1)?.name} & ${p.name}` });
+          playFx({ id: Date.now().toString(), type: "cupid", targetName: `${byId(g, p1)?.name} & ${p.name}` });
           advanceStep();
         }
         break;
       case "guard":
         if (soundEnabled) soundManager.playWerewolfShield();
-        setCurrentFx({ id: Date.now().toString(), type: "shield", targetName: p.name });
+        playFx({ id: Date.now().toString(), type: "shield", targetName: p.name });
         mutate((s) => {
           s.guard = p.id;
         });
@@ -556,7 +577,7 @@ export function WerewolfGame() {
           soundManager.playWerewolfWolfHowl();
           soundManager.playWerewolfClawSlash();
         }
-        setCurrentFx({ id: Date.now().toString(), type: "claw", targetName: p.name });
+        playFx({ id: Date.now().toString(), type: "claw", targetName: p.name });
         mutate((s) => {
           s.wolfTarget = p.id;
         });
@@ -564,7 +585,7 @@ export function WerewolfGame() {
         break;
       case "white_wolf":
         if (soundEnabled) soundManager.playWerewolfClawSlash();
-        setCurrentFx({ id: Date.now().toString(), type: "claw", targetName: p.name });
+        playFx({ id: Date.now().toString(), type: "claw", targetName: p.name });
         mutate((s) => {
           s.whiteWolfTarget = p.id;
         });
@@ -573,7 +594,7 @@ export function WerewolfGame() {
       case "seer":
         const targetIsWolf = isWolf(p.role);
         if (soundEnabled) soundManager.playWerewolfSeer();
-        setCurrentFx({ id: Date.now().toString(), type: "seer", targetName: p.name, seerResultIsWolf: targetIsWolf });
+        playFx({ id: Date.now().toString(), type: "seer", targetName: p.name, seerResultIsWolf: targetIsWolf });
         mutate((s) => {
           s.seerCheck = p.id;
           s.seerResults[human(s).id] = { ...(s.seerResults[human(s).id] || {}), [p.id]: targetIsWolf };
@@ -582,7 +603,7 @@ export function WerewolfGame() {
         break;
       case "poison":
         if (soundEnabled) soundManager.playWitchPoison();
-        setCurrentFx({ id: Date.now().toString(), type: "poison", targetName: p.name });
+        playFx({ id: Date.now().toString(), type: "poison", targetName: p.name });
         mutate((s) => {
           s.poisonTarget = p.id;
           s.poisonUsed = true;
@@ -594,8 +615,6 @@ export function WerewolfGame() {
         castVote(p.id);
         break;
       case "hunter":
-        if (soundEnabled) soundManager.playWerewolfHunter();
-        setCurrentFx({ id: Date.now().toString(), type: "hunter", targetName: p.name });
         mutate((s) => applyHunter(s, p.id));
         break;
     }
@@ -783,7 +802,7 @@ export function WerewolfGame() {
                     onHeal={(heal) => {
                       if (heal) {
                         if (soundEnabled) soundManager.playWitchHeal();
-                        setCurrentFx({ id: Date.now().toString(), type: "heal", targetName: byId(g, g.wolfTarget)?.name });
+                        playFx({ id: Date.now().toString(), type: "heal", targetName: byId(g, g.wolfTarget)?.name });
                       }
                       mutate((s) => {
                         if (heal) {
@@ -937,18 +956,21 @@ export function WerewolfGame() {
                 if (l.kind === "chat") {
                   const sp = byId(g, l.speaker);
                   return (
-                    <div key={l.id} className={cn("flex gap-2", sp?.isHuman && "flex-row-reverse")}>
+                    <motion.div key={l.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className={cn("flex gap-2", sp?.isHuman && "flex-row-reverse")}>
                       <UserAvatar src={sp?.avatar} name={sp?.name ?? "?"} className="size-7" />
                       <div className={cn("max-w-[80%] rounded-2xl px-3 py-2 text-[13px]", sp?.isHuman ? "rounded-tr-md bg-lime-400 text-black" : "rounded-tl-md bg-ink-800")}>
                         {!sp?.isHuman && <p className="text-[10px] font-bold text-ink-300">{sp?.name}</p>}
                         {l.text}
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 }
                 return (
-                  <p
+                  <motion.p
                     key={l.id}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3 }}
                     className={cn(
                       "rounded-xl px-3 py-2 text-[12px]",
                       l.kind === "death" && "border border-pop-red/30 bg-pop-red/10 font-semibold text-[#ffb3bb]",
@@ -957,7 +979,7 @@ export function WerewolfGame() {
                     )}
                   >
                     {l.text}
-                  </p>
+                  </motion.p>
                 );
               })}
             </div>
@@ -1016,64 +1038,64 @@ export function WerewolfGame() {
         />
       )}
 
-      {/* 3D Rotating Cards Suspect Selection Modal for Secret Voting */}
+      {/* Gradient carousel picker: secret vote and night targets */}
+      {g && meP && pick && (pick.kind !== "vote" || showRotatingVoteModal) && !pickerDismissed && (
+        <GradientCarouselPicker
+          key={`${pick.kind}-${g.day}-${g.cupidTarget1 ?? ""}`}
+          title={
+            pick.kind === "vote" ? "🗳️ BỎ PHIẾU BÍ MẬT (KÍN)" : pick.kind === "cupid" ? (g.cupidTarget1 ? "💘 CHỌN NGƯỜI THỨ HAI" : "💘 CHỌN NGƯỜI THỨ NHẤT") : prompt.toUpperCase()
+          }
+          confirmLabel={pick.kind === "vote" ? "Bỏ phiếu kín 🔒" : "Chọn"}
+          items={g.players
+            .filter((p) => p.alive)
+            .map((p) => ({
+              id: p.id,
+              name: p.name + (p.isHuman ? " (bạn)" : ""),
+              avatar: p.avatar,
+              disabled: !canTarget(p),
+              badge: isWolf(meP.role) && isWolf(p.role) ? "🐺 Bầy Sói" : undefined,
+            }))}
+          onConfirm={(id) => {
+            const p = byId(g, id);
+            if (p) onTarget(p);
+          }}
+          onClose={() => {
+            setShowRotatingVoteModal(false);
+            setPickerDismissed(true);
+          }}
+          onAbstain={pick.kind === "vote" ? () => castVote(null) : undefined}
+          abstainLabel="Bỏ phiếu trắng (Abstain)"
+        />
+      )}
+
       <AnimatePresence>
-        {showRotatingVoteModal && g?.phase === "vote" && meAlive && g.votes[meP?.id || ""] === undefined && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="relative w-full max-w-2xl bg-slate-950/95 border border-red-500/30 rounded-3xl p-5 shadow-2xl flex flex-col items-center"
+        {phaseBanner && (
+          <motion.div
+            key={phaseBanner.key}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className={cn(
+              "pointer-events-none fixed inset-0 z-[70] grid place-items-center",
+              phaseBanner.night ? "bg-[radial-gradient(circle,rgba(30,27,75,0.75),rgba(2,6,23,0.92))]" : "bg-[radial-gradient(circle,rgba(253,230,138,0.55),rgba(251,146,60,0.25))]"
+            )}
+          >
+            <motion.p
+              initial={{ scale: 0.7, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 1.15, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 140, damping: 16 }}
+              className="font-display text-5xl font-black text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.6)] sm:text-7xl"
             >
-              <div className="w-full flex justify-between items-center mb-2 px-2">
-                <span className="text-xs font-mono font-bold text-amber-400">
-                  🗳️ BỎ PHIẾU BÍ MẬT (KÍN)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowRotatingVoteModal(false)}
-                  className="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10"
-                >
-                  Đóng (chọn trên bàn)
-                </button>
-              </div>
-
-              <RotatingCards
-                items={g.players.map((p) => ({
-                  id: p.id,
-                  name: p.name,
-                  avatar: p.avatar,
-                  isAlive: p.alive,
-                  isSelf: p.id === meP?.id,
-                  badge: isWolf(meP?.role || "villager") && isWolf(p.role) ? "🐺 Bầy Sói" : undefined,
-                }))}
-                selectedId={rotatingVoteSelected}
-                onSelect={(id) => setRotatingVoteSelected(id)}
-                confirmLabel="Xác nhận bỏ phiếu kín 🔒"
-                onConfirm={() => {
-                  if (rotatingVoteSelected) {
-                    castVote(rotatingVoteSelected);
-                  }
-                }}
-              />
-
-              <div className="mt-3 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => castVote(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-slate-300 transition"
-                >
-                  Bỏ phiếu trắng (Abstain)
-                </button>
-              </div>
-            </motion.div>
-          </div>
+              {phaseBanner.text}
+            </motion.p>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* Action FX Visual Overlay (Claw, Poison, Heal, Seer, Shield, Cupid, Execution) */}
-      <WerewolfActionFxOverlay currentFx={currentFx} onFinish={() => setCurrentFx(null)} />
+      <WerewolfActionFxOverlay currentFx={currentFx} onFinish={popFx} />
 
       <MatchResultModal
         isOpen={resultOpen}
@@ -1140,14 +1162,8 @@ function Lobby({
           )}
         </div>
         <p className="mt-1 text-sm text-ink-300">Đêm Sói cắn, các vai đặc biệt hành động. Ngày cả làng ngồi vòng tròn thảo luận (bật mic hoặc chat) và bỏ phiếu treo cổ. Quản trò tự động dẫn dắt từng bước.</p>
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {(Object.keys(ROLE_INFO) as (keyof typeof ROLE_INFO)[]).map((r) => (
-            <div key={r} className="rounded-2xl border-2 border-black p-3 text-black shadow-brutal-sm" style={{ background: ROLE_INFO[r].color }}>
-              <p className="text-2xl">{ROLE_INFO[r].emoji}</p>
-              <p className="mt-1 font-display font-extrabold">{ROLE_INFO[r].name}</p>
-              <p className="mt-0.5 text-[11px] font-medium leading-snug opacity-80">{ROLE_INFO[r].desc}</p>
-            </div>
-          ))}
+        <div className="mt-5">
+          <WerewolfRoleGallery />
         </div>
       </div>
       <div className="panel space-y-5 p-6">

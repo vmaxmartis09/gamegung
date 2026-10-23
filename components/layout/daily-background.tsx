@@ -9,10 +9,21 @@ import {
   InterferenceRibbons,
   type InterferenceRibbonsHandle,
 } from "@/components/reactbits/interference-ribbons";
+import { BlackHole } from "@/components/reactbits/black-hole";
+import { AsciiRipple } from "@/components/reactbits/ascii-ripple";
+import { Aurora } from "@/components/reactbits/aurora";
+import { TypographicWall } from "@/components/reactbits/typographic-wall";
 import { cn } from "@/lib/utils";
+
+const VARIANTS = ["ribbons", "blackhole", "ascii", "aurora"] as const;
+type Variant = (typeof VARIANTS)[number];
+
+// Picked once per page load (this component is client-only), so each fresh load gets a new backdrop.
+const pickVariant = (): Variant => VARIANTS[Math.floor(Math.random() * VARIANTS.length)];
 
 export function DailyBackground() {
   const ribbonRef = useRef<InterferenceRibbonsHandle>(null);
+  const [variant] = useState<Variant>(pickVariant);
   const currentUser = useAppStore((s) => s.currentUser);
   const authStatus = useAuthStore((s) => s.status);
 
@@ -54,7 +65,19 @@ export function DailyBackground() {
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
       >
-        <InterferenceRibbons
+        {variant === "blackhole" && (
+          <BlackHole className="size-full opacity-80" speed={1} zoom={2.2} orbSize={0.72} bloom={1.1} backgroundColor="#060606" />
+        )}
+        {variant === "ascii" && (
+          <AsciiRipple className="absolute inset-0" color="rgba(255,255,255,0.10)" activeColor="#e5e5e5" />
+        )}
+        {variant === "aurora" && (
+          <>
+            <Aurora />
+            <TypographicWall />
+          </>
+        )}
+        {variant === "ribbons" && <InterferenceRibbons
           ref={ribbonRef}
           colors={theme.colors}
           backgroundColor="#060606"
@@ -82,7 +105,7 @@ export function DailyBackground() {
           hoverBoost={1.1}
           quality={1}
           className="size-full opacity-90"
-        />
+        />}
 
         {/* Cinematic Vignette Overlay to maintain 100% text legibility */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,transparent_30%,#060606_92%)] pointer-events-none" />

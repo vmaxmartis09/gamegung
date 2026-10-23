@@ -18,3 +18,4 @@ export * from "./spotlight-card";
 export * from "./star-border";
 export * from "./tilted-card";
 export * from "./interference-ribbons";
+export * from "./black-hole";
