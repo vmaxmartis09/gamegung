@@ -27,6 +27,7 @@ export function InvitePanel({ channelId, onClose }: { channelId: string; onClose
   const [game, setGame] = useState<GameId>("chess");
   const [stake, setStake] = useState(100);
   const [targetId, setTargetId] = useState("");
+  const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const submit = (e: React.FormEvent) => {
@@ -34,7 +35,7 @@ export function InvitePanel({ channelId, onClose }: { channelId: string; onClose
     if (stake < 10) return setError("Mức cược tối thiểu là 10 Credit.");
     if (stake > lua) return setError(`Số dư chỉ có ${lua.toLocaleString("vi-VN")} Credit.`);
     const target = inDm ? dmOtherId(channelId, myId) : targetId || undefined;
-    if (createBetChallenge(channelId, game as GameType, stake, target)) onClose();
+    if (createBetChallenge(channelId, game as GameType, stake, target, title)) onClose();
     else setError("Không thể tạo lời mời. Hãy kiểm tra lại số dư.");
   };
 
@@ -64,6 +65,21 @@ export function InvitePanel({ channelId, onClose }: { channelId: string; onClose
             <span className="max-w-full truncate">{GAME_BY_ID[id].short}</span>
           </button>
         ))}
+      </div>
+
+      <div>
+        <label htmlFor="invite-title" className="label">
+          Tiêu đề kèo (tuỳ chọn)
+        </label>
+        <input
+          id="invite-title"
+          type="text"
+          maxLength={60}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="field !py-2"
+          placeholder="VD: Kèo trà sữa chiều nay"
+        />
       </div>
 
       <div>

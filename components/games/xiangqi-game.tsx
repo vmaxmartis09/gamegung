@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { realtimeBridge } from "@/lib/realtime-bridge";
 import { MatchResultModal } from "./match-result-modal";
 import HoldButton from "@/components/kokonut/hold-button";
-import { ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchOpponent, useMatchSettlement, useToast } from "./shared";
+import { betOpponentFromUrl, ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchOpponent, useMatchSettlement, useToast } from "./shared";
 
 const TIME_CONTROLS = [
   { id: "5+3", base: 300, inc: 3, label: "5+3", kind: "Nhanh" },
@@ -317,6 +317,11 @@ export function XiangqiGame() {
   useEffect(() => {
     if (restored.current) return;
     restored.current = true;
+    const bo = betOpponentFromUrl();
+    if (bo && bo.oppId) {
+      beginPvp({ room: bo.room, oppId: bo.oppId, name: bo.name, avatar: bo.avatar });
+      return;
+    }
     const saved = session.load();
     if (!saved) return;
     const d = saved.payload;

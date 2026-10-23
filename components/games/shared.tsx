@@ -87,6 +87,22 @@ export function useMatchOpponent(): MatchOpponent | null {
   return opp;
 }
 
+/** Opponent for a table opened from a chat bet card (`?bet=<id>`); null unless I am one of the two accepted players. */
+export function betOpponentFromUrl(): { room: string; oppId: string; name: string; avatar: string; stake: number } | null {
+  if (typeof window === "undefined") return null;
+  const id = new URLSearchParams(window.location.search).get("bet");
+  if (!id) return null;
+  const st = useAppStore.getState();
+  for (const list of Object.values(st.messages)) {
+    const b = list.find((m) => m.betChallenge?.id === id)?.betChallenge;
+    if (!b || b.status !== "accepted") continue;
+    const meId = st.currentUser.id;
+    if (b.creatorId === meId) return { room: b.id, oppId: b.opponentId ?? "", name: b.opponentName ?? "Đối thủ", avatar: b.opponentAvatar ?? "", stake: b.stake };
+    if (b.opponentId === meId) return { room: b.id, oppId: b.creatorId, name: b.creatorName, avatar: b.creatorAvatar, stake: b.stake };
+  }
+  return null;
+}
+
 /* ------------------------------ Game sessions ------------------------------ */
 
 /** Save / load the game in progress so leaving the table never loses it. */

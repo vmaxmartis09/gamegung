@@ -491,6 +491,7 @@ function Attachment({ att, onPreview }: { att: ChatAttachment; onPreview: (url: 
 function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
   const bet = msg.betChallenge!;
   const lua = useAppStore((s) => s.currentUser.lua);
+  const myId = useAppStore((s) => s.currentUser.id);
   const soundEnabled = useAppStore((s) => s.soundEnabled);
   const accept = useAppStore((s) => s.acceptBetChallenge);
   const cancel = useAppStore((s) => s.cancelBetChallenge);
@@ -502,8 +503,10 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
       <div className="flex items-center gap-3 p-3">
         <GameIcon game={game} className="size-10" />
         <div className="min-w-0 flex-1">
-          <p className="font-display text-sm font-extrabold">Kèo {GAME_BY_ID[game].name}</p>
-          <p className="truncate text-[11px] text-ink-400">bởi {bet.creatorName}</p>
+          <p className="line-clamp-2 break-words font-display text-sm font-extrabold">{bet.title || `Kèo ${GAME_BY_ID[game].name}`}</p>
+          <p className="truncate text-[11px] text-ink-400">
+            {bet.title ? `${GAME_BY_ID[game].name} · ` : ""}chủ kèo {bet.creatorName}
+          </p>
         </div>
         <div className="text-right">
           <p className="font-display text-base font-extrabold text-white">{bet.stake} 🌾</p>
@@ -536,12 +539,22 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
         )}
         {bet.status === "accepted" && (
           <>
-            <span className="flex items-center gap-1 text-[11px] text-white font-medium">
-              <Check className="size-3 text-white" /> Đã chốt: {bet.creatorName} vs {bet.opponentName}
+            <span className="flex min-w-0 items-center gap-1 text-[11px] font-medium text-white">
+              <Check className="size-3 shrink-0 text-white" />
+              <span className="truncate">
+                <b>{bet.creatorName}</b> (chủ kèo) vs <b>{bet.opponentName}</b>
+              </span>
             </span>
-            <Link href={`${GAME_URL[bet.gameType] ?? "/"}?stake=${bet.stake}`} className="btn-accent px-3 py-1 text-[11px]">
-              Vào chơi
-            </Link>
+            {bet.creatorId === myId || bet.opponentId === myId ? (
+              <Link
+                href={`${GAME_URL[bet.gameType] ?? "/"}?stake=${bet.stake}&bet=${encodeURIComponent(bet.id)}`}
+                className="btn-accent shrink-0 px-3 py-1 text-[11px]"
+              >
+                Vào phòng
+              </Link>
+            ) : (
+              <span className="shrink-0 text-[11px] text-ink-500">Kèo đã có người nhận</span>
+            )}
           </>
         )}
         {(bet.status === "cancelled" || bet.status === "completed") && (

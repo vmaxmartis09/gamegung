@@ -30,7 +30,7 @@ import { useGameRoom } from "@/lib/game-room";
 import { ChessIcon } from "./chess-icons";
 import { MatchResultModal } from "./match-result-modal";
 import HoldButton from "@/components/kokonut/hold-button";
-import { ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchSettlement, useToast } from "./shared";
+import { betOpponentFromUrl, ConfirmDialog, GameHeader, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchSettlement, useToast } from "./shared";
 
 /* --------------------------------- Config --------------------------------- */
 
@@ -446,6 +446,11 @@ export function ChessGame() {
   }, [myId, syncClock]);
 
   const initPvpFromUrl = useCallback(() => {
+    const bo = betOpponentFromUrl();
+    if (bo && bo.oppId) {
+      beginPvp({ room: bo.room, oppId: bo.oppId, name: bo.name, avatar: bo.avatar, elo: 1200 });
+      return true;
+    }
     const q = new URLSearchParams(window.location.search);
     const room = q.get("room");
     const oppId = q.get("oppId");

@@ -29,6 +29,7 @@ export function BetModal({
   const [selectedGame, setSelectedGame] = useState<GameType>("chess");
   const [stake, setStake] = useState<number>(100);
   const [targetId, setTargetId] = useState<string>(defaultTargetId || "");
+  const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const handleCreate = (e: React.FormEvent) => {
@@ -46,7 +47,8 @@ export function BetModal({
       channelId,
       selectedGame,
       stake,
-      targetId || undefined
+      targetId || undefined,
+      title
     );
 
     if (challenge) {
@@ -181,6 +183,22 @@ export function BetModal({
                     🌾 LÚA
                   </span>
                 </div>
+              </div>
+
+              {/* Bet title */}
+              <div>
+                <label htmlFor="bet-title" className="text-xs font-mono font-semibold uppercase tracking-wider text-ink-400 block mb-2">
+                  Tiêu Đề Kèo (tuỳ chọn)
+                </label>
+                <input
+                  id="bet-title"
+                  type="text"
+                  maxLength={60}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="VD: Kèo trà sữa chiều nay"
+                  className="field !py-2"
+                />
               </div>
 
               {/* Target Opponent */}

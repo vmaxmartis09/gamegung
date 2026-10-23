@@ -117,6 +117,7 @@ export interface BetChallenge {
   channelId: string;
   gameType: GameType;
   stake: number; // Lúa amount
+  title?: string; // free-text name of the bet
   status: "pending" | "accepted" | "in_game" | "completed" | "cancelled";
   opponentId?: string;
   opponentName?: string;
@@ -242,7 +243,8 @@ interface AppState {
     channelId: string,
     gameType: GameType,
     stake: number,
-    targetId?: string
+    targetId?: string,
+    title?: string
   ) => BetChallenge | null;
   acceptBetChallenge: (challengeId: string) => boolean;
   cancelBetChallenge: (challengeId: string) => boolean;
@@ -757,7 +759,7 @@ export const useAppStore = create<AppState>()(
         })),
 
       // Bet Challenges
-      createBetChallenge: (channelId, gameType, stake, targetId) => {
+      createBetChallenge: (channelId, gameType, stake, targetId, title) => {
         const user = get().currentUser;
         if (stake < 10) return null;
         if (user.lua < stake) return null;
@@ -773,6 +775,7 @@ export const useAppStore = create<AppState>()(
           channelId,
           gameType,
           stake,
+          title: title?.trim().slice(0, 60) || undefined,
           status: "pending",
           createdAt: now,
         };
@@ -800,9 +803,10 @@ export const useAppStore = create<AppState>()(
         const targetFriend = targetId
           ? get().friends.find((f) => f.id === targetId)
           : null;
+        const titleSuffix = title?.trim() ? ` «${title.trim().slice(0, 60)}»` : "";
         const msgText = targetFriend
-          ? `⚔️ Thách đấu @${targetFriend.username} ván ${gameLabels[gameType]} với mức cược ${stake} Credit!`
-          : `⚔️ Mở kèo thách đấu ${gameLabels[gameType]} với mức cược ${stake} Credit! Ai nhận kèo?`;
+          ? `⚔️ Thách đấu @${targetFriend.username} ván ${gameLabels[gameType]} với mức cược ${stake} Credit!${titleSuffix}`
+          : `⚔️ Mở kèo thách đấu ${gameLabels[gameType]} với mức cược ${stake} Credit!${titleSuffix} Ai nhận kèo?`;
 
         set((state) => {
           const currentList = state.messages[channelId] || [];
