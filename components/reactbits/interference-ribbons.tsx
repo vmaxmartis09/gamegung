@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import * as THREE from "three";
 import { cn } from "@/lib/utils";
+import { createAdaptiveQuality, getReducedMotion, subscribeReducedMotion } from "@/lib/motion";
 
 export interface InterferenceRibbonsProps {
   /** Two hex/rgb colors the strands cycle through, blended in OKLab. */
@@ -72,18 +73,6 @@ export interface InterferenceRibbonsHandle {
   /** Trigger a pulse at a normalized position (0 to 1) along the ribbon width. */
   pulse: (position?: number) => void;
 }
-
-const subscribeReducedMotion = (callback: () => void) => {
-  if (typeof window === "undefined") return () => {};
-  const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-  media.addEventListener("change", callback);
-  return () => media.removeEventListener("change", callback);
-};
-
-const getReducedMotion = () => {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-};
 
 const clamp = (val: number, min: number, max: number) => Math.min(max, Math.max(min, val));
 
@@ -707,6 +696,7 @@ export const InterferenceRibbons = forwardRef<InterferenceRibbonsHandle, Interfe
       let isDestroyed = false;
       let rafId = 0;
       let lastTime = 0;
+      const adaptive = createAdaptiveQuality();
       let isVisible = true;
       let timeAccum = 6;
       let pulseTime = 0;
@@ -881,7 +871,9 @@ export const InterferenceRibbons = forwardRef<InterferenceRibbonsHandle, Interfe
         if (isDestroyed) return;
 
         const delta = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
+        const rawMs = now - lastTime;
         lastTime = now;
+        if (adaptive.tick(rawMs)) onResize();
 
         const p = propsRef.current;
         const targetEnergy = isHovered && p.interactive && !p.reduced ? clamp(p.hoverBoost, 0, 2) : 0;
@@ -903,7 +895,8 @@ export const InterferenceRibbons = forwardRef<InterferenceRibbonsHandle, Interfe
         const activeResidual =
           Math.abs(energy - targetHover) > 0.002 || pulses.some((item) => item.w > 0 && pulseTime - item.y < 4);
 
-        if (isVisible && !document.hidden && (activeMotion || activeResidual)) {
+        // onResize() above may already have re-armed the loop via startLoop().
+        if (isVisible && !document.hidden && !rafId && (activeMotion || activeResidual)) {
           rafId = requestAnimationFrame(onFrame);
         }
       };
@@ -920,7 +913,7 @@ export const InterferenceRibbons = forwardRef<InterferenceRibbonsHandle, Interfe
         width = Math.max(1, rect.width);
         height = Math.max(1, rect.height);
         pixelRatio =
-          Math.min(window.devicePixelRatio || 1, 2) * clamp(propsRef.current.quality, 0.25, 1);
+          Math.min(window.devicePixelRatio || 1, 2) * clamp(propsRef.current.quality, 0.25, 1) * adaptive.scale;
 
         renderer.setPixelRatio(pixelRatio);
         renderer.setSize(width, height, false);
@@ -1045,7 +1038,7 @@ export const InterferenceRibbons = forwardRef<InterferenceRibbonsHandle, Interfe
       const controller = {
         sync: () => {
           const currentScale =
-            Math.min(window.devicePixelRatio || 1, 2) * clamp(propsRef.current.quality, 0.25, 1);
+            Math.min(window.devicePixelRatio || 1, 2) * clamp(propsRef.current.quality, 0.25, 1) * adaptive.scale;
           if (Math.abs(currentScale - pixelRatio) > 0.001) {
             onResize();
           } else {

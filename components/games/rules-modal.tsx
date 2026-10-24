@@ -23,6 +23,14 @@ const RULES: Record<GameType, { standard: string; items: { t: string; d: string 
     ],
     keys: ["← → xem lại nước", "F xoay bàn", "Kéo-thả hoặc bấm để đi"],
   },
+  caro: {
+    standard: "Gomoku 15x15",
+    items: [
+      { t: "Cách chơi", d: "Hai bên lần lượt đặt ✕ và ◯ lên giao điểm bàn 15x15, ✕ đi trước." },
+      { t: "Thắng", d: "Người đầu tiên tạo được 5 quân liền nhau theo hàng ngang, dọc hoặc chéo là thắng. Kín bàn là hòa." },
+      { t: "Chế độ", d: "Đấu AI (Dễ/Vừa/Khó) hoặc 2 người trên cùng máy. Có nút Đi lại." },
+    ],
+  },
   xiangqi: {
     standard: "Luật WXF",
     items: [

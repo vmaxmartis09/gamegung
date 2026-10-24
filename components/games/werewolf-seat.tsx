@@ -24,6 +24,10 @@ export interface SeatCardProps {
   votes?: number;
   seerMark?: boolean;
   tags?: React.ReactNode;
+  /** Hành động đang chờ người chơi: hiện thành nút gắn ngay trên thẻ. */
+  action?: { label: string; tone: "red" | "violet" | "emerald" | "pink" | "amber" };
+  /** Đang có hành động nhưng thẻ này không chọn được. */
+  dimmed?: boolean;
   variant?: "seat" | "tile";
   onClick?: () => void;
 }
@@ -57,6 +61,14 @@ export function MicBadge({ micOn, speaking }: { micOn: boolean; speaking: boolea
   );
 }
 
+const ACTION_TONE = {
+  red: "bg-rose-400/15 text-rose-200 border-rose-300/25",
+  violet: "bg-violet-400/15 text-violet-200 border-violet-300/25",
+  emerald: "bg-emerald-400/15 text-emerald-200 border-emerald-300/25",
+  pink: "bg-pink-400/15 text-pink-200 border-pink-300/25",
+  amber: "bg-amber-300/15 text-amber-200 border-amber-300/25",
+} as const;
+
 export function SeatCard({
   name,
   avatar,
@@ -72,11 +84,13 @@ export function SeatCard({
   votes = 0,
   seerMark,
   tags,
+  action,
+  dimmed,
   variant = "seat",
   onClick,
 }: SeatCardProps) {
   const roleInfo = role ? ROLE_INFO[role] : null;
-  const accent = speaking ? "#a3e635" : targetable ? "#a3e635" : isMe ? "#a78bfa" : roleInfo ? roleInfo.color : "rgba(255,255,255,0.14)";
+  const accent = speaking ? "#a3e635" : targetable ? "rgba(255,255,255,0.45)" : isMe ? "#a78bfa" : roleInfo ? roleInfo.color : "rgba(255,255,255,0.14)";
 
   return (
     <motion.button
@@ -87,8 +101,10 @@ export function SeatCard({
       whileTap={targetable ? { scale: 0.97 } : undefined}
       className={cn(
         "group relative flex flex-col items-center overflow-hidden rounded-[22px] text-center transition-[opacity,filter] duration-300",
-        variant === "seat" ? "w-[92px] px-2 pb-2 pt-3 sm:w-[112px]" : "w-full px-3 pb-3 pt-4",
+        variant === "seat" ? "w-[100px] px-2 pt-3 sm:w-[116px]" : "w-full px-3 pt-4",
+        !(targetable && action) && (variant === "seat" ? "pb-2" : "pb-3"),
         !alive && "opacity-45 grayscale",
+        dimmed && alive && "opacity-55",
         targetable && "cursor-pointer"
       )}
       style={{
@@ -101,7 +117,7 @@ export function SeatCard({
       <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[320%]" />
       <span className="pointer-events-none absolute inset-0 rounded-[22px] shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]" />
       {speaking && <span className="pointer-events-none absolute inset-0 animate-pulse bg-lime-400/10" />}
-      {targetable && <span className="pointer-events-none absolute inset-0 animate-pulse rounded-[22px] ring-2 ring-inset ring-lime-300/60" />}
+      {targetable && <span className="pointer-events-none absolute inset-0 rounded-[22px] ring-1 ring-inset ring-white/40" />}
 
       {/* badges */}
       {hasVoted && <span className="absolute right-1.5 top-1.5 z-20 grid size-6 place-items-center rounded-full bg-indigo-500 text-[11px] shadow" title="Đã bỏ phiếu kín">🗳️</span>}
@@ -118,21 +134,27 @@ export function SeatCard({
         {alive ? <MicBadge micOn={micOn} speaking={speaking} /> : <Skull className="absolute -bottom-1 -right-1 size-[22px] rounded-full bg-black p-1 text-red-500" />}
       </div>
 
-      <p className="mt-2 w-full truncate text-[11px] font-extrabold text-white sm:text-[13px]">
+      <p className="mt-2 w-full truncate text-xs font-bold text-white sm:text-sm">
         {name}
         {isMe && <span className="text-violet-300"> · bạn</span>}
       </p>
 
       <div className="mt-1 flex min-h-[20px] flex-wrap items-center justify-center gap-1">
         {roleInfo ? (
-          <span className="rounded-full px-2 py-0.5 text-[9px] font-black text-black sm:text-[10px]" style={{ background: roleInfo.color }}>
+          <span className="rounded-full px-2 py-0.5 text-xs font-bold text-black" style={{ background: roleInfo.color }}>
             {roleInfo.emoji} {roleInfo.name}
           </span>
         ) : packmate ? (
-          <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[9px] font-bold text-red-300">🐺 Bầy Sói</span>
+          <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-bold text-red-300">🐺 Bầy Sói</span>
         ) : null}
         {tags}
       </div>
+
+      {targetable && action && (
+        <span className={cn("-mx-2 mt-2 flex w-[calc(100%+1rem)] items-center justify-center border-t py-2 text-xs font-semibold uppercase tracking-[0.14em] backdrop-blur-sm transition-colors group-hover:bg-white/15", variant === "tile" && "-mx-3 w-[calc(100%+1.5rem)]", ACTION_TONE[action.tone])}>
+          {action.label}
+        </span>
+      )}
     </motion.button>
   );
 }

@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { NARRATOR_AUDIO_MAP, playNarratorVoice, stopNarratorVoice } from "@/lib/narrator-audio";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Volume2, VolumeX } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { GlitchText } from "@/components/reactbits/glitch-text";
 import { BlurText } from "@/components/reactbits/blur-text";
 import { cn } from "@/lib/utils";
+import { MatchCard } from "@/components/matchmaking/match-card";
 
 /* Shared "Ma Sói style" presentation kit: announce overlays, VS intro, narrator voice. */
 
@@ -88,18 +91,22 @@ export function MatchIntro({
   open: boolean;
   title: string;
   subtitle?: string;
-  players: { name: string; avatar: string }[];
+  players: { name: string; avatar: string; elo?: number; tier?: { icon: string; name: string }; footer?: string }[];
   onDone: () => void;
 }) {
   const done = useRef(onDone);
   done.current = onDone;
+  // Gắn thẳng vào body để lớp phủ luôn căn giữa màn hình, không bị khung cha có transform kéo lệch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => done.current(), 2600);
     return () => clearTimeout(t);
   }, [open]);
 
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -107,36 +114,37 @@ export function MatchIntro({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onDone}
-          className="fixed inset-0 z-[85] grid cursor-pointer place-items-center bg-black/85 backdrop-blur-md"
+          className="fixed inset-0 z-[85] flex cursor-pointer items-center justify-center bg-black/85 backdrop-blur-md"
         >
-          <div className="flex flex-col items-center gap-6 px-4">
-            <p className="font-mono text-xs font-bold uppercase tracking-[0.4em] text-white/50">{subtitle ?? "Office Arena"}</p>
-            <BlurText text={title} className="text-center font-display text-4xl font-black text-white sm:text-6xl" />
-            <div className="flex flex-wrap items-center justify-center gap-5">
+          <div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 text-center">
+            <p className="pl-[0.4em] font-mono text-xs font-bold uppercase tracking-[0.4em] text-white/50">{subtitle ?? "Office Arena"}</p>
+            <BlurText text={title} className="mt-4 font-display text-4xl font-black text-white sm:text-6xl" />
+            {/* Thẻ người chơi cùng bề rộng, xen chữ VS, để cả hàng cân đối quanh trục giữa */}
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-5">
               {players.map((p, i) => (
-                <div key={p.name + i} className="flex items-center gap-5">
+                <Fragment key={p.name + i}>
                   {i > 0 && <GlitchText text="VS" className="text-3xl" glowColor="#f43f5e" />}
                   <motion.div
                     initial={{ y: 40, opacity: 0, rotateY: 90 }}
                     animate={{ y: 0, opacity: 1, rotateY: 0 }}
                     transition={{ delay: 0.5 + i * 0.25, type: "spring", stiffness: 200, damping: 18 }}
-                    className="flex flex-col items-center gap-2 rounded-3xl border border-white/15 bg-white/[0.04] p-4"
+                    className="w-40 sm:w-48"
                   >
-                    <UserAvatar src={p.avatar} name={p.name} className="size-16 ring-2 ring-white/40" />
-                    <span className="max-w-[110px] truncate text-sm font-bold text-white">{p.name}</span>
+                    <MatchCard tone={i === 0 ? "me" : "opp"} name={p.name} avatar={p.avatar} elo={p.elo} tier={p.tier} footer={p.footer ?? (i === 0 ? "Bạn" : "Đối thủ")} />
                   </motion.div>
-                </div>
+                </Fragment>
               ))}
             </div>
-            <p className="text-[11px] text-white/40">Chạm để bỏ qua</p>
+            <p className="mt-8 text-xs text-white/40">Chạm để bỏ qua</p>
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 
-/** Spoken commentary (Web Speech, vi-VN) with a persisted mute toggle. */
+/** Giọng dẫn LyLy dùng chung cho mọi game, có nút tắt/bật được nhớ lại. */
 export function useNarrator() {
   const [enabled, setEnabled] = useState(true);
   const enabledRef = useRef(true);
@@ -148,17 +156,10 @@ export function useNarrator() {
     } catch {}
   }, []);
 
-  const say = useCallback((text: string) => {
-    if (!enabledRef.current || typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const ut = new SpeechSynthesisUtterance(text);
-      ut.lang = "vi-VN";
-      ut.rate = 1.08;
-      const vi = window.speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith("vi"));
-      if (vi) ut.voice = vi;
-      window.speechSynthesis.speak(ut);
-    } catch {}
+  /** Đọc bằng giọng LyLy (mp3 theo `clip`); thiếu file thì tự đọc bằng giọng trình duyệt. */
+  const say = useCallback((text: string, clip?: keyof typeof NARRATOR_AUDIO_MAP) => {
+    if (!enabledRef.current || typeof window === "undefined") return;
+    if (clip) playNarratorVoice(clip, text);
   }, []);
 
   const toggle = useCallback(() => {
@@ -167,7 +168,7 @@ export function useNarrator() {
     setEnabled(next);
     try {
       localStorage.setItem("oa-narrator", next ? "1" : "0");
-      if (!next) window.speechSynthesis?.cancel();
+      if (!next) stopNarratorVoice();
     } catch {}
   }, []);
 

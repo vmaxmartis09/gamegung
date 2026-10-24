@@ -21,7 +21,7 @@ export const useUiStore = create<UiState>()((set) => ({
   open: (modal, opts) =>
     set((s) => ({
       modal,
-      matchmakingGame: modal === "matchmaking" && opts?.game ? opts.game : s.matchmakingGame,
+      matchmakingGame: modal === "matchmaking" && opts?.game && opts.game !== "caro" ? opts.game : s.matchmakingGame,
       rulesGame: modal === "rules" && opts?.game ? opts.game : s.rulesGame,
     })),
   close: () => set({ modal: null }),

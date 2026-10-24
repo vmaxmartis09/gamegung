@@ -214,7 +214,7 @@ export function DeadlineGame() {
     commit(newRound(players, target));
     setTurnStart(Date.now());
     setIntro(true);
-    narrator.say("Chia bài! Ai hết bài trước sẽ thắng.");
+    narrator.say("Chia bài! Ai hết bài trước sẽ thắng.", "dl_deal");
   };
 
   const nextRound = () => {
@@ -245,15 +245,15 @@ export function DeadlineGame() {
     const c = top(s);
     const who = s.players[(((s.turn - s.dir) % s.players.length) + s.players.length) % s.players.length]?.name ?? "";
     const line =
-      c.kind === "plus4" ? { title: "SẾP GIAO +4", subtitle: `${who} đẩy ${s.pending} lá phạt`, tone: "red" as const, icon: "📈", say: "Sếp giao thêm bốn việc!" }
-      : c.kind === "plus2" ? { title: "ĐẨY VIỆC +2", subtitle: `${who} đẩy ${s.pending} lá phạt`, tone: "red" as const, icon: "📥", say: "Đẩy việc! Cộng hai." }
-      : c.kind === "skip" ? { title: "NGHỈ PHÉP", subtitle: `${who} cho người kế mất lượt`, tone: "blue" as const, icon: "☕", say: "Nghỉ phép, mất lượt." }
-      : c.kind === "reverse" ? { title: "ĐỔI CA", subtitle: "Vòng chơi đảo chiều", tone: "gold" as const, icon: "🔄", say: "Đổi ca, đảo chiều." }
-      : c.kind === "wild" ? { title: "CHUYỂN PHÒNG", subtitle: `Sang ${DEPT_INFO[s.dept].name}`, tone: "white" as const, icon: "🏢", say: `Chuyển sang phòng ${DEPT_INFO[s.dept].name}.` }
+      c.kind === "plus4" ? { title: "SẾP GIAO +4", subtitle: `${who} đẩy ${s.pending} lá phạt`, tone: "red" as const, icon: "📈", say: "Sếp giao thêm bốn việc!", clip: "dl_plus4" as const }
+      : c.kind === "plus2" ? { title: "ĐẨY VIỆC +2", subtitle: `${who} đẩy ${s.pending} lá phạt`, tone: "red" as const, icon: "📥", say: "Đẩy việc! Cộng hai.", clip: "dl_plus2" as const }
+      : c.kind === "skip" ? { title: "NGHỈ PHÉP", subtitle: `${who} cho người kế mất lượt`, tone: "blue" as const, icon: "☕", say: "Nghỉ phép, mất lượt.", clip: "dl_skip" as const }
+      : c.kind === "reverse" ? { title: "ĐỔI CA", subtitle: "Vòng chơi đảo chiều", tone: "gold" as const, icon: "🔄", say: "Đổi ca, đảo chiều.", clip: "dl_reverse" as const }
+      : c.kind === "wild" ? { title: "CHUYỂN PHÒNG", subtitle: `Sang ${DEPT_INFO[s.dept].name}`, tone: "white" as const, icon: "🏢", say: `Chuyển sang phòng ${DEPT_INFO[s.dept].name}.`, clip: `dl_wild_${s.dept}` as const }
       : null;
     if (line) {
       fx.push(line);
-      narrator.say(line.say);
+      narrator.say(line.say, line.clip);
     }
   }, [topId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -261,7 +261,7 @@ export function DeadlineGame() {
   useEffect(() => {
     if (/CHỐT/.test(lastLog) && !/quên/.test(lastLog)) {
       fx.push({ title: "CHỐT!", subtitle: lastLog, tone: "gold", icon: "📣" });
-      narrator.say("Chốt!");
+      narrator.say("Chốt!", "dl_chot");
     }
   }, [lastLog, s?.log.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -269,7 +269,7 @@ export function DeadlineGame() {
     if (s?.winner == null) return;
     const name = s.players[s.winner].name;
     fx.push({ title: s.winner === 0 ? "BẠN THẮNG!" : "HẾT BÀI!", subtitle: `${name} chốt đơn sạch bài`, tone: s.winner === 0 ? "gold" : "red", icon: s.winner === 0 ? "🏆" : "🏁" });
-    narrator.say(`${name} đã hết bài!`);
+    narrator.say("Có người đã hết bài!", "dl_out");
   }, [s?.winner, s?.round]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bot turns.

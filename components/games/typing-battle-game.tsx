@@ -1,8 +1,9 @@
 "use client";
 
-import { memo, useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bot, Crosshair, Keyboard, Play, RotateCcw, Send, Sparkles, Trophy, UserPlus, X, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/lib/store";
 import { soundManager } from "@/lib/audio";
@@ -10,12 +11,8 @@ import { cn } from "@/lib/utils";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { ChibiAvatar } from "@/components/character/chibi-avatar";
 import {
-  FUSIONS,
-  FusionDef,
   HAND_MAX,
   ITEMS,
-  ItemType,
-  LEFT_KEYS,
   RIGHT_KEYS,
   findFusion,
 } from "@/lib/games/typing-battle-data";
@@ -33,28 +30,27 @@ import {
   keyOf,
   onFire,
   onKey,
+  onSubmit,
+  onType,
   update,
   castSkill,
+  wpmOf,
 } from "@/lib/games/typing-battle-engine";
 import { MatchResultModal } from "./match-result-modal";
-import { GameFxOverlay, MatchIntro, NarratorButton, useFxQueue, useNarrator } from "./game-fx";
+import { MatchIntro, NarratorButton, useNarrator } from "./game-fx";
 import { GameHeader, Segmented, StakePicker, useMatchSettlement } from "./shared";
-import type { AsciiRippleRef } from "@/components/reactbits";
-import { BorderBeam, BlurText, CylinderText, CylinderWords } from "@/components/reactbits";
+import { CylinderText, CylinderWords, FocusFrame, TextLoop } from "@/components/reactbits";
 
 /* --------------------------------- Hằng số --------------------------------- */
 
-const P_COL = ["#7aa2f7", "#e27d85"] as const;
-const P_GLOW = ["rgba(56,189,248,0.45)", "rgba(244,63,94,0.45)"] as const;
+/** Màu hai người chơi = token `info` / `danger`. */
+const P_COL = ["#6aa4ff", "#ef5350"] as const;
 const BOTS = [
   { name: "Linh HR", seed: "linh hr:1", title: "Kỳ Thủ Văn Phòng" },
   { name: "Tuấn Dev", seed: "tuan dev:2", title: "Kỹ Sư Bậc Thầy" },
   { name: "Sếp Tổng", seed: "sep tong:3", title: "Đại Kiện Tướng" },
 ];
 const FS = 1.5;
-
-/* --------------------------------- Canvas --------------------------------- */
-
 function makeBackdrop() {
   const c = document.createElement("canvas");
   c.width = W * FS;
@@ -62,19 +58,14 @@ function makeBackdrop() {
   const x = c.getContext("2d")!;
   x.scale(FS, FS);
 
-  // Nền phẳng, tối giản
-  x.fillStyle = "#08090d";
+  // Nền phẳng màu ink-900, chỉ hai đường mảnh tách khu HUD khỏi sân và ba vạch làn
+  x.fillStyle = "#0c0c0c";
   x.fillRect(0, 0, W, H);
-
-  // Lưới chấm mảnh
-  x.fillStyle = "rgba(255,255,255,0.05)";
-  for (let gx = 20; gx < W; gx += 40) for (let gy = 20; gy < H; gy += 40) x.fillRect(gx, gy, 1.5, 1.5);
-
-  // Đường phân chia sân
-  x.strokeStyle = "rgba(255,255,255,0.07)";
+  x.strokeStyle = "rgba(255,255,255,0.06)";
   x.lineWidth = 1;
-  for (const y of [116, H - 92]) { x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); }
-  x.beginPath(); x.moveTo(W / 2, 116); x.lineTo(W / 2, H - 92); x.setLineDash([2, 8]); x.stroke(); x.setLineDash([]);
+  for (const y of [108, H - 108]) { x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); }
+  x.strokeStyle = "rgba(255,255,255,0.035)";
+  for (const lane of LANES) { x.beginPath(); x.moveTo(0, lane.y); x.lineTo(W, lane.y); x.stroke(); }
 
   return c;
 }
@@ -148,22 +139,6 @@ function drawFx(
   ctx.drawImage(bg, 0, 0);
   ctx.setTransform(FS, 0, 0, FS, 0, 0);
 
-  // 3 Làn băng chuyền chạy ngang qua màn hình
-  ctx.save();
-  for (const lane of LANES) {
-    const y = lane.y;
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 10]);
-    ctx.lineDashOffset = -clock * 24 * lane.dir;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(W, y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-  ctx.restore();
-
   if (!g) return;
 
   ctx.save();
@@ -228,7 +203,7 @@ function drawFx(
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   for (const m of g.missiles) {
-    const c = m.reflected ? "#c4a0f0" : m.big ? "#f0d870" : m.owner === 0 ? "#7aa2f7" : "#e27d85";
+    const c = m.reflected ? "#c4a0f0" : m.big ? "#f0d870" : P_COL[m.owner];
     const hx = m.x, hy = m.yy;
     const tail = Math.min(300, Math.abs(hy - m.oy) + 20);
     arcBolt(ctx, hx, hy - m.dir * tail, hx, hy, c, m.big ? 2 : 1, clock);
@@ -343,173 +318,23 @@ function drawFx(
 
 }
 
-/* ------------------ Item chạy ngang giữa màn hình (Stream Capsule) ------------------ */
+/* --------------------------------- Thẻ vật phẩm --------------------------------- */
 
-interface RunningItemProps {
-  it: Item;
-  g: Game;
-}
+const CARD_W = 224;
+/** Đấu máy: thẻ một dòng chữ. Cùng máy: thêm dòng chữ cho nửa phải bàn phím. */
+const cardH = (shared: boolean) => (shared ? 80 : 98);
 
-/** Cụm từ đang gõ: phần đã gõ sáng, con trỏ ở ký tự kế tiếp, phần còn lại mờ. */
-function TypedPhrase({ text, done, active, col }: { text: string; done: number; active: boolean; col: string }) {
+/** Chữ cần gõ: phần đã gõ đúng mang màu người gõ, phần còn lại màu chữ thường. */
+function TypedWord({ text, done, col }: { text: string; done: number; col?: string }) {
   let seen = 0;
   return (
-    <>
+    <span className="whitespace-pre">
       {Array.from(text).map((ch, i) => {
-        if (ch === " ") return <span key={i} className="inline-block w-2" />;
-        const isDone = seen < done;
-        const isCur = active && seen === done;
+        if (ch === " ") return <span key={i}> </span>;
+        const ok = seen < done;
         seen++;
         return (
-          <span
-            key={i}
-            className={cn(isCur && "border-b-2 animate-pulse")}
-            style={{ color: isDone ? col : isCur ? "#f1f5f9" : "#64748b", borderColor: isCur ? col : undefined }}
-          >
-            {ch}
-          </span>
-        );
-      })}
-    </>
-  );
-}
-
-function RunningItemCapsule({ it, g }: RunningItemProps) {
-  const [f0, f1] = g.fighters;
-  const def = ITEMS[it.type];
-  const isP1Locked = f0.lock === it;
-  const isP2Locked = f1.lock === it;
-  const taken = it.state === "taken";
-  const expired = it.state === "expired";
-  const target = taken && it.by >= 0 ? g.fighters[it.by as 0 | 1] : null;
-
-  const leftTime = Math.max(0, it.life - it.age);
-  const timePct = Math.min(100, Math.max(0, (leftTime / it.life) * 100));
-
-  // Tọa độ nội suy mượt 60fps từ engine
-  const x = it.x;
-  const y = it.y;
-
-  return (
-    <div
-      className={cn(
-        "absolute select-none pointer-events-none transition-opacity duration-200",
-        expired && "opacity-0 scale-90",
-        taken && "opacity-0 scale-50 transition-all duration-300"
-      )}
-      style={{
-        transform: `translate3d(${x - 124}px, ${y - 40}px, 0)`,
-        width: 248,
-        height: 80,
-        zIndex: isP1Locked || isP2Locked ? 25 : 15,
-        willChange: "transform",
-      }}
-    >
-      {/* Thân capsule dạng thẻ pha lê công nghệ */}
-      <div
-        className={cn(
-          "relative flex h-full flex-col justify-between overflow-hidden rounded-xl border px-3.5 py-2 transition-colors",
-          isP1Locked
-            ? "border-[#7aa2f7]/70 bg-[#10131c]"
-            : isP2Locked
-            ? "border-[#e27d85]/70 bg-[#10131c]"
-            : "border-white/[0.08] bg-[#0c0e14]/95"
-        )}
-      >
-        {(isP1Locked || isP2Locked) && (
-          <BorderBeam size={90} duration={3} borderWidth={2} colorFrom={isP1Locked ? P_COL[0] : P_COL[1]} colorTo="transparent" />
-        )}
-        {/* Hàng trên: Icon + Tên vật phẩm + Dấu chỉ hướng chạy */}
-        <div className="flex items-center justify-between text-[13px] leading-tight">
-          <div className="flex items-center gap-1.5">
-            <span className="text-lg grayscale">{def.icon}</span>
-            <span className="font-sans font-bold tracking-wide text-slate-100">{def.name}</span>
-          </div>
-          <span
-            className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[12px] font-mono text-slate-400"
-          >
-            {it.dir > 0 ? "▶" : "◀"} {Math.ceil(leftTime)}s
-          </span>
-        </div>
-
-        {/* Chữ hiển thị cho P1 & P2 gõ tranh chấp */}
-        <div className="my-0.5 flex flex-col justify-center gap-1 rounded-lg bg-white/[0.04] px-2 py-1">
-          {/* P1 Dòng chữ */}
-          <div className="flex items-center justify-between font-mono text-[17px] font-semibold leading-none">
-            <div className="flex items-center gap-1 truncate">
-              <span className="size-1.5 rounded-full shrink-0" style={{ background: P_COL[0] }} />
-              <TypedWord
-                text={it.disp[0]}
-                bufLen={isP1Locked ? f0.buf.length : 0}
-                activeCol={P_COL[0]}
-                idleCol="#cbd5e1"
-              />
-            </div>
-            {isP1Locked && <span className="text-[11px] font-bold text-[#7aa2f7]">ĐANG GÕ</span>}
-          </div>
-
-          {/* P2 Dòng chữ (nếu đấu 2 người hoặc bot) */}
-          {(!f1.bot || isP2Locked) && (
-            <div className="flex items-center justify-between font-mono text-[14px] leading-none opacity-85">
-              <div className="flex items-center gap-1 truncate">
-                <span className="size-1.5 rounded-full shrink-0" style={{ background: P_COL[1] }} />
-                <TypedWord
-                  text={it.disp[1]}
-                  bufLen={isP2Locked ? f1.buf.length : 0}
-                  activeCol={P_COL[1]}
-                  idleCol="#94a3b8"
-                />
-              </div>
-              {isP2Locked && <span className="text-[11px] font-bold text-[#e27d85]">ĐANG GÕ</span>}
-            </div>
-          )}
-        </div>
-
-        {/* Thanh đếm ngược thời gian chạy qua màn hình */}
-        <div className="h-1 w-full overflow-hidden rounded-full bg-slate-800/80">
-          <div
-            className="h-full rounded-full transition-[width] duration-100 ease-linear"
-            style={{
-              width: `${timePct}%`,
-              background: timePct < 25 ? "#d95b5b" : "#94a3b8",
-            }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TypedWord({
-  text,
-  bufLen,
-  activeCol,
-  idleCol,
-}: {
-  text: string;
-  bufLen: number;
-  activeCol: string;
-  idleCol: string;
-}) {
-  let seen = 0;
-  return (
-    <span className="tracking-[0.16em] font-medium font-mono">
-      {Array.from(text).map((ch, i) => {
-        if (ch === " ") return <span key={i} className="inline-block w-1.5">&nbsp;</span>;
-        const done = seen < bufLen;
-        const isCurrent = seen === bufLen;
-        seen++;
-        return (
-          <span
-            key={i}
-            className={cn(
-              "transition-colors duration-100",
-              isCurrent && "border-b-2 border-white animate-pulse font-bold"
-            )}
-            style={{
-              color: done ? "#6ee7b7" : idleCol,
-            }}
-          >
+          <span key={i} style={ok && col ? { color: col } : undefined}>
             {ch}
           </span>
         );
@@ -518,191 +343,294 @@ function TypedWord({
   );
 }
 
-/* --------------------- Bệ đấu kỳ thủ đối diện trực tiếp (Duel Stations) --------------------- */
-
-interface DuelistStationProps {
-  f: Fighter;
-  opponent: Fighter;
-  isP1: boolean;
-  src: string;
-  chibi: boolean;
-  mode: Mode;
-}
-
-function DuelistStation({
-  f,
-  isP1,
-  src,
-  chibi,
-  mode,
-}: DuelistStationProps) {
-  const col = P_COL[f.id];
-  const frac = Math.max(0, Math.min(1, mode === 3 ? (f.text.length ? f.idx / f.text.length : 0) : f.hp / (f.maxHp || 1)));
-  const ghost = Math.max(frac, mode === 3 ? frac : f.ghost / (f.maxHp || 1));
-  const ringCol = mode === 3 || frac > 0.5 ? col : frac > 0.25 ? "#d4a24c" : "#d95b5b";
-  const shove = f.fireN > 0 ? (isP1 ? "-translate-y-1.5" : "translate-y-1.5") : "";
-
-  // Góc nhìn: đối thủ ở trên lớn hơn, phe ta ở dưới luôn nhỏ gọn hơn
-  const big = !isP1;
-  const S = big ? 92 : 62;
-  const R = (S - 5) / 2;
-  const C = 2 * Math.PI * R;
-
-  const badges: string[] = [];
-  if (f.armor > 0) badges.push(`GIÁP ${Math.ceil(f.armor)}`);
-  if (f.reflectT > 0) badges.push(`PHẢN ${f.reflectT.toFixed(1)}s`);
-  if (f.lifeT > 0) badges.push(`HÚT ${f.lifeT.toFixed(1)}s`);
-  if (f.slowT > 0) badges.push("CHẬM");
-  if (f.freezeT > 0) badges.push("BĂNG");
-  if (f.combo > 1) badges.push(`COMBO ×${f.combo}`);
-
-  const fireKey = isP1 ? "SPACE" : "ENTER";
-  const slotKeys = isP1 ? ["1", "2", "3", "4"] : ["7", "8", "9", "0"];
-  const panel = cn("relative rounded-xl border border-white/[0.08] bg-[#0c0e14]/90", big ? "px-4 py-3" : "px-3 py-2");
+/** Thẻ trên băng chuyền: một hàng đầu (icon, tên, giờ), MỘT đoạn chữ cần gõ, thanh thời gian mảnh. */
+function ItemCard({ it, g, floating = true }: { it: Item; g: Game; floating?: boolean }) {
+  const [f0, f1] = g.fighters;
+  const def = ITEMS[it.type];
+  const mine = f0.lock === it;
+  const theirs = f1.lock === it;
+  const shared = f1.bot;
+  const typer = mine ? f0 : shared && theirs ? f1 : null;
+  // Đang khoá thẻ khác: thẻ này lùi lại phía sau
+  const dim = !!f0.lock && !mine;
+  const left = Math.max(0, it.life - it.age);
+  const pct = Math.min(100, (left / it.life) * 100);
+  const h = cardH(shared);
 
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-x-5 z-20 flex items-center select-none",
-        isP1 ? "bottom-3 h-[88px] gap-3" : "top-3 h-[100px] flex-row-reverse gap-4"
+        "flex flex-col rounded-xl border bg-ink-900 px-3 py-2.5 transition-[opacity,border-color] duration-200",
+        floating ? "absolute left-0 top-0" : "relative w-full",
+        mine ? "border-info/70" : theirs ? "border-danger/50" : "border-ink-700",
+        it.state !== "live" && "opacity-0",
+        dim && "opacity-55"
       )}
+      style={
+        floating
+          ? { width: CARD_W, height: h, transform: `translate3d(${it.x - CARD_W / 2}px, ${it.y - h / 2}px, 0)`, zIndex: mine ? 25 : 15 }
+          : undefined
+      }
     >
-      {/* Avatar + vòng máu */}
-      <div className={cn("relative shrink-0 transition-transform duration-200", shove, f.hitN > 0 && "brightness-150")} style={{ width: S, height: S }}>
-        <svg className="absolute inset-0 -rotate-90" width={S} height={S} viewBox={`0 0 ${S} ${S}`}>
-          <circle cx={S / 2} cy={S / 2} r={R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={4} />
-          <circle cx={S / 2} cy={S / 2} r={R} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth={4} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - ghost)} className="transition-[stroke-dashoffset] duration-300" />
-          <circle cx={S / 2} cy={S / 2} r={R} fill="none" stroke={ringCol} strokeWidth={4} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - frac)} className="transition-[stroke-dashoffset] duration-150" />
-        </svg>
-        <div className={cn("absolute inset-[7px] grid place-items-center overflow-hidden rounded-full bg-[#0c0e14]", f.err > 0 && "ring-2 ring-rose-400/70")}>
-          {chibi ? <ChibiAvatar size={S - 14} animate={false} /> : <UserAvatar src={src} name={f.name} className="size-full" />}
-          {f.freezeT > 0 && <span className="absolute inset-0 bg-cyan-200/25" />}
-        </div>
+      {!floating && mine && <FocusFrame inset={4} className="size-3 border-info" />}
+      <div className="flex items-center gap-2 text-xs">
+        <span aria-hidden className="text-sm leading-none grayscale">{def.icon}</span>
+        <span className="min-w-0 flex-1 truncate font-medium text-ink-300">{def.name}</span>
+        <span className={cn("shrink-0 font-mono tabular-nums", pct < 25 ? "text-danger" : "text-ink-500")}>{Math.ceil(left)}s</span>
       </div>
-
-      {/* Tên, máu (số), trạng thái */}
-      <div className={cn("min-w-0 flex-1", !isP1 && "text-right")}>
-        <div className={cn("flex items-baseline gap-2", !isP1 && "justify-end")}>
-          <span className={cn("truncate font-semibold text-slate-100", big ? "text-base" : "text-sm")}>{f.name}</span>
-          <span className="font-mono text-xs uppercase tracking-widest text-slate-500">{isP1 ? "P1" : "P2"}</span>
-        </div>
-        <div className={cn("font-mono font-semibold tabular-nums", big ? "text-xl" : "text-base")} style={{ color: ringCol }}>
-          {mode === 3 ? `${Math.round(frac * 100)}%` : Math.ceil(f.hp)}
-        </div>
-        <div className={cn("mt-1 flex min-h-[20px] flex-wrap items-center gap-1.5 font-mono text-xs uppercase tracking-wider text-slate-400", !isP1 && "justify-end")}>
-          {badges.map((t) => (
-            <span key={t} className="rounded border border-white/10 px-1.5 py-0.5">{t}</span>
-          ))}
-        </div>
-      </div>
-
-      {mode === 2 && (
-        <div className={cn(panel, "shrink-0", big ? "w-[390px]" : "w-[340px]")}>
-          {mode === 2 && (
-            <div className="flex items-center gap-2">
-              {Array.from({ length: HAND_MAX }, (_, i) => {
-                const c = f.hand[i];
-                const def = c ? ITEMS[c.type] : null;
-                const partner = !!c && f.hand.some((o, oi) => oi !== i && findFusion(o.type, c.type));
-                return (
-                  <div
-                    key={i}
-                    className={cn(
-                      "relative grid place-items-center rounded-lg border bg-white/[0.03]",
-                      big ? "size-11 text-lg" : "size-9 text-base",
-                      c ? "border-white/20" : "border-dashed border-white/10",
-                      partner && "border-amber-300/80"
-                    )}
-                    title={def ? `${def.name}: ${def.desc}` : "Ô kỹ năng trống"}
-                  >
-                    <span className="absolute left-1 top-0 font-mono text-xs text-slate-500">{slotKeys[i]}</span>
-                    {def && <span className={cn("mt-1", !partner && "grayscale")}>{def.icon}</span>}
-                  </div>
-                );
-              })}
-              <span className="ml-auto font-mono text-xs uppercase tracking-wider text-slate-400">
-                ĐẠN <span className={cn("text-sm", f.ammo > 0 ? "text-amber-300" : "text-slate-600")}>×{f.ammo}</span>
-              </span>
-            </div>
-          )}
-          {mode === 2 && (
-            <div
-              className={cn("mt-2 flex items-center justify-between rounded-lg border border-white/[0.08] bg-black/30 px-3 font-mono text-base", big ? "py-1.5" : "py-1")}
-              style={f.lock ? { borderColor: col + "88" } : undefined}
-            >
-              <span className="truncate text-lg font-medium tracking-[0.14em]">
-                {f.freezeT > 0 ? (
-                  <span className="text-sm text-slate-300">bị đóng băng</span>
-                ) : f.lock ? (
-                  <TypedPhrase text={f.lock.disp[f.id]} done={f.buf.length} active col={col} />
-                ) : (
-                  <span className="text-xs tracking-normal text-slate-500">gõ chữ cái đầu để chọn thẻ</span>
-                )}
-              </span>
-              <kbd className={cn("ml-2 shrink-0 rounded border px-1.5 py-0.5 text-xs", f.ammo > 0 ? "border-amber-300/60 text-amber-300" : "border-white/15 text-slate-500")}>{fireKey}</kbd>
-            </div>
-          )}
-        </div>
+      <p className={cn("mt-1.5 truncate font-mono text-lg font-semibold leading-tight tracking-wide text-ink-100", dim && "blur-[1px]")}>
+        <TypedWord text={it.disp[0]} done={typer ? typer.buf.length : 0} col={typer ? P_COL[typer.id] : undefined} />
+      </p>
+      {!shared && (
+        <p className="truncate font-mono text-sm leading-tight text-ink-500">
+          <TypedWord text={it.disp[1]} done={theirs ? f1.buf.length : 0} col={P_COL[1]} />
+        </p>
       )}
+      <div className="mt-auto h-0.5 overflow-hidden rounded-full bg-ink-700">
+        <div className={cn("h-full rounded-full", pct < 25 ? "bg-danger" : "bg-ink-500")} style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }
 
-/** Ô input của một người chơi trong Đọ tên lửa: hiện chữ đã gõ so với từ chung. */
-function WordInput({ f, className }: { f: Fighter; className?: string }) {
-  const col = P_COL[f.id];
-  const ok = f.buf.length === f.word.length && f.buf === f.word;
+/* ------------------------------------ HUD ------------------------------------ */
+
+/** Avatar với vòng máu (hoặc vòng tiến độ ở Đua gõ). */
+function HpRing({ f, mode, src, chibi, size }: { f: Fighter; mode: Mode; src: string; chibi: boolean; size: number }) {
+  const frac = Math.max(0, Math.min(1, mode === 3 ? (f.text.length ? f.idx / f.text.length : 0) : f.hp / (f.maxHp || 1)));
+  const ghost = mode === 3 ? frac : Math.max(frac, f.ghost / (f.maxHp || 1));
+  const col = mode === 3 || frac > 0.3 ? P_COL[f.id] : "#ef5350";
+  const R = (size - 4) / 2;
+  const C = 2 * Math.PI * R;
   return (
-    <div
+    <div className={cn("relative shrink-0", f.hitN > 0 && "brightness-125")} style={{ width: size, height: size }}>
+      <svg className="absolute inset-0 -rotate-90" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke="currentColor" strokeWidth={3} className="text-ink-800" />
+        <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke="currentColor" strokeWidth={3} strokeDasharray={C} strokeDashoffset={C * (1 - ghost)} className="text-ink-600 transition-[stroke-dashoffset] duration-300" />
+        <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke={col} strokeWidth={3} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - frac)} className="transition-[stroke-dashoffset] duration-150" />
+      </svg>
+      <div className={cn("absolute inset-[6px] grid place-items-center overflow-hidden rounded-full bg-ink-900", f.err > 0 && "ring-2 ring-danger/70")}>
+        {chibi ? <ChibiAvatar size={size - 12} animate={false} /> : <UserAvatar src={src} name={f.name} className="size-full" />}
+        {f.freezeT > 0 && <span className="absolute inset-0 bg-info/25" />}
+      </div>
+    </div>
+  );
+}
+
+/** HUD một người chơi: avatar + vòng máu, tên, điểm, WPM, phản xạ, đạn. Cùng bố cục cho cả hai bên (bên trên lật gương). */
+function PlayerHud({ f, mode, src, chibi, label, mirror, compact }: { f: Fighter; mode: Mode; src: string; chibi: boolean; label: string; mirror?: boolean; compact?: boolean }) {
+  const wpm = wpmOf(f);
+  const score = mode === 3 ? `${Math.round((f.text.length ? f.idx / f.text.length : 0) * 100)}%` : Math.ceil(f.hp);
+  // Điện thoại: hai dòng gọn (tên · điểm, đạn, WPM), bỏ thanh tốc độ
+  if (compact)
+    return (
+      <div className="flex min-w-0 items-center gap-2.5">
+        <HpRing f={f} mode={mode} src={src} chibi={chibi} size={44} />
+        <div className="min-w-0">
+          <p className="truncate font-display text-sm font-semibold text-ink-100">
+            {f.name} {label && <span className="font-sans text-xs font-normal text-ink-500">{label}</span>}
+          </p>
+          <p className="flex items-baseline gap-2 overflow-hidden whitespace-nowrap">
+            <span className="font-display text-xl font-bold tabular-nums text-ink-100">{score}</span>
+            {mode === 2 && <span className={cn("font-mono text-xs", f.ammo > 0 ? "text-warning" : "text-ink-500")}>×{f.ammo}</span>}
+            <span className="font-mono text-xs text-ink-400">{wpm} WPM</span>
+          </p>
+        </div>
+      </div>
+    );
+  const size = 56;
+  const badges: string[] = [];
+  if (f.armor > 0) badges.push(`Giáp ${Math.ceil(f.armor)}`);
+  if (f.reflectT > 0) badges.push("Phản đòn");
+  if (f.lifeT > 0) badges.push("Hút máu");
+  if (f.slowT > 0) badges.push("Bị chậm");
+  if (f.freezeT > 0) badges.push("Đóng băng");
+  if (f.combo > 1) badges.push(`Combo ×${f.combo}`);
+  return (
+    <div className={cn("flex min-w-0 items-center gap-3", mirror && "flex-row-reverse text-right")}>
+      <HpRing f={f} mode={mode} src={src} chibi={chibi} size={size} />
+      <div className="min-w-0">
+        <div className={cn("flex items-baseline gap-2", mirror && "flex-row-reverse")}>
+          <span className="max-w-[180px] truncate font-display text-base font-semibold text-ink-100">{f.name}</span>
+          {label && <span className="shrink-0 text-xs text-ink-500">{label}</span>}
+          {badges.length > 0 && <span className="truncate text-xs text-warning">{badges.join(" · ")}</span>}
+        </div>
+        <div className={cn("flex items-baseline gap-3", mirror && "flex-row-reverse")}>
+          <span className="font-display text-2xl font-bold leading-tight tabular-nums text-ink-100">{score}</span>
+          {mode === 2 && <span className={cn("font-mono text-xs tabular-nums", f.ammo > 0 ? "text-warning" : "text-ink-500")}>Đạn ×{f.ammo}</span>}
+          <span className="font-mono text-xs tabular-nums text-ink-400">{f.rt ? `${f.rt.toFixed(1)}s` : "–"} phản xạ</span>
+        </div>
+        {/* Đồng hồ tốc độ: WPM trong 4 giây gần nhất */}
+        <div className={cn("mt-1 flex items-center gap-2", mirror && "flex-row-reverse")}>
+          <div className="h-1 w-28 overflow-hidden rounded-full bg-ink-800">
+            <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${Math.min(100, wpm)}%`, background: P_COL[f.id] }} />
+          </div>
+          <span className="font-mono text-xs tabular-nums text-ink-400">{wpm} WPM</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Bốn ô kỹ năng; ô có cặp hợp thể sáng viền. */
+function SkillSlots({ f, keys, small }: { f: Fighter; keys: string[]; small?: boolean }) {
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      {Array.from({ length: HAND_MAX }, (_, i) => {
+        const c = f.hand[i];
+        const def = c ? ITEMS[c.type] : null;
+        const partner = !!c && f.hand.some((o, oi) => oi !== i && findFusion(o.type, c.type));
+        return (
+          <div
+            key={i}
+            title={def ? `${def.name}: ${def.desc}` : "Ô kỹ năng trống"}
+            className={cn(
+              "relative grid place-items-center rounded-lg border bg-ink-900",
+              small ? "size-9 text-base" : "size-11 text-lg",
+              c ? (partner ? "border-warning/70" : "border-ink-500") : "border-dashed border-ink-600"
+            )}
+          >
+            <span className="absolute left-1 top-0.5 font-mono text-xs leading-none text-ink-400">{keys[i]}</span>
+            {def && <span className={cn("mt-1", !partner && "grayscale")}>{def.icon}</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Ô chữ của đối thủ (máy hoặc người chơi 2): cùng dáng ô nhập nhưng chỉ để xem. */
+function TargetBox({ f, mode, className }: { f: Fighter; mode: Mode; className?: string }) {
+  const col = P_COL[f.id];
+  return (
+    <div className={cn("flex h-12 items-center gap-2 rounded-xl border border-ink-700 bg-ink-900/80 px-4", className)}>
+      <span className="size-2 shrink-0 rounded-full" style={{ background: col }} />
+      <span className="min-w-0 flex-1 truncate font-mono text-lg tracking-wide text-ink-300">
+        {f.freezeT > 0 ? (
+          <span className="font-sans text-sm text-info">Đang bị đóng băng</span>
+        ) : mode === 2 && f.lock ? (
+          <TypedWord text={f.lock.disp[f.id]} done={f.buf.length} col={col} />
+        ) : mode === 1 && f.word ? (
+          <TypedWord text={f.word} done={f.buf.length} col={col} />
+        ) : (
+          <span className="font-sans text-sm text-ink-500">Đang chọn mục tiêu…</span>
+        )}
+      </span>
+      {!f.bot && <kbd className="shrink-0 rounded border border-ink-600 px-1.5 py-0.5 font-mono text-xs text-ink-400">SHIFT PHẢI</kbd>}
+    </div>
+  );
+}
+
+/** Phần còn lại của mục tiêu sau chữ đã gõ, hiện mờ ngay trong ô nhập (chỉ khi đang gõ đúng). */
+function ghostOf(g: Game, f: Fighter): string {
+  if (f.typo || f.freezeT > 0) return "";
+  const d = f.draft.toLowerCase();
+  if (g.mode === 2) {
+    const t = f.lock?.disp[f.id];
+    return t && t.startsWith(d) ? t.slice(d.length) : "";
+  }
+  if (g.mode === 1) return f.word.startsWith(d) ? f.word.slice(d.length) : "";
+  const rest = f.text.slice(f.idx);
+  if (!rest.startsWith(d)) return "";
+  const end = rest.indexOf(" ", Math.max(1, d.length));
+  return rest.slice(d.length, end < 0 ? rest.length : end);
+}
+
+/** Ô nhập duy nhất của người chơi: gõ, xoá, cách như ô thường; chỉ Enter mới gửi. */
+function TypeBox({
+  g,
+  f,
+  boxRef,
+  onType,
+  onSubmit,
+  className,
+}: {
+  g: Game;
+  f: Fighter;
+  boxRef: React.Ref<HTMLInputElement>;
+  onType: (text: string) => void;
+  onSubmit: () => void;
+  className?: string;
+}) {
+  const mode = g.mode;
+  const col = P_COL[f.id];
+  const frozen = f.freezeT > 0;
+  const bad = f.err > 0 || f.typo;
+  const ready =
+    mode === 1 ? !!f.buf && f.buf === f.word
+    : mode === 2 ? (f.lock ? f.buf === keyOf(f.lock, f) : !f.draft.trim() && f.ammo > 0)
+    : !!f.draft.trim() && !f.typo;
+  const ghost = ghostOf(g, f);
+  const hint = frozen
+    ? "Đang bị đóng băng…"
+    : mode === 2
+    ? "Gõ chữ trên thẻ rồi Enter"
+    : mode === 1
+    ? "Gõ từ khóa rồi Enter để bắn"
+    : "Gõ từ tiếp theo rồi Enter";
+  return (
+    <label
       className={cn(
-        "pointer-events-none absolute left-1/2 z-20 flex h-[52px] w-[380px] -translate-x-1/2 items-center justify-between rounded-xl border bg-[#0c0e14]/90 px-4 font-mono text-xl tracking-[0.2em] transition-colors",
-        f.err > 0 ? "border-rose-400/70" : "border-white/[0.1]",
+        "pointer-events-auto flex h-14 items-center gap-3 rounded-xl border bg-ink-900 px-4 transition-colors",
+        bad ? "border-danger/70" : ready ? "border-accent/60" : "border-ink-600",
         className
       )}
-      style={ok ? { borderColor: col } : undefined}
     >
-      <span className="flex min-w-0 items-center gap-1 truncate">
-        <span className="size-2 shrink-0 rounded-full" style={{ background: col }} />
-        <span style={{ color: ok ? col : "#f1f5f9" }}>{f.buf}</span>
-        <span className="animate-pulse text-slate-600">▍</span>
+      <span className="size-2 shrink-0 rounded-full" style={{ background: col }} />
+      <span className="relative min-w-0 flex-1">
+        {/* Phần còn lại của mục tiêu, nằm ngay sau con trỏ */}
+        <span aria-hidden className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre font-mono text-xl">
+          <span className="invisible">{f.draft}</span>
+          <span className="text-ink-600">{ghost}</span>
+        </span>
+        <input
+          ref={boxRef}
+          value={f.draft}
+          onChange={(e) => onType(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+            e.preventDefault();
+            onSubmit();
+          }}
+          readOnly={frozen}
+          placeholder={ghost ? undefined : hint}
+          aria-label="Ô gõ chữ, Enter để gửi"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          enterKeyHint="send"
+          className="relative w-full bg-transparent font-mono text-xl text-ink-100 outline-none focus-visible:outline-none placeholder:font-sans placeholder:text-sm placeholder:text-ink-500"
+        />
       </span>
-      <kbd className={cn("ml-2 shrink-0 rounded border px-1.5 py-0.5 text-xs tracking-normal", ok ? "border-amber-300/60 text-amber-300" : "border-white/15 text-slate-500")}>
-        {f.id === 0 ? "SPACE" : "ENTER"}
-      </kbd>
-    </div>
+      <kbd className={cn("shrink-0 rounded-md border px-2 py-1 font-mono text-xs", ready ? "border-accent/60 text-accent" : "border-ink-600 text-ink-500")}>ENTER</kbd>
+    </label>
   );
 }
 
-/* ------------------ Banner Hợp Thể & Kích Hoạt Tinh Tế ------------------ */
+/* --------------------------------- Banner sự kiện --------------------------------- */
 
 function FusionBanner({ b, names }: { b: Banner; names: [string, string] }) {
   const fu = b.fusion!;
   return (
     <motion.div
-      className="pointer-events-none absolute inset-0 z-50 grid place-items-center overflow-hidden bg-black/60"
+      className="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-ink-950/60"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.3 } }}
     >
       <motion.div
-        className="relative flex flex-col items-center rounded-2xl border border-white/15 bg-[#0c0e14] px-8 py-6"
-        initial={{ scale: 0.7, y: 30, opacity: 0 }}
+        className="flex max-w-[380px] flex-col items-center rounded-2xl border border-ink-700 bg-ink-900 px-8 py-6 text-center"
+        initial={{ scale: 0.9, y: 16, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 190, damping: 16 }}
+        transition={{ type: "spring", stiffness: 240, damping: 22 }}
       >
-        <span
-          className="text-xs font-mono font-bold uppercase tracking-[0.3em]"
-          style={{ color: fu.col }}
-        >
-          KỸ NĂNG HỢP THỂ CHIẾN LƯỢC · {names[b.owner]}
-        </span>
-
+        <span className="text-xs font-medium uppercase tracking-[0.2em] text-ink-400">Hợp thể · {names[b.owner]}</span>
         <div className="my-3 flex items-center gap-3">
-          <span className="text-4xl grayscale">{fu.icon}</span>
-          <BlurText text={fu.name} step={0.12} className="font-display text-4xl font-extrabold uppercase text-white tracking-wide" />
+          <span className="text-3xl grayscale">{fu.icon}</span>
+          <span className="font-display text-3xl font-bold text-ink-100">{fu.name}</span>
         </div>
-
-        <p className="max-w-[340px] text-center text-xs leading-relaxed text-slate-300">{fu.desc}</p>
+        <p className="text-sm leading-relaxed text-ink-300">{fu.desc}</p>
       </motion.div>
     </motion.div>
   );
@@ -712,71 +640,75 @@ function ActivateBanner({ b, names }: { b: Banner; names: [string, string] }) {
   const def = ITEMS[b.type!];
   return (
     <motion.div
-      className="pointer-events-none absolute inset-x-0 top-16 z-40 flex justify-center"
-      initial={{ opacity: 0, y: -20 }}
+      className="pointer-events-none absolute inset-x-0 top-[124px] z-40 flex justify-center"
+      initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -15, transition: { duration: 0.2 } }}
+      exit={{ opacity: 0, y: -8, transition: { duration: 0.2 } }}
     >
-      <div
-        className="flex items-center gap-2.5 rounded-full border border-white/15 bg-[#0c0e14] px-4 py-1.5"
-      >
-        <span className="text-lg">{def.icon}</span>
-        <span className="font-sans text-xs font-bold text-white tracking-wide">
-          <span style={{ color: P_COL[b.owner] }}>{names[b.owner]}</span> kích hoạt{" "}
-          <span className="inline text-amber-300">{def.name}</span>!
-        </span>
+      <div className="flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900 px-4 py-1.5 text-sm text-ink-300">
+        <span aria-hidden>{def.icon}</span>
+        <span style={{ color: P_COL[b.owner] }}>{names[b.owner]}</span> dùng <span className="font-semibold text-ink-100">{def.name}</span>
       </div>
     </motion.div>
   );
 }
 
-/* ------------------------- Mode 3: Đua Gõ Đoạn Văn ------------------------- */
-
-function RaceTrack({
-  f,
-  top,
-  src,
-  chibi,
-  active,
-}: {
-  f: Fighter;
-  top: number;
-  src: string;
-  chibi: boolean;
-  active: boolean;
-}) {
-  const col = P_COL[f.id];
-  const pct = f.text.length ? f.idx / f.text.length : 0;
-
+/** K.O.: một dải ruy băng ngắn trong lúc chờ màn kết quả (lúc này đã hết gõ). */
+function KoBanner({ winner }: { winner: Fighter }) {
   return (
-    <div
-      className="absolute left-16 right-16 rounded-xl border border-white/[0.08] bg-[#0c0e14]/95 px-6 py-3.5"
-      style={{ top, height: 165 }}
-    >
-      <span className="absolute inset-y-3 left-0 w-[3px] rounded-r" style={{ background: col }} />
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-slate-100">
-          {f.name}
-          {active && <span className="ml-2 font-mono text-xs font-normal uppercase tracking-widest" style={{ color: col }}>dẫn đầu</span>}
-        </span>
-        <span className="font-mono text-xs uppercase tracking-widest text-slate-500">
-          {Math.round(pct * 100)}% · lỗi {f.errors}
-        </span>
-      </div>
-
-      <div className="relative mb-1 mt-2.5 h-1 w-full rounded-full bg-white/[0.07]">
-        <div className="h-full rounded-full transition-[width] duration-150" style={{ width: `${pct * 100}%`, background: col }} />
-        <span
-          className="absolute top-1/2 size-5 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border bg-[#0c0e14]"
-          style={{ left: `${pct * 100}%`, borderColor: col }}
-        >
-          {chibi ? <ChibiAvatar size={18} animate={false} /> : <UserAvatar src={src} name={f.name} className="size-full" />}
-        </span>
-      </div>
-
-      <CylinderText text={f.text} index={f.idx} color={col} className="mt-1.5 w-full" />
+    <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center bg-ink-950/50">
+      <TextLoop
+        items={["K.O.", `${winner.name} thắng`]}
+        viewWidth={W}
+        fontSize={30}
+        amplitude={14}
+        waves={1}
+        speed={120}
+        className={winner.id === 0 ? "text-success" : "text-danger"}
+        textClassName={winner.id === 0 ? "fill-ink-950" : "fill-ink-100"}
+        style={{ width: W }}
+      />
     </div>
   );
+}
+
+/* ------------------------------- Đua gõ đoạn văn ------------------------------- */
+
+function RaceTrack({ f, top, lead }: { f: Fighter; top: number; lead: boolean }) {
+  const col = P_COL[f.id];
+  const pct = f.text.length ? f.idx / f.text.length : 0;
+  // Phần đang gõ trong ô nhập (chưa Enter) được tô trước trên đoạn văn
+  const at = Math.min(f.text.length, f.idx + f.buf.length);
+  return (
+    <div className="absolute left-16 right-16 rounded-xl border border-ink-700 bg-ink-900 px-6 py-4" style={{ top, height: 165 }}>
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-display font-semibold text-ink-100">
+          {f.name}
+          {lead && <span className="ml-2 text-xs font-normal text-ink-400">dẫn đầu</span>}
+        </span>
+        <span className="font-mono text-xs tabular-nums text-ink-500">{Math.round(pct * 100)}% · lỗi {f.errors}</span>
+      </div>
+      <div className="mb-1 mt-3 h-1 w-full rounded-full bg-ink-800">
+        <div className="h-full rounded-full transition-[width] duration-150" style={{ width: `${pct * 100}%`, background: col }} />
+      </div>
+      <CylinderText text={f.text} index={at} color={col} className="mt-1.5 w-full" />
+    </div>
+  );
+}
+
+/* ------------------------------------ Tiện ích ------------------------------------ */
+
+/** Màn hình hẹp (điện thoại): dùng bố cục xếp dọc thay cho sân đấu thu nhỏ. */
+function useNarrow() {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return narrow;
 }
 
 /* ---------------------------------- Main Component ---------------------------------- */
@@ -795,7 +727,6 @@ export function TypingBattleGame() {
     useMatchSettlement("typing");
 
   const [phase, setPhase] = useState<"setup" | "playing" | "over">("setup");
-  // Mặc định chọn chế độ 2: Tranh thẻ & Băng chuyền chữ chạy ngang theo yêu cầu người dùng
   const [mode, setMode] = useState<Mode>(2);
   const [opp, setOpp] = useState<OppKind>("bot");
   const vsBot = opp === "bot";
@@ -803,10 +734,8 @@ export function TypingBattleGame() {
   const [stake, setStake] = useState(0);
   const [scale, setScale] = useState(1);
   const [intro, setIntro] = useState(false);
-  const fx = useFxQueue();
+  const narrow = useNarrow();
   const narrator = useNarrator();
-  const pushFxRef = useRef(fx.push);
-  pushFxRef.current = fx.push;
   const sayRef = useRef(narrator.say);
   sayRef.current = narrator.say;
   const [, force] = useReducer((x: number) => x + 1, 0);
@@ -815,7 +744,7 @@ export function TypingBattleGame() {
   const botRef = useRef<{ name: string; seed: string; title: string; avatar?: string }>(BOTS[0]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const asciiRef = useRef<AsciiRippleRef>(null);
+  const boxRef = useRef<HTMLInputElement>(null);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
   const soundRef = useRef(soundEnabled);
@@ -827,21 +756,10 @@ export function TypingBattleGame() {
 
   const hooks = useRef<Hooks>({
     sfx: (n) => {
-      if (n === "count") sayRef.current("Chuẩn bị!");
-      else if (n === "go") sayRef.current("Bắt đầu gõ!");
-      else if (n === "fuse") {
-        pushFxRef.current({ title: "HỢP THỂ", subtitle: "Kỹ năng hợp nhất được kích hoạt", tone: "gold", icon: "⚡" });
-        sayRef.current("Hợp thể!");
-      } else if (n === "win") {
-        pushFxRef.current({ title: "HẠ GỤC!", subtitle: "Trận đấu kết thúc", tone: "red", icon: "💥" });
-        sayRef.current("Hạ gục! Trận đấu kết thúc.");
-      }
-      if (n === "hit") asciiRef.current?.triggerRipple(0.5, 0.5, 2.0);
-      else if (n === "fuse") asciiRef.current?.triggerRipple(0.5, 0.5, 2.5);
-      else if (n === "win") asciiRef.current?.triggerRipple(0.5, 0.5, 3.0);
-      else if (n === "fire") asciiRef.current?.triggerRipple(0.25, 0.7, 1.2);
-      else if (n === "collect") asciiRef.current?.triggerRipple(0.5, 0.35, 1.5);
-      else if (n === "go") asciiRef.current?.triggerRipple(0.5, 0.5, 2.0);
+      if (n === "count") sayRef.current("Chuẩn bị!", "ty_ready");
+      else if (n === "go") sayRef.current("Bắt đầu gõ!", "ty_go");
+      else if (n === "fuse") sayRef.current("Hợp thể!", "ty_merge");
+      else if (n === "win") sayRef.current("Hạ gục! Trận đấu kết thúc.", "ty_ko");
 
       if (!soundRef.current) return;
       try {
@@ -870,7 +788,7 @@ export function TypingBattleGame() {
     ro.observe(el);
     setScale(el.clientWidth / W);
     return () => ro.disconnect();
-  }, []);
+  }, [narrow]);
 
   const pendingOpp = useRef<{ name: string; seed: string; title: string; avatar?: string }>(BOTS[0]);
   const friendRef = useRef<{ name: string; avatar: string } | null>(null);
@@ -882,10 +800,10 @@ export function TypingBattleGame() {
       ? { name: fr.name, seed: fr.name, title: "Bạn bè", avatar: fr.avatar }
       : { name: "P2", seed: "player two:0", title: "Đấu Thủ" };
     setIntro(true);
-    sayRef.current(`${me.username || "Người chơi một"} đối đầu ${pendingOpp.current.name}!`);
-  }, [vsBot, opp, me.username]);
+    sayRef.current("Hai đối thủ đối đầu!", "ty_versus");
+  }, [vsBot, opp]);
 
-  // After the VS intro, the duel actually begins.
+  // Sau màn giới thiệu VS, trận đấu mới thật sự bắt đầu
   const beginDuel = useCallback(() => {
     setIntro(false);
     const opp = pendingOpp.current;
@@ -895,7 +813,7 @@ export function TypingBattleGame() {
     setPhase("playing");
   }, [mode, vsBot, diff, me.username, resetSettlement]);
 
-  // Vòng lặp cập nhật engine + vẽ canvas mượt mà 60fps
+  // Vòng lặp cập nhật engine + vẽ canvas (canvas luôn có trong DOM, kể cả khi ẩn trên điện thoại)
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
@@ -913,16 +831,6 @@ export function TypingBattleGame() {
       last = now;
       clock += dt;
       acc += dt;
-
-      for (const L of stars) {
-        for (const s of L) {
-          s.x -= s.v * dt;
-          if (s.x < 0) {
-            s.x = W;
-            s.y = Math.random() * H;
-          }
-        }
-      }
 
       const g = gRef.current;
       if (g && phaseRef.current === "playing") {
@@ -946,7 +854,6 @@ export function TypingBattleGame() {
 
       drawFx(ctx, bg, stars, phaseRef.current === "setup" ? null : g, clock);
 
-      // Cập nhật DOM ở tần số mượt mà ~60Hz
       if (acc > 0.016) {
         acc = 0;
         force();
@@ -958,61 +865,80 @@ export function TypingBattleGame() {
     return () => cancelAnimationFrame(raf);
   }, [hooks]);
 
-  // Bàn phím: P1 gõ phím bên trái + Space, P2 gõ phím bên phải + Enter
+  // P1 gõ trong một ô nhập duy nhất: xoá, sửa, cách như ô thường, chỉ Enter mới gửi
+  const typeP1 = useCallback((text: string) => {
+    const g = gRef.current;
+    if (g) onType(g, g.fighters[0], text);
+    force();
+  }, []);
+  const submitP1 = useCallback(() => {
+    const g = gRef.current;
+    if (!g) return;
+    onSubmit(g, g.fighters[0], hooks);
+    force();
+  }, [hooks]);
+
+  useEffect(() => {
+    if (phase === "playing") boxRef.current?.focus();
+  }, [phase, narrow]);
+
+  // Bàn phím ngoài ô nhập: Esc thoát, gõ phím nào cũng đưa con trỏ về ô nhập.
+  // Cùng máy: P2 vẫn gõ nửa phải bàn phím, 7-0 dùng kỹ năng, Shift phải để bắn.
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
+      const box = boxRef.current;
+      const inBox = !!box && e.target === box;
       const t = e.target as HTMLElement | null;
-      if (t?.closest("input,textarea,select,[contenteditable='true']")) return;
+      if (!inBox && t?.closest("input,textarea,select,[contenteditable='true']")) return;
       const g = gRef.current;
       if (phaseRef.current === "playing" && e.key === "Escape") {
         setPhase("setup");
         return;
       }
       if (!g || phaseRef.current !== "playing" || g.phase === "over") return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
 
-      if (e.code === "Space") {
+      // Phím số 1-4: dùng kỹ năng ở ô tương ứng ngay, không gõ vào ô nhập
+      if (g.mode === 2 && e.key.length === 1 && "1234".includes(e.key)) {
         e.preventDefault();
-        onFire(g, g.fighters[0], hooks);
-        asciiRef.current?.triggerRipple(0.2, 0.75, 1.8);
+        castSkill(g, g.fighters[0], "1234".indexOf(e.key), hooks);
         force();
         return;
       }
+
+      const p2 = g.fighters[1];
+      if (!p2.bot) {
+        const ch = e.key.length === 1 ? e.key.toLowerCase() : "";
+        if (e.code === "ShiftRight") {
+          e.preventDefault();
+          onFire(g, p2, hooks);
+          force();
+          return;
+        }
+        if (ch && g.mode === 2 && "7890".includes(ch)) {
+          e.preventDefault();
+          castSkill(g, p2, "7890".indexOf(ch), hooks);
+          force();
+          return;
+        }
+        if (ch && RIGHT_KEYS.includes(ch)) {
+          e.preventDefault();
+          onKey(g, p2, ch, hooks);
+          force();
+          return;
+        }
+      }
+
+      if (inBox) return;
       if (e.key === "Enter") {
         e.preventDefault();
-        if (!g.fighters[1].bot) {
-          onFire(g, g.fighters[1], hooks);
-          asciiRef.current?.triggerRipple(0.8, 0.75, 1.8);
-        }
-        force();
-        return;
-      }
-
-      if (g.mode === 2 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const s1 = "1234".indexOf(e.key);
-        const s2 = "7890".indexOf(e.key);
-        if (e.key.length === 1 && s1 >= 0) { castSkill(g, g.fighters[0], s1, hooks); force(); return; }
-        if (e.key.length === 1 && s2 >= 0 && !g.fighters[1].bot) { castSkill(g, g.fighters[1], s2, hooks); force(); return; }
-      }
-
-      if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
-      const ch = e.key.toLowerCase();
-      if (g.mode === 1) {
-        // Đọ tên lửa: một từ chung, người chơi thật gõ bằng cả bàn phím
-        if (!/^[a-z]$/.test(ch)) return;
-        onKey(g, g.fighters[0], ch, hooks);
-      } else if (LEFT_KEYS.includes(ch)) {
-        onKey(g, g.fighters[0], ch, hooks);
-        asciiRef.current?.triggerRipple(0.18, 0.75, 0.7);
-      } else if (RIGHT_KEYS.includes(ch) && !g.fighters[1].bot) {
-        onKey(g, g.fighters[1], ch, hooks);
-        asciiRef.current?.triggerRipple(0.82, 0.75, 0.7);
-      } else return;
-      force();
+        submitP1();
+      } else if (e.key.length === 1 || e.key === "Backspace") box?.focus();
     };
 
     window.addEventListener("keydown", onDown);
     return () => window.removeEventListener("keydown", onDown);
-  }, [hooks]);
+  }, [hooks, submitP1]);
 
   const g = gRef.current;
   const show = phase !== "setup" && g;
@@ -1020,10 +946,34 @@ export function TypingBattleGame() {
   const chibi: [boolean, boolean] = [me.has, false];
   const names: [string, string] = g ? [g.fighters[0].name, g.fighters[1].name] : ["P1", "P2"];
   const winner = g && g.winner !== -1 ? g.fighters[g.winner] : null;
+  const p2Keys = g && !g.fighters[1].bot ? ["7", "8", "9", "0"] : ["1", "2", "3", "4"];
+  const lock = g && g.mode === 2 && g.fighters[0].lock?.state === "live" ? g.fighters[0].lock : null;
+  const focusH = g ? cardH(g.fighters[1].bot) : 80;
+  // Kết quả trong sân: đấu máy đã có hộp kết quả riêng, chỉ hiện nút khi hộp đó đóng
+  const showResult = phase === "over" && !!winner && !resultOpen;
+
+  const typeBox = (cls?: string) =>
+    g && <TypeBox g={g} f={g.fighters[0]} boxRef={boxRef} onType={typeP1} onSubmit={submitP1} className={cls} />;
+
+  const resultCard = winner && (
+    <div className="flex flex-col items-center gap-4 text-center">
+      <p className="text-xs uppercase tracking-[0.2em] text-ink-400">{g!.mode === 3 ? "Về đích trước" : "Đối thủ hết máu"}</p>
+      <h2 className="font-display text-4xl font-bold" style={{ color: P_COL[winner.id] }}>
+        {winner.name} thắng
+      </h2>
+      <div className="flex gap-2">
+        <Button variant="primary" onClick={start}>
+          <RotateCcw className="size-4" /> Chơi lại
+        </Button>
+        <Button variant="ghost" onClick={() => setPhase("setup")}>
+          Thiết lập mới
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 py-2">
-      <GameFxOverlay fx={fx.current} onDone={fx.pop} />
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-2 sm:px-6">
       <MatchIntro
         open={intro}
         title="Typing Battle"
@@ -1036,19 +986,10 @@ export function TypingBattleGame() {
       />
       <GameHeader
         game="typing"
-        subtitle={
-          phase === "setup"
-            ? "Đấu trường gõ phím đối kháng trực diện"
-            : mode === 2
-            ? "Băng chuyền vật phẩm · Khóa mục tiêu & Hợp thể"
-            : mode === 1
-            ? "Đọ tên lửa động năng · 5000 HP"
-            : "Đua gõ đoạn văn"
-        }
+        subtitle={phase === "setup" ? "Đấu trường gõ phím đối kháng" : mode === 2 ? "Băng chuyền thẻ" : mode === 1 ? "Đọ tên lửa" : "Đua gõ đoạn văn"}
       >
         <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
       </GameHeader>
-
 
       {phase === "setup" && (
         <TypingLobby
@@ -1070,172 +1011,162 @@ export function TypingBattleGame() {
         />
       )}
 
-      <div className={cn("mx-auto w-full max-w-[min(100%,calc((100dvh-7rem)*1.774))]", phase === "setup" && "hidden")}>
+      {/* Điện thoại: đối thủ trên, thẻ xếp dọc ở giữa, ô nhập luôn ở đáy */}
+      {narrow && show && g && (
+        <div className="flex min-h-[calc(100dvh-7rem)] flex-col gap-3 rounded-2xl border border-ink-800 bg-ink-900 p-3">
+          <div className="flex items-center justify-between gap-3 border-b border-ink-800 pb-3">
+            <PlayerHud f={g.fighters[1]} mode={g.mode} src={srcs[1]} chibi={chibi[1]} label="Đối thủ" compact />
+            {g.mode === 2 && <SkillSlots f={g.fighters[1]} keys={p2Keys} small />}
+          </div>
+
+          <div className="relative flex-1 space-y-2">
+            {g.phase === "count" ? (
+              <p className="py-16 text-center font-display text-7xl font-bold text-ink-100">{Math.max(1, Math.ceil(g.count))}</p>
+            ) : showResult ? (
+              <div className="py-10">{resultCard}</div>
+            ) : g.mode === 2 ? (
+              g.items
+                .filter((i) => i.state === "live")
+                .sort((a, b) => a.life - a.age - (b.life - b.age))
+                .slice(0, 4)
+                .map((it) => <ItemCard key={it.id} it={it} g={g} floating={false} />)
+            ) : g.mode === 1 ? (
+              <div className="rounded-xl border border-ink-700 bg-ink-900 p-6 text-center">
+                <p className="font-mono text-4xl font-semibold tracking-wide text-ink-100">
+                  <TypedWord text={g.fighters[0].word} done={g.fighters[0].buf.length} col={P_COL[0]} />
+                </p>
+                <p className="mt-2 text-xs text-ink-500">Đối thủ: {g.fighters[1].buf.length}/{g.fighters[1].word.length}</p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-ink-700 bg-ink-900 p-4">
+                <CylinderText text={g.fighters[0].text} index={Math.min(g.fighters[0].text.length, g.fighters[0].idx + g.fighters[0].buf.length)} color={P_COL[0]} className="w-full" />
+              </div>
+            )}
+            {g.phase === "over" && phase !== "over" && winner && (
+              <p className="py-6 text-center font-display text-5xl font-bold" style={{ color: P_COL[winner.id] }}>K.O.</p>
+            )}
+          </div>
+
+          {/* Chừa đáy cho cụm phòng/chat nổi của ứng dụng để không che ô nhập */}
+          <div className="sticky bottom-0 -mx-3 space-y-2 rounded-b-2xl border-t border-ink-800 bg-ink-900 px-3 pb-20 pt-3">
+            <div className="flex items-center justify-between gap-3">
+              <PlayerHud f={g.fighters[0]} mode={g.mode} src={srcs[0]} chibi={chibi[0]} label="Bạn" compact />
+              {g.mode === 2 && <SkillSlots f={g.fighters[0]} keys={["1", "2", "3", "4"]} small />}
+            </div>
+            {typeBox("w-full")}
+          </div>
+        </div>
+      )}
+
+      {/* Máy tính: sân đấu 1100×620 thu phóng theo bề ngang */}
+      <div className={cn("mx-auto w-full max-w-[min(100%,calc((100dvh-8rem)*1.774))]", (phase === "setup" || narrow) && "hidden")}>
         <div
           ref={wrapRef}
-          className="relative w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-[#08090d]"
+          className="relative w-full overflow-hidden rounded-2xl border border-ink-800 bg-ink-900"
           style={{ aspectRatio: `${W}/${H}` }}
+          onPointerDown={() => phase === "playing" && requestAnimationFrame(() => boxRef.current?.focus())}
         >
-          <div
-            className="absolute left-0 top-0 origin-top-left"
-            style={{ width: W, height: H, transform: `scale(${scale})` }}
-          >
-
-            {/* Canvas kết xuất hiệu ứng nền, tia laser, tên lửa, va chạm */}
+          <div className="absolute left-0 top-0 origin-top-left" style={{ width: W, height: H, transform: `scale(${scale})` }}>
+            {/* Canvas: nền, tên lửa, va chạm */}
             <canvas ref={canvasRef} width={W * FS} height={H * FS} className="absolute inset-0 size-full" />
 
-            {show && g && (
+            {show && g && !narrow && (
               <>
-                {/* 1. HAI BÊN KỲ THỦ ĐỨNG ĐỐI DIỆN TRỰC TIẾP (NHƯ ĐÁNH CỜ) */}
-                <DuelistStation
-                  f={g.fighters[0]}
-                  opponent={g.fighters[1]}
-                  isP1={true}
-                  src={srcs[0]}
-                  chibi={chibi[0]}
-                  mode={g.mode}
-                />
-                <DuelistStation
-                  f={g.fighters[1]}
-                  opponent={g.fighters[0]}
-                  isP1={false}
-                  src={srcs[1]}
-                  chibi={chibi[1]}
-                  mode={g.mode}
-                />
+                {/* Hàng trên: đối thủ (lật gương) — HUD ở góc phải, ô kỹ năng ở góc trái */}
+                <div className="absolute inset-x-5 top-4 z-20 flex h-[76px] flex-row-reverse items-center gap-4">
+                  <PlayerHud f={g.fighters[1]} mode={g.mode} src={srcs[1]} chibi={chibi[1]} label={g.fighters[1].bot ? "Máy" : ""} mirror />
+                  <span className="flex-1" />
+                  {g.mode !== 3 && <TargetBox f={g.fighters[1]} mode={g.mode} className="w-[360px]" />}
+                  {g.mode === 2 && <SkillSlots f={g.fighters[1]} keys={p2Keys} />}
+                </div>
 
-                {/* 2. Ở GIỮA: CÁC ITEM CHẠY NGANG QUA MÀN HÌNH VỚI HIỆU ỨNG MƯỢT (MODE 2) */}
-                {g.mode === 2 && (
-                  <>
+                {/* Hàng dưới: bạn — HUD ở góc trái, ô nhập và ô kỹ năng ở góc phải */}
+                <div className="absolute inset-x-5 bottom-4 z-20 flex h-[76px] items-center gap-4">
+                  <PlayerHud f={g.fighters[0]} mode={g.mode} src={srcs[0]} chibi={chibi[0]} label="Bạn" />
+                  <span className="flex-1" />
+                  {typeBox("w-[420px]")}
+                  {g.mode === 2 && <SkillSlots f={g.fighters[0]} keys={["1", "2", "3", "4"]} />}
+                </div>
 
-                    {g.items.map((it) => (
-                      <RunningItemCapsule key={it.id} it={it} g={g} />
-                    ))}
-                  </>
-                )}
+                {/* Băng chuyền: thẻ chạy theo 3 làn cố định */}
+                {g.mode === 2 && g.items.map((it) => <ItemCard key={it.id} it={it} g={g} />)}
 
-                {/* Mode 1: một từ dùng chung trên mặt trụ 3D, mỗi bên một ô input */}
+                {/* True Focus: khung góc bám thẻ đang khoá, trượt sang thẻ mới khi đổi mục tiêu */}
+                <AnimatePresence>
+                  {lock && (
+                    <motion.div
+                      key="focus"
+                      aria-hidden
+                      className="pointer-events-none absolute left-0 top-0 z-30"
+                      style={{ width: CARD_W + 12, height: focusH + 12 }}
+                      initial={{ opacity: 0, x: lock.x - CARD_W / 2 - 6, y: lock.y - focusH / 2 - 6 }}
+                      animate={{ opacity: 1, x: lock.x - CARD_W / 2 - 6, y: lock.y - focusH / 2 - 6 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ x: { type: "spring", stiffness: 700, damping: 48 }, y: { type: "spring", stiffness: 700, damping: 48 }, opacity: { duration: 0.15 } }}
+                    >
+                      <FocusFrame className="size-3.5 border-info" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Đọ tên lửa: một từ chung trên mặt trụ */}
                 {g.mode === 1 && (
-                  <>
-                    <CylinderWords
-                      words={g.seq}
-                      active={g.seqI}
-                      typed={[g.fighters[0].buf.length, g.fighters[1].buf.length]}
-                      colors={[P_COL[0], P_COL[1]]}
-                      className="pointer-events-none absolute left-1/2 top-1/2 z-10 w-[760px] -translate-x-1/2 -translate-y-1/2"
-                    />
-                    {g.fighters.map((f) => (
-                      <WordInput key={f.id} f={f} className={f.id === 1 ? "top-[126px]" : "bottom-[126px]"} />
-                    ))}
-                  </>
+                  <CylinderWords
+                    words={g.seq}
+                    active={g.seqI}
+                    typed={[g.fighters[0].buf.length, g.fighters[1].buf.length]}
+                    colors={[P_COL[0], P_COL[1]]}
+                    className="pointer-events-none absolute left-1/2 top-1/2 z-10 w-[760px] -translate-x-1/2 -translate-y-1/2"
+                  />
                 )}
 
-                {/* 3. MODE 3: ĐUA ĐOẠN VĂN */}
+                {/* Đua gõ đoạn văn */}
                 {g.mode === 3 &&
                   g.fighters.map((f) => (
                     <RaceTrack
                       key={f.id}
                       f={f}
-                      top={f.id === 1 ? 138 : 318}
-                      src={srcs[f.id]}
-                      chibi={chibi[f.id]}
-                      active={
-                        g.fighters[0].idx !== g.fighters[1].idx &&
-                        g.fighters[0].idx > g.fighters[1].idx === !f.id
-                      }
+                      top={f.id === 1 ? 128 : 316}
+                      lead={g.fighters[0].idx !== g.fighters[1].idx && g.fighters[0].idx > g.fighters[1].idx === !f.id}
                     />
                   ))}
 
-                {/* 4. BANNER HỢP THỂ & KÍCH HOẠT */}
                 <AnimatePresence>
                   {g.banners.map((b) =>
-                    b.kind === "fusion" ? (
-                      <FusionBanner key={b.id} b={b} names={names} />
-                    ) : (
-                      <ActivateBanner key={b.id} b={b} names={names} />
-                    )
+                    b.kind === "fusion" ? <FusionBanner key={b.id} b={b} names={names} /> : <ActivateBanner key={b.id} b={b} names={names} />
                   )}
                 </AnimatePresence>
 
-                {/* 5. ĐẾM NGƯỢC BẮT ĐẦU */}
+                {/* Đếm ngược */}
                 {g.phase === "count" && (
-                  <div className="absolute inset-0 z-40 grid place-items-center bg-black/55">
-                    <motion.div
+                  <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center bg-ink-950/55">
+                    <motion.span
                       key={Math.ceil(g.count)}
-                      initial={{ scale: 1.5, opacity: 0 }}
+                      initial={{ scale: 1.3, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
+                      className="font-display text-[132px] font-bold leading-none text-ink-100"
                     >
-                      <span className="font-display text-[140px] font-bold text-white">{String(Math.max(1, Math.ceil(g.count)))}</span>
-                    </motion.div>
+                      {Math.max(1, Math.ceil(g.count))}
+                    </motion.span>
                   </div>
                 )}
-
                 {g.goT > 0 && (
-                  <div
-                    className="pointer-events-none absolute inset-0 z-40 grid place-items-center"
-                    style={{ opacity: Math.min(1, g.goT * 2.5) }}
-                  >
-                    <span className="font-display text-[96px] font-bold tracking-tight text-white">Bắt đầu</span>
+                  <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center" style={{ opacity: Math.min(1, g.goT * 2.5) }}>
+                    <span className="font-display text-[88px] font-bold tracking-tight text-ink-100">Bắt đầu</span>
                   </div>
                 )}
 
-                {g.phase === "over" && (
-                  <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center bg-black/50">
-                    <span className="font-display text-[110px] font-bold tracking-tight" style={{ color: winner ? P_COL[winner.id] : "#e27d85" }}>K.O.</span>
-                  </div>
-                )}
+                {g.phase === "over" && phase !== "over" && winner && <KoBanner winner={winner} />}
               </>
             )}
 
-
-            {/* MÀN HÌNH KẾT QUẢ KHI KẾT THÚC VÁN */}
-            {phase === "over" && winner && (
-              <div className="absolute inset-0 z-50 grid place-items-center bg-black/85">
-                <div className="text-center space-y-4">
-                  <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-amber-400/40 bg-amber-400/10 text-amber-300 shadow-xl">
-                    <Trophy className="size-8" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-mono uppercase tracking-[0.2em] text-slate-400">
-                      {g!.mode === 3 ? "Về đích chuẩn xác nhất" : "Đối thủ đã cạn kiệt HP"}
-                    </p>
-                    <h2
-                      className="mt-1 font-display text-4xl font-extrabold"
-                      style={{
-                        color: P_COL[winner.id],
-                        
-                      }}
-                    >
-                      {winner.name.toUpperCase()} THẮNG CUỘC
-                    </h2>
-                  </div>
-
-                  <div className="flex justify-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      className="flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-xs font-bold text-black shadow-lg transition-all hover:bg-slate-200"
-                      onClick={start}
-                    >
-                      <RotateCcw className="size-3.5" /> Chơi Lại
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-2xl border border-white/20 bg-slate-900 px-5 py-2.5 text-xs font-bold text-white shadow-lg transition-all hover:bg-slate-800"
-                      onClick={() => setPhase("setup")}
-                    >
-                      Thiết Lập Mới
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {showResult && !narrow && <div className="absolute inset-0 z-50 grid place-items-center bg-ink-950/85">{resultCard}</div>}
           </div>
         </div>
 
-        <p className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-sm text-slate-400">
-          <span>P1: nửa trái · skill 1-4 · <kbd className="rounded-md border border-white/15 bg-white/[0.06] px-1.5 py-0.5 font-mono text-xs text-slate-200">Space</kbd> bắn đạn</span>
-          <span>P2: nửa phải · skill 7-0 · <kbd className="rounded-md border border-white/15 bg-white/[0.06] px-1.5 py-0.5 font-mono text-xs text-slate-200">Enter</kbd> bắn đạn</span>
-          <span><kbd className="rounded-md border border-white/15 bg-white/[0.06] px-1.5 py-0.5 font-mono text-xs text-slate-200">Esc</kbd> về thiết lập</span>
+        <p className="mt-3 text-center text-xs text-ink-500">
+          Enter gửi{mode === 2 && " · Enter khi ô trống: bắn · 1–4: kỹ năng"}
+          {!vsBot && " · P2: nửa phải, 7–0, Shift phải"} · Esc thoát
         </p>
       </div>
 
@@ -1244,7 +1175,7 @@ export function TypingBattleGame() {
         onClose={() => setResultOpen(false)}
         onPlayAgain={() => setPhase("setup")}
         resultData={result}
-        reason={g?.mode === 3 ? "Về đích đầu tiên" : "Hạ gục đối thủ bằng tên lửa động năng"}
+        reason={g?.mode === 3 ? "Về đích đầu tiên" : "Hạ gục đối thủ bằng tên lửa"}
       />
     </div>
   );
@@ -1252,7 +1183,7 @@ export function TypingBattleGame() {
 
 const MODES: { value: Mode; icon: typeof Zap; name: string; desc: string }[] = [
   { value: 2, icon: Sparkles, name: "Băng chuyền thẻ", desc: "Gõ chữ trên vật phẩm lướt ngang để cướp về tay, gom 2 thẻ để hợp thể." },
-  { value: 1, icon: Crosshair, name: "Đọ tên lửa", desc: "Gõ đúng từ khóa để nạp tên lửa, bấm phím bắn hạ đối thủ trước khi cạn máu." },
+  { value: 1, icon: Crosshair, name: "Đọ tên lửa", desc: "Gõ đúng từ khóa rồi Enter để phóng tên lửa, hạ đối thủ trước khi cạn máu." },
   { value: 3, icon: Trophy, name: "Đua gõ", desc: "Cùng gõ một đoạn văn, ai cán đích trước sẽ thắng." },
 ];
 
@@ -1272,14 +1203,14 @@ const DIFFS = [
 
 function Seat({ avatar, name, label, status, accent, children }: { avatar?: string; name: string; label: string; status?: React.ReactNode; accent: string; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-      <div className="relative grid size-14 shrink-0 place-items-center overflow-hidden rounded-full border-2 bg-[#0c0e14]" style={{ borderColor: accent }}>
-        {avatar ? <UserAvatar src={avatar} name={name} className="size-full" /> : <span className="font-mono text-sm text-slate-500">?</span>}
+    <div className="flex items-center gap-4 rounded-xl border border-ink-800 bg-ink-900 p-4">
+      <div className="relative grid size-14 shrink-0 place-items-center overflow-hidden rounded-full border-2 bg-ink-900" style={{ borderColor: accent }}>
+        {avatar ? <UserAvatar src={avatar} name={name} className="size-full" /> : <span className="font-mono text-sm text-ink-500">?</span>}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-mono text-xs uppercase tracking-widest text-slate-500">{label}</p>
-        <p className="truncate text-base font-semibold text-slate-100">{name}</p>
-        {status && <p className="mt-0.5 text-sm text-slate-400">{status}</p>}
+        <p className="font-mono text-xs uppercase tracking-widest text-ink-500">{label}</p>
+        <p className="truncate font-display text-base font-semibold text-ink-100">{name}</p>
+        {status && <p className="mt-0.5 text-sm text-ink-400">{status}</p>}
       </div>
       {children}
     </div>
@@ -1349,20 +1280,20 @@ function TypingLobby({
     opp === "bot" ? (
       <Seat avatar={`kokonut:${BOTS[0].seed}`} name="Đối thủ máy" label="Đối thủ" accent={P_COL[1]} status={`Cấp độ ${DIFFS.find((d) => d.value === diff)?.label ?? "Vừa"}`} />
     ) : opp === "local" ? (
-      <Seat name="Người chơi 2" label="Đối thủ" accent={P_COL[1]} status="Nửa phải bàn phím · Enter để bắn" />
+      <Seat name="Người chơi 2" label="Đối thủ" accent={P_COL[1]} status="Nửa phải bàn phím · Shift phải để bắn" />
     ) : friend ? (
       <Seat avatar={friend.avatar} name={friend.name} label="Đối thủ" accent={P_COL[1]} status="Đã nhận kèo, sẵn sàng" />
     ) : pending ? (
       <Seat name="Đang chờ người nhận…" label="Đối thủ" accent={P_COL[1]} status={`Kèo ${pending.stake} 🌾 đã gửi vào chat`}>
-        <button type="button" onClick={() => cancelBet(pending.id)} className="btn-ghost px-3 py-1.5 text-sm">
+        <Button size="sm" onClick={() => cancelBet(pending.id)}>
           <X className="size-3.5" /> Huỷ kèo
-        </button>
+        </Button>
       </Seat>
     ) : (
       <Seat name="Chưa có ai" label="Đối thủ" accent="rgba(255,255,255,0.2)" status="Mời một người bạn vào bàn">
-        <button type="button" onClick={sendInvite} className="btn-accent px-3 py-1.5 text-sm">
+        <Button size="sm" variant="primary" onClick={sendInvite}>
           <Send className="size-3.5" /> Mời bạn
-        </button>
+        </Button>
       </Seat>
     );
 
@@ -1372,17 +1303,17 @@ function TypingLobby({
       <div className="panel flex flex-col p-5">
         <div className="mb-4 flex items-baseline justify-between">
           <h2 className="font-display text-xl font-bold">Bàn đấu</h2>
-          <span className="font-mono text-xs uppercase tracking-widest text-slate-500">{modeDef.name}</span>
+          <span className="font-mono text-xs uppercase tracking-widest text-ink-500">{modeDef.name}</span>
         </div>
         {oppSeat}
         <div className="my-3 flex items-center gap-3">
-          <span className="h-px flex-1 bg-white/10" />
-          <span className="rounded-full border border-white/10 px-3 py-1 font-mono text-xs uppercase tracking-widest text-slate-400">
+          <span className="h-px flex-1 bg-ink-700" />
+          <span className="rounded-full border border-ink-700 px-3 py-1 font-mono text-xs uppercase tracking-widest text-ink-400">
             VS · {stake > 0 ? `cược ${stake} 🌾` : "không cược"}
           </span>
-          <span className="h-px flex-1 bg-white/10" />
+          <span className="h-px flex-1 bg-ink-700" />
         </div>
-        <Seat avatar={me.avatar} name={me.name || "Bạn"} label="Bạn" accent={P_COL[0]} status="Nửa trái bàn phím · Space để bắn" />
+        <Seat avatar={me.avatar} name={me.name || "Bạn"} label="Bạn" accent={P_COL[0]} status="Gõ vào ô · Enter để gửi" />
 
         <div className="mt-5 grid gap-2.5 sm:grid-cols-3">
           {MODES.map((m) => {
@@ -1394,10 +1325,10 @@ function TypingLobby({
                 type="button"
                 onClick={() => setMode(m.value)}
                 aria-pressed={on}
-                className={cn("flex flex-col items-start gap-1.5 rounded-xl border p-3.5 text-left transition-colors", on ? "border-white/50 bg-white/[0.07]" : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05]")}
+                className={cn("flex flex-col items-start gap-1.5 rounded-xl border p-3.5 text-left transition-colors", on ? "border-ink-400 bg-ink-800" : "border-ink-700 bg-ink-900 hover:bg-ink-850")}
               >
-                <span className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-                  <I className={cn("size-4", on ? "text-white" : "text-slate-400")} /> {m.name}
+                <span className="flex items-center gap-2 text-sm font-semibold text-ink-100">
+                  <I className={cn("size-4", on ? "text-ink-100" : "text-ink-400")} /> {m.name}
                 </span>
                 <span className="text-xs leading-snug text-ink-300">{m.desc}</span>
               </button>
@@ -1425,11 +1356,11 @@ function TypingLobby({
                     setOpp(o.value);
                   }}
                   aria-pressed={on}
-                  className={cn("flex items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-colors", on ? "border-white/50 bg-white/[0.07]" : "border-white/10 hover:bg-white/[0.04]")}
+                  className={cn("flex items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-colors", on ? "border-ink-400 bg-ink-800" : "border-ink-700 hover:bg-ink-850")}
                 >
-                  <I className={cn("size-4 shrink-0", on ? "text-white" : "text-slate-500")} />
+                  <I className={cn("size-4 shrink-0", on ? "text-ink-100" : "text-ink-500")} />
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-slate-100">{o.name}</span>
+                    <span className="block text-sm font-semibold text-ink-100">{o.name}</span>
                     <span className="block text-xs text-ink-300">{o.desc}</span>
                   </span>
                 </button>
@@ -1454,9 +1385,9 @@ function TypingLobby({
         {err && <p role="alert" className="text-xs text-danger">{err}</p>}
 
         <div className="mt-auto space-y-2">
-          <button type="button" disabled={!canStart} onClick={() => onStart(opp === "friend" ? friend : null)} className="btn-lime w-full py-3 disabled:opacity-50">
+          <Button variant="solid" size="lg" disabled={!canStart} onClick={() => onStart(opp === "friend" ? friend : null)} className="w-full">
             <Play className="size-4" /> {needsBot ? "Đọ tên lửa cần đối thủ máy" : canStart ? "Vào bàn" : "Chờ đối thủ nhận kèo"}
-          </button>
+          </Button>
           <p className="text-center text-xs text-ink-400">Esc trong ván để quay lại phòng chờ.</p>
         </div>
       </div>

@@ -11,7 +11,8 @@
  * (React 18 has no hoisted <style precedence>).
  */
 
-import { AnimatePresence, MotionConfig, motion, type Variants } from "framer-motion";
+import { AnimatePresence, motion, type Variants } from "framer-motion";
+import { AppMotionConfig } from "@/lib/motion";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +56,7 @@ export default function TextLoading({
   return (
     <output aria-live="polite" className={cn("inline-flex items-baseline", className)}>
       <span className="sr-only">{label}</span>
-      <MotionConfig reducedMotion="user">
+      <AppMotionConfig>
         <span aria-hidden="true" className="relative flex">
           <AnimatePresence initial={false} mode="popLayout">
             <motion.span animate="shown" className="flex min-w-max whitespace-pre" exit="exit" initial="enter" key={idx} variants={wordVariants}>
@@ -69,7 +70,7 @@ export default function TextLoading({
             </motion.span>
           </AnimatePresence>
         </span>
-      </MotionConfig>
+      </AppMotionConfig>
     </output>
   );
 }

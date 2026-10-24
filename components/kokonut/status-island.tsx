@@ -13,10 +13,10 @@
 
 import {
   AnimatePresence,
-  MotionConfig,
   motion,
   type Transition,
 } from "framer-motion";
+import { AppMotionConfig } from "@/lib/motion";
 import {
   type FocusEvent,
   type KeyboardEvent,
@@ -325,7 +325,7 @@ export function StatusIsland({
   }, []);
 
   return (
-    <MotionConfig reducedMotion="user">
+    <AppMotionConfig>
       <div className={cn("relative flex flex-col items-center", className)}>
         <output aria-live="polite" className="sr-only">
           {announcement}
@@ -426,7 +426,7 @@ export function StatusIsland({
           ) : null}
         </AnimatePresence>
       </div>
-    </MotionConfig>
+    </AppMotionConfig>
   );
 }
 

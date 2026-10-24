@@ -12,6 +12,7 @@
  * the conversation, a sideways swipe dismisses. Indigo/lime palette.
  */
 
+import { getReducedMotion } from "@/lib/motion";
 import { X } from "lucide-react";
 import { type PointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -67,7 +68,7 @@ function dismissDirection(dx: number, velocity: number): 1 | -1 | 0 {
   return (dx === 0 ? velocity : dx) > 0 ? 1 : -1;
 }
 
-const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const reducedMotion = getReducedMotion;
 
 export default function MessageStack({
   items,

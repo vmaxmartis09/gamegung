@@ -38,6 +38,8 @@ export interface WerewolfRoleRandomizerProps {
   inline?: boolean;
 }
 
+const AUTO_START_S = 10;
+
 type Stage = "spinning" | "locking" | "revealed";
 
 const ALL_ROLES: Role[] = ["wolf", "white_wolf", "wolf_cub", "seer", "guard", "witch", "hunter", "cupid", "elder", "villager"];
@@ -56,6 +58,7 @@ export function WerewolfRoleRandomizer({
   const [isFlipped, setIsFlipped] = useState<boolean>(initialMode === "inspect");
   const [isPeeking, setIsPeeking] = useState<boolean>(false);
   const [countdown, setCountdown] = useState<number>(3);
+  const [autoStart, setAutoStart] = useState<number>(AUTO_START_S);
   const [activeTab, setActiveTab] = useState<"card" | "wall">("card");
   const [soundMuted, setSoundMuted] = useState(!soundEnabled);
 
@@ -189,6 +192,23 @@ export function WerewolfRoleRandomizer({
       clearInterval(tickInterval);
     };
   }, [isOpen, initialMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lộ bài xong: không cần bấm gì, quản trò tự mở đêm.
+  useEffect(() => {
+    if (!isOpen || stage !== "revealed" || initialMode !== "roulette") return;
+    setAutoStart(AUTO_START_S);
+    const t = setInterval(() => {
+      setAutoStart((n) => {
+        if (n <= 1) {
+          clearInterval(t);
+          onClose();
+          return 0;
+        }
+        return n - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [isOpen, stage, initialMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const lockInCard = () => {
     setStage("locking");
@@ -604,18 +624,11 @@ export function WerewolfRoleRandomizer({
 
         {/* Bottom Action Footer */}
         <div className="relative z-30 p-4 sm:p-6 max-w-lg mx-auto w-full flex flex-col items-center">
-          {stage === "revealed" ? (
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                if (onStartNight1) onStartNight1();
-              }}
-              className="btn-lime w-full py-3.5 text-base font-extrabold shadow-brutal flex items-center justify-center gap-2 group"
-            >
-              <Moon className="size-5 group-hover:rotate-12 transition-transform" />
-              VÀO ĐÊM
-            </button>
+          {stage === "revealed" && initialMode === "roulette" ? (
+            <p className="flex items-center gap-2 text-sm font-semibold text-white/70">
+              <Moon className="size-4 text-violet-300" />
+              Quản trò sẽ mở đêm đầu tiên sau {autoStart}s — giữ nút mắt để xem chức năng
+            </p>
           ) : null}
         </div>
       </motion.div>

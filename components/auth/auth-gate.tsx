@@ -1,5 +1,6 @@
 "use client";
 
+import { initMotion } from "@/lib/motion";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -9,7 +10,6 @@ import { useAppStore } from "@/lib/store";
 import { usePresenceStore, locationFromPath, AWAY_HIDDEN_MS, AWAY_IDLE_MS } from "@/lib/presence";
 import { supabase } from "@/lib/supabase";
 import dynamic from "next/dynamic";
-import { BlackHole, type BlackHoleRef } from "@/components/reactbits";
 import { cn } from "@/lib/utils";
 
 // Only signed-out visitors need the sign-up screen (avatar picker, forms).
@@ -25,6 +25,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const init = useAuthStore((s) => s.init);
 
   useEffect(() => {
+    initMotion();
     init();
     // Warm the chat chunk while the session resolves, so it is not a second round trip after login.
     import("@/components/social/chat-drawer");
@@ -53,7 +54,6 @@ export function BlackHoleLoading({
   /** Chỉ dùng cho trang 404: đếm ngược rồi về trang chủ. Màn loading đăng nhập không được tự chuyển trang. */
   homeCountdown?: { startAfterMs: number; seconds: number };
 }) {
-  const blackHoleRef = useRef<BlackHoleRef>(null);
   const skipToGuest = useAuthStore((s) => s.skipToGuest);
   const router = useRouter();
   const pathname = usePathname();
@@ -93,53 +93,16 @@ export function BlackHoleLoading({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black overflow-hidden select-none">
-      {/* React Bits Pro: Smoky Black Hole Shader Animation */}
-      <div className="absolute inset-0">
-        <BlackHole
-          ref={blackHoleRef}
-          className="h-full w-full"
-          speed={1.15}
-          zoom={2.2}
-          particleCount={14}
-          orbSize={0.72}
-          glow={0.08}
-          contrast={3.2}
-          bloom={1.2}
-          ringIntensity={1.35}
-          mirrorSplits={2}
-          warpEnabled={true}
-          distanceFade={0.32}
-          cursorInteraction={true}
-          cursorIntensity={1.2}
-          backgroundColor="#000000"
-        />
-      </div>
-
       {/* Center Singularity & UI */}
       <div className="relative z-10 flex flex-col items-center gap-5 px-4 text-center pointer-events-auto">
-        {/* Core Event Horizon Badge */}
-        <button
-          type="button"
-          onClick={() => blackHoleRef.current?.gulp(1.5)}
-          className="group relative flex size-20 items-center justify-center rounded-full bg-black/85 border border-white/20 shadow-[0_0_35px_rgba(255,255,255,0.18)] backdrop-blur-md transition-all duration-300 hover:scale-105 active:scale-90 hover:border-white/50 focus:outline-none"
-          title="Bấm để kích hoạt lực hấp dẫn"
-        >
-          <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
-          <span className="font-display text-2xl font-black tracking-widest text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.85)]">
-            OA
-          </span>
-          <div className="absolute -inset-1 rounded-full border border-white/20 animate-ping opacity-25 pointer-events-none" />
-        </button>
-
         {/* Loading Indicator */}
         <div className="flex flex-col items-center gap-1.5">
           <div className="flex items-center gap-2">
-            <span className="inline-block size-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
-            <p className="font-mono text-xs font-semibold tracking-wider text-ink-200">
+                        <p className="font-mono text-xs tracking-wider text-ink-500">
               {message}
             </p>
           </div>
-          <p className="font-mono text-xs text-ink-500">
+          <p className="font-mono text-xs text-ink-600">
             {subMessage}
           </p>
         </div>

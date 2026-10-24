@@ -517,13 +517,14 @@ export function useToast() {
 
 /* ---------------------------- Match settlement ----------------------------- */
 
-const ELO_FIELD: Record<GameType, "eloChess" | "eloXiangqi" | "eloWerewolf" | "eloArcade" | "eloUno" | "eloTyping"> = {
+const ELO_FIELD: Record<GameType, "eloChess" | "eloXiangqi" | "eloWerewolf" | "eloArcade" | "eloUno" | "eloTyping" | "eloCaro"> = {
   chess: "eloChess",
   xiangqi: "eloXiangqi",
   werewolf: "eloWerewolf",
   arcade: "eloArcade",
   uno: "eloUno",
   typing: "eloTyping",
+  caro: "eloCaro",
 };
 
 /** Settle ELO + Lúa exactly once per match, record it, and drive the result modal. */

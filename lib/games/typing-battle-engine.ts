@@ -23,6 +23,9 @@ export interface LaneDef {
 }
 
 /** 3 làn băng chuyền chạy ngang qua giữa màn hình */
+/** Khoảng cách tối thiểu giữa hai thẻ cùng làn (bề ngang thẻ + khe), để thẻ không đè lên nhau. */
+export const ITEM_GAP = 236;
+
 export const LANES: LaneDef[] = [
   { id: 0, y: 215, dir: 1, speed: 92 },
   { id: 1, y: 310, dir: -1, speed: 92 },
@@ -80,6 +83,14 @@ export interface Fighter {
   ghost: number;
   buf: string;
   word: string;
+  /** Nội dung ô nhập của người chơi (gõ tự do, chỉ Enter mới gửi). */
+  draft: string;
+  /** Ô nhập đang có chữ không khớp mục tiêu. */
+  typo: boolean;
+  /** Thời gian phản xạ lần lấy thẻ / bắn từ gần nhất (giây), 0 = chưa có. */
+  rt: number;
+  /** Thời điểm các phím gõ đúng gần đây (giây trận), để tính WPM. */
+  strokes: number[];
   ammo: number;
   armor: number;
   reflectT: number;
@@ -180,6 +191,8 @@ export interface Game {
   /** Chuỗi từ khóa dùng chung cho cả hai người (Đọ tên lửa) và vị trí từ hiện tại. */
   seq: string[];
   seqI: number;
+  /** Lúc từ hiện tại (Đọ tên lửa) xuất hiện, để đo phản xạ. */
+  wordT: number;
   spawnT: number;
   shake: number;
   flashA: number;
@@ -191,7 +204,7 @@ export interface Game {
 const fighter = (id: 0 | 1, name: string, bot: boolean): Fighter => ({
   id, name, bot,
   x: id ? W - 56 : 56, y: id ? 60 : H - 44,
-  hp: 0, maxHp: 0, ghost: 0, buf: "", word: "", ammo: 0, armor: 0,
+  hp: 0, maxHp: 0, ghost: 0, buf: "", word: "", draft: "", typo: false, rt: 0, strokes: [], ammo: 0, armor: 0,
   reflectT: 0, reflectMul: 1, lifeT: 0, slowT: 0, freezeT: 0, lastKey: 0,
   combo: 0, err: 0, idx: 0, text: "", errors: 0, hand: [], lock: null, typing: false,
   fireN: 0, hitN: 0, botT: 0, botItem: null, botWait: 0,
@@ -219,7 +232,7 @@ export function createGame(opts: { mode: Mode; vsBot: boolean; diff: number; nam
   const f1 = fighter(1, opts.names[1], opts.vsBot);
   const g: Game = {
     mode: opts.mode, diff: opts.diff, fighters: [f0, f1], t: 0, count: 3, goT: 0, phase: "count", winner: -1,
-    missiles: [], items: [], parts: [], rings: [], shards: [], rays: [], texts: [], banners: [], seq: [], seqI: 0, spawnT: 1,
+    missiles: [], items: [], parts: [], rings: [], shards: [], rays: [], texts: [], banners: [], seq: [], seqI: 0, wordT: 0, spawnT: 1,
     shake: 0, flashA: 0, flashC: "#fff", lastCount: 0, uid: 1,
   };
   for (const f of g.fighters) {
@@ -311,6 +324,8 @@ export function finish(g: Game, winner: 0 | 1, h: Hooks) {
 
 /** Bỏ khóa mục tiêu và xóa chữ đang gõ. */
 const drop = (f: Fighter) => { f.buf = ""; f.lock = null; f.typing = false; };
+/** Bỏ khóa và xóa luôn ô nhập. */
+const clear = (f: Fighter) => { drop(f); f.draft = ""; f.typo = false; };
 
 let bannerUid = 1;
 const pushBanner = (g: Game, b: Omit<Banner, "id" | "t">) => g.banners.push({ ...b, id: bannerUid++, t: 0 });
@@ -320,7 +335,7 @@ function applyEffect(g: Game, f: Fighter, type: ItemType) {
   switch (type) {
     case "shield": f.armor += 700; break;
     case "reflect": f.reflectT = 8; f.reflectMul = 1; break;
-    case "wipe": drop(o); o.freezeT = 2; break;
+    case "wipe": clear(o); o.freezeT = 2; break;
     case "steal": f.lifeT = 5; break;
     case "slow": o.slowT = 6; break;
   }
@@ -343,9 +358,9 @@ function fuse(g: Game, f: Fighter, fu: FusionDef, h: Hooks) {
   const o = g.fighters[1 - f.id];
   switch (fu.id) {
     case "mirror": f.armor += 1000; f.reflectT = 10; f.reflectMul = 1.5; break;
-    case "seal": drop(o); o.freezeT = 3; o.slowT = 11; break;
+    case "seal": clear(o); o.freezeT = 3; o.slowT = 11; break;
     case "bloodarmor": f.armor += 800; f.lifeT = 8; break;
-    case "thunder": launch(g, f, 900, true, h); drop(o); o.freezeT = 1.5; break;
+    case "thunder": launch(g, f, 900, true, h); clear(o); o.freezeT = 1.5; break;
     case "venom": {
       const d = Math.min(500, o.hp - 1);
       o.hp -= d; f.hp = Math.min(f.maxHp, f.hp + d);
@@ -369,8 +384,9 @@ function fuse(g: Game, f: Fighter, fu: FusionDef, h: Hooks) {
 function collect(g: Game, f: Fighter, it: Item, h: Hooks) {
   const o = g.fighters[1 - f.id], def = ITEMS[it.type];
   it.state = "taken"; it.by = f.id; it.st = 0;
-  drop(f);
-  if (o.lock === it) drop(o);
+  f.rt = it.age;
+  clear(f);
+  if (o.lock === it) { drop(o); preview(g, o); }
   burst(g, it.x, it.y, def.col, 34, 260); ring(g, it.x, it.y, 90, 0.45, def.col);
   h.sfx("collect");
   if (it.type === "ammo") { f.ammo += 3; popText(g, it.x, it.y - 40, "+3 đạn", def.col, true); return; }
@@ -403,6 +419,7 @@ export function onKey(g: Game, f: Fighter, ch: string, h: Hooks) {
   if (g.phase !== "play" || f.freezeT > 0) return;
   if (f.slowT > 0 && g.t - f.lastKey < 0.75) return;
   f.lastKey = g.t;
+  f.strokes.push(g.t);
 
   if (g.mode === 1) {
     if (f.word[f.buf.length] === ch) f.buf += ch;
@@ -437,12 +454,84 @@ export function onFire(g: Game, f: Fighter, h: Hooks) {
       // Ai bắn trước thì giành từ này: cả hai bắt đầu lại ở từ kế tiếp
       const o = g.fighters[1 - f.id];
       o.buf = ""; o.combo = 0;
-      for (const x of g.fighters) x.buf = "";
-      g.seqI++; ensureSeq(g);
+      for (const x of g.fighters) { x.buf = ""; x.draft = ""; x.typo = false; }
+      f.rt = g.t - g.wordT;
+      g.seqI++; g.wordT = g.t; ensureSeq(g);
     } else { f.buf = ""; f.combo = 0; f.err = 0.25; }
   } else if (f.ammo > 0) {
     f.ammo--; launch(g, f, 350, false, h);
   } else f.err = 0.25;
+}
+
+/* ------------------------- ô nhập: gõ tự do, Enter gửi ------------------------- */
+
+const strip = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+const squash = (s: string) => s.toLowerCase().replace(/\s+/g, " ").replace(/^ /, "");
+const common = (a: string, b: string) => { let i = 0; while (i < a.length && a[i] === b[i]) i++; return i; };
+
+/** Tô sáng phần đã gõ khớp trên mục tiêu (chưa gửi): thẻ / từ / đoạn văn. */
+function preview(g: Game, f: Fighter) {
+  if (g.mode === 1) {
+    const s = strip(f.draft);
+    f.buf = f.word.slice(0, common(f.word, s));
+    f.typo = s.length > f.buf.length;
+  } else if (g.mode === 2) {
+    const s = strip(f.draft);
+    const live = g.items.filter((i) => i.state === "live");
+    const it = !s ? null
+      : f.lock && f.lock.state === "live" && keyOf(f.lock, f).startsWith(s) ? f.lock
+      : live.find((i) => keyOf(i, f).startsWith(s))
+        ?? live.find((i) => keyOf(i, f)[0] === s[0]) ?? null;
+    f.lock = it;
+    f.buf = it ? keyOf(it, f).slice(0, common(keyOf(it, f), s)) : "";
+    f.typo = s.length > f.buf.length;
+  } else {
+    const s = squash(f.draft);
+    const rest = f.text.slice(f.idx);
+    f.buf = rest.slice(0, common(rest, s));
+    f.typo = s.length > f.buf.length;
+  }
+}
+
+/** Người chơi sửa ô nhập (gõ, xoá, cách). Trả về false nếu lúc này không được gõ. */
+export function onType(g: Game, f: Fighter, text: string): boolean {
+  if (g.phase !== "play" || f.freezeT > 0) return false;
+  const adding = text.length > f.draft.length;
+  if (adding && f.slowT > 0 && g.t - f.lastKey < 0.75) return false;
+  if (adding) { f.lastKey = g.t; f.strokes.push(g.t); }
+  f.draft = text;
+  preview(g, f);
+  return true;
+}
+
+/**
+ * Enter: gửi nội dung ô nhập.
+ * Thẻ: đúng chữ trên thẻ thì lấy, ô trống thì bắn đạn (kỹ năng dùng phím số 1-4).
+ * Đọ tên lửa: đúng từ thì bắn. Đua gõ: đúng (các) từ kế tiếp thì tiến lên.
+ * Sai thì giữ nguyên chữ để người chơi sửa.
+ */
+export function onSubmit(g: Game, f: Fighter, h: Hooks) {
+  if (g.phase !== "play" || f.freezeT > 0) return;
+  const s = strip(f.draft);
+  const miss = () => { f.err = 0.25; f.typo = true; };
+  if (g.mode === 1) {
+    if (s && s === f.word) { f.buf = f.word; onFire(g, f, h); }
+    else { miss(); f.combo = 0; }
+  } else if (g.mode === 2) {
+    if (!s) { onFire(g, f, h); return; }
+    const it = g.items.find((i) => i.state === "live" && keyOf(i, f) === s);
+    if (it) collect(g, f, it, h);
+    else miss();
+  } else {
+    const t = squash(f.draft).trimEnd();
+    const rest = f.text.slice(f.idx);
+    if (t && rest.startsWith(t) && (rest.length === t.length || rest[t.length] === " ")) {
+      f.idx += t.length;
+      while (f.text[f.idx] === " ") f.idx++;
+      clear(f);
+      if (f.idx >= f.text.length) finish(g, f.id, h);
+    } else { f.errors++; miss(); }
+  }
 }
 
 /* --------------------------------- bot --------------------------------- */
@@ -507,10 +596,12 @@ function spawnItem(g: Game) {
   const type = rnd(ITEM_BAG), def = ITEMS[type];
   const liveOnly = g.items.filter((i) => i.state === "live");
   const a = phrase(0, def.words, liveOnly.map((i) => i.keys[0][0]));
-  const b = phrase(1, def.words, liveOnly.map((i) => i.keys[1][0]));
+  // Đấu máy: mỗi thẻ chỉ một đoạn chữ, máy gõ đúng đoạn đó. Cùng máy thì mỗi người một nửa bàn phím.
+  const b = g.fighters[1].bot ? a : phrase(1, def.words, liveOnly.map((i) => i.keys[1][0]));
   if (!a || !b) return;
   const startX = lane.dir > 0 ? -100 : W + 100;
-  const speed = lane.speed + (Math.random() - 0.5) * 6;
+  // Cùng làn cùng tốc độ để thẻ giữ hàng
+  const speed = lane.speed;
   g.items.push({
     id: g.uid++,
     type,
@@ -568,19 +659,29 @@ export function update(g: Game, dt: number, h: Hooks) {
         const locked = g.fighters.some((f) => f.lock === it);
         const curVx = locked ? it.vx * 0.72 : it.vx;
         it.x += curVx * dt;
-        it.y = LANES[it.lane].y + Math.sin(it.age * 2.5 + it.id) * 3;
+        it.y = LANES[it.lane].y;
       }
       const expiredByX = (it.dir > 0 && it.x > W + 110) || (it.dir < 0 && it.x < -110);
       if (it.age > it.life || expiredByX) {
         it.state = "expired";
         it.st = 0;
-        for (const f of g.fighters) if (f.lock === it) drop(f);
+        for (const f of g.fighters) if (f.lock === it) { drop(f); preview(g, f); }
       }
     } else {
       it.st += dt;
       if (it.st > 0.5) g.items.splice(i, 1);
     }
   }
+
+  // Thẻ bị khoá chạy chậm lại: thẻ phía sau xếp hàng chứ không chồng lên
+  for (const lane of LANES) {
+    const row = g.items.filter((i) => i.state === "live" && i.lane === lane.id).sort((a, b) => (b.x - a.x) * lane.dir);
+    for (let k = 1; k < row.length; k++) {
+      const lead = row[k - 1], it = row[k];
+      it.x = lane.dir > 0 ? Math.min(it.x, lead.x - ITEM_GAP) : Math.max(it.x, lead.x + ITEM_GAP);
+    }
+  }
+  for (const f of g.fighters) while (f.strokes.length && g.t - f.strokes[0] > 4) f.strokes.shift();
 
   for (let i = g.missiles.length - 1; i >= 0; i--) {
     const m = g.missiles[i], t = g.fighters[1 - m.owner];
@@ -614,5 +715,8 @@ export function update(g: Game, dt: number, h: Hooks) {
     if (b.t > (b.kind === "fusion" ? 2.6 : 1.5)) g.banners.splice(i, 1);
   }
 }
+
+/** Tốc độ gõ (từ/phút, 5 ký tự = 1 từ) tính trên 4 giây gần nhất. */
+export const wpmOf = (f: Fighter) => Math.round((f.strokes.length / 4) * 12);
 
 export { LEFT_KEYS, RIGHT_KEYS };

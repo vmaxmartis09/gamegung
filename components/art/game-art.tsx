@@ -1,7 +1,7 @@
 import React, { memo } from "react";
 import { cn } from "@/lib/utils";
 
-export type GameId = "chess" | "xiangqi" | "werewolf" | "arcade" | "uno" | "typing";
+export type GameId = "chess" | "xiangqi" | "werewolf" | "arcade" | "uno" | "typing" | "caro";
 
 /* ---------------------------------------------------------------------------
  * Cover illustrations (400×260). Original artwork, pure SVG, no network.
@@ -325,7 +325,38 @@ function TypingCover() {
   );
 }
 
+/* Caro — slate-blue grid, X and O */
+function CaroCover() {
+  const cells = [60, 110, 160, 210, 260, 310];
+  return (
+    <>
+      <Ground id="caro" top="#1d3a5c" bottom="#07121f" light="#7ab8ff" cx={0.5} cy={0.4} glow={0.3} />
+      <g stroke={GOLD} strokeOpacity="0.16" strokeWidth="1">
+        {cells.map((v) => (
+          <g key={v}>
+            <line x1="40" y1={v - 20} x2="360" y2={v - 20} />
+            <line x1={v + 20} y1="30" x2={v + 20} y2="240" />
+          </g>
+        ))}
+      </g>
+      <g fill="none" strokeWidth="9" strokeLinecap="round">
+        <g stroke={IVORY}>
+          <path d="M110 70 l30 30 M140 70 l-30 30" />
+          <path d="M160 120 l30 30 M190 120 l-30 30" />
+          <path d="M210 170 l30 30 M240 170 l-30 30" />
+        </g>
+        <g stroke={GOLD}>
+          <circle cx="175" cy="85" r="15" />
+          <circle cx="125" cy="135" r="15" />
+          <circle cx="225" cy="135" r="15" />
+        </g>
+      </g>
+    </>
+  );
+}
+
 const COVERS: Record<GameId, () => React.ReactElement> = {
+  caro: CaroCover,
   chess: ChessCover,
   xiangqi: XiangqiCover,
   werewolf: WerewolfCover,
@@ -368,6 +399,7 @@ const ICON_BG: Record<GameId | "lounge", [string, string]> = {
   arcade: ["#7a35c8", "#1a0838"],
   uno: ["#3566d8", "#102766"],
   typing: ["#1fa9a0", "#063036"],
+  caro: ["#2f6fb8", "#0a1d38"],
   lounge: ["#b8873a", "#3e290c"],
 };
 
@@ -419,6 +451,14 @@ function IconGlyph({ game }: { game: GameId | "lounge" }) {
           <text x="40" y="38" textAnchor="middle" fontSize="13" fontWeight="700" fill={INK} transform="rotate(10 39 32)">
             +2
           </text>
+        </g>
+      );
+    case "caro":
+      return (
+        <g fill="none" strokeWidth="5" strokeLinecap="round">
+          <path d="M14 14 l18 18 M32 14 l-18 18" stroke={IVORY} />
+          <circle cx="42" cy="42" r="9" stroke={GOLD} />
+          <path d="M14 50 h6 M44 14 h6" stroke={IVORY} strokeOpacity="0.4" />
         </g>
       );
     case "lounge":
@@ -533,6 +573,18 @@ export const GAMES: GameMeta[] = [
     mode: "Ranked ELO",
     accent: "#2fc9bd",
     tags: ["Gõ phím", "Phi thuyền", "3 chế độ"],
+  },
+  {
+    id: "caro",
+    name: "Cờ Caro",
+    short: "Caro",
+    tagline: "Gomoku 15x15, 5 quân liền thắng, AI 3 cấp",
+    href: "/games/caro",
+    players: "1-2",
+    duration: "3-10'",
+    mode: "Giải trí",
+    accent: "#4a9aea",
+    tags: ["Gomoku", "AI", "Đấu 2 người"],
   },
 ];
 

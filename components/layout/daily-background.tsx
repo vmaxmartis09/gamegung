@@ -14,12 +14,26 @@ import { AsciiRipple } from "@/components/reactbits/ascii-ripple";
 import { Aurora } from "@/components/reactbits/aurora";
 import { TypographicWall } from "@/components/reactbits/typographic-wall";
 import { cn } from "@/lib/utils";
+import { getGpuInfo, getMotionPref, setMotionPref, type MotionPref } from "@/lib/motion";
 
 const VARIANTS = ["ribbons", "blackhole", "ascii", "aurora"] as const;
 type Variant = (typeof VARIANTS)[number];
+// Shader backdrops need a hardware WebGL2 context; without one (Windows with hardware
+// acceleration off, a blocklisted driver, RDP/VM) they crawl, so those machines get the cheap ones.
+const LIGHT_VARIANTS: readonly Variant[] = ["ascii", "aurora"];
 
 // Picked once per page load (this component is client-only), so each fresh load gets a new backdrop.
-const pickVariant = (): Variant => VARIANTS[Math.floor(Math.random() * VARIANTS.length)];
+const pickVariant = (): Variant => {
+  const pool = getGpuInfo().hardware ? VARIANTS : LIGHT_VARIANTS;
+  return pool[Math.floor(Math.random() * pool.length)];
+};
+
+const MOTION_LABELS: Record<MotionPref, string> = {
+  full: "Đầy đủ",
+  system: "Theo hệ thống",
+  reduced: "Giảm",
+};
+const MOTION_ORDER: MotionPref[] = ["full", "system", "reduced"];
 
 export function DailyBackground() {
   const ribbonRef = useRef<InterferenceRibbonsHandle>(null);
@@ -31,6 +45,13 @@ export function DailyBackground() {
   const [dayOffset, setDayOffset] = useState(0);
   const [showThemeCard, setShowThemeCard] = useState(false);
   const [hasCopied, setHasCopied] = useState(false);
+  const [motionPref, setMotionPrefState] = useState<MotionPref>("full");
+  useEffect(() => setMotionPrefState(getMotionPref()), []);
+  const cycleMotion = () => {
+    const next = MOTION_ORDER[(MOTION_ORDER.indexOf(motionPref) + 1) % MOTION_ORDER.length];
+    setMotionPref(next);
+    setMotionPrefState(next);
+  };
 
   // Target date based on dayOffset
   const targetDate = useMemo(() => {
@@ -66,7 +87,7 @@ export function DailyBackground() {
         className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
       >
         {variant === "blackhole" && (
-          <BlackHole className="size-full opacity-80" speed={1} zoom={2.2} orbSize={0.72} bloom={1.1} backgroundColor="#060606" />
+          <BlackHole className="size-full opacity-80" speed={1} zoom={2.2} orbSize={0.72} bloom={1.1} backgroundColor="#060606" dpr={1.5} />
         )}
         {variant === "ascii" && (
           <AsciiRipple className="absolute inset-0" color="rgba(255,255,255,0.10)" activeColor="#e5e5e5" />
@@ -103,7 +124,7 @@ export function DailyBackground() {
           pulseSpeed={1.2}
           pulseStrength={1.2}
           hoverBoost={1.1}
-          quality={1}
+          quality={0.75}
           className="size-full opacity-90"
         />}
 
@@ -167,6 +188,18 @@ export function DailyBackground() {
                   </span>
                 </div>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 mb-3 text-[11px] text-neutral-300">
+              <span className="text-neutral-500 font-mono">Hiệu ứng chuyển động:</span>
+              <button
+                type="button"
+                onClick={cycleMotion}
+                className="px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-white font-medium transition-colors"
+                title="Đầy đủ: luôn chạy mượt trên mọi máy · Theo hệ thống: tôn trọng cài đặt giảm chuyển động của OS"
+              >
+                {MOTION_LABELS[motionPref]}
+              </button>
             </div>
 
             {/* Date Navigator / Preview */}

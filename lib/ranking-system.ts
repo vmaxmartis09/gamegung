@@ -1,4 +1,4 @@
-export type GameType = "chess" | "xiangqi" | "werewolf" | "arcade" | "uno" | "typing";
+export type GameType = "chess" | "xiangqi" | "werewolf" | "arcade" | "uno" | "typing" | "caro";
 
 export type RankTierId =
   | "bronze"

@@ -158,17 +158,20 @@ export function useWerewolfVoice(onSpeechRecognized?: (text: string) => void): W
 export function WerewolfMicButton({
   voice,
   className,
+  disabled = false,
 }: {
   voice: WerewolfVoiceState;
   className?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className={cn("relative inline-flex items-center gap-2", className)}>
       <button
         type="button"
         onClick={voice.toggleMic}
+        disabled={disabled}
         className={cn(
-          "flex items-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-bold transition-all shadow-md active:scale-95",
+          "disabled:cursor-not-allowed disabled:opacity-40 flex items-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-bold transition-all shadow-md active:scale-95",
           voice.isMicOn
             ? "bg-lime-400 text-black border-2 border-lime-300 ring-2 ring-lime-400/40"
             : "bg-white/10 text-white hover:bg-white/15 border border-white/10"

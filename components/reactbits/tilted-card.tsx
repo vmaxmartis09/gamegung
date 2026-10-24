@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useRef } from "react";
-import { motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
+import { motion, useMotionValue, useSpring } from "framer-motion";
+import { useReducedMotion } from "@/lib/motion";
 
 /** Subtle 3D tilt toward the cursor (React Bits Tilted Card). Angle kept low for a mature feel. */
 export function TiltedCard({ children, className, maxTilt = 4 }: { children: React.ReactNode; className?: string; maxTilt?: number }) {

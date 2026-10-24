@@ -9,12 +9,6 @@ import { realtimeBridge } from "./realtime-bridge";
 
 export type AuthStatus = "loading" | "authed" | "guest";
 
-/**
- * Development-only escape hatch so the UI can be previewed without a real
- * Supabase account. Ignored in production builds.
- */
-const DEV_SKIP_AUTH = process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_DEV_SKIP_AUTH === "1";
-
 interface AuthState {
   status: AuthStatus;
   email: string | null;
@@ -71,14 +65,6 @@ export const useAuthStore = create<AuthState>()((set) => ({
     if (initialised || typeof window === "undefined") return;
     initialised = true;
 
-    if (DEV_SKIP_AUTH) {
-      const u = useAppStore.getState().currentUser;
-      if (u.id.startsWith("user-")) useAppStore.getState().adoptAccount("dev-" + u.id.slice(5), {});
-      set({ status: "authed", email: "dev@localhost" });
-      realtimeBridge.init();
-      return;
-    }
-
     // Never let session resolution hang indefinitely (timeout fallback to guest after 4s)
     const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) =>
       setTimeout(() => resolve({ data: { session: null } }), 4000)
@@ -125,7 +111,6 @@ export const useAuthStore = create<AuthState>()((set) => ({
   },
 
   signOut: async () => {
-    if (DEV_SKIP_AUTH) return;
     await supabase.auth.signOut();
   },
 }));

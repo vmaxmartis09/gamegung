@@ -38,9 +38,11 @@ import { WerewolfRoleRandomizer } from "./werewolf-role-randomizer";
 import { WerewolfRoundtable } from "./werewolf-roundtable";
 import { WerewolfActionFxOverlay, WerewolfFxEvent } from "./werewolf-action-fx";
 import { useWerewolfVoice, WerewolfMicButton } from "./werewolf-voice";
-import { GradientCarousel, GradientCarouselPicker, VoteCandidate } from "@/components/reactbits/gradient-carousel";
-import { playNarratorVoice, stopNarratorVoice } from "@/lib/narrator-audio";
+import { GradientCarousel, VoteCandidate } from "@/components/reactbits/gradient-carousel";
+import { playNarratorVoice, stopNarratorVoice, whenNarratorIdle } from "@/lib/narrator-audio";
 import { SeatCard } from "./werewolf-seat";
+import { DockBtn, IconToggle, WerewolfOnline, WerewolfOnlineEntry } from "./werewolf-online";
+import { wwResume } from "@/lib/werewolf-online";
 import { COOLDOWN, useCooldownStore, useCooldown } from "@/lib/cooldown-store";
 
 const DISCUSS_MS = 60_000;
@@ -67,6 +69,8 @@ export function WerewolfGame() {
   const matchOpp = useMatchOpponent();
 
   const [setup, setSetup] = useState<LobbySetup>(defaultSetup);
+  // Phòng online đang ngồi (null = chơi offline với bot).
+  const [onlineRoom, setOnlineRoom] = useState<string | null>(null);
   const cooldown = useCooldown();
   const [stake, setStake] = useState(0);
   // Game state lives in a ref so bot logic can read/write it synchronously;
@@ -79,6 +83,7 @@ export function WerewolfGame() {
     rerender();
   }, []);
   const [deadline, setDeadline] = useState<number | null>(null);
+  const [kick, setKick] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [chat, setChat] = useState("");
   const [witchChoice, setWitchChoice] = useState<"ask" | "poison" | null>(null);
@@ -100,8 +105,6 @@ export function WerewolfGame() {
     isTie: boolean;
     count: Map<string, number>;
   } | null>(null);
-  const [showRotatingVoteModal, setShowRotatingVoteModal] = useState(false);
-  const [pickerDismissed, setPickerDismissed] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -113,15 +116,54 @@ export function WerewolfGame() {
     }, [])
   );
 
+  // Xem bài xong (hoặc hết giờ xem) → quản trò tự mở đêm, không cần bấm.
+  const introPlayed = useRef(false);
   useEffect(() => {
-    const s = parseInt(new URLSearchParams(window.location.search).get("stake") || "", 10);
+    if (g?.phase !== "reveal") {
+      introPlayed.current = false;
+      return;
+    }
+    if (showRole) return;
+    if (!introPlayed.current) {
+      introPlayed.current = true;
+      playNarratorVoice("intro");
+    }
+    later(() => mutate((s) => { if (s.phase === "reveal") goNight(s); }), 1200);
+  }, [g?.phase, showRole]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Chỉ được nói khi thảo luận; hết giờ thảo luận tự tắt mic.
+  useEffect(() => {
+    if (g?.phase !== "discussion" && voice.isMicOn) void voice.toggleMic();
+  }, [g?.phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const s = parseInt(params.get("stake") || "", 10);
     if (s > 0) setStake(s);
+    // Link mời ?room=MÃ, hoặc vào lại ván online đang dở sau khi tải lại trang / rớt mạng.
+    const room = params.get("room");
+    if (room) setOnlineRoom(room.toUpperCase());
+    else if (!gRef.current) void wwResume().then((id) => id && !gRef.current && setOnlineRoom(id));
   }, []);
 
+  // Mỗi lần clearTimers tăng epoch: callback đã xếp hàng chờ quản trò (whenNarratorIdle) của đợt cũ sẽ bị bỏ,
+  // không bắn muộn sang pha sau (chat ban ngày hiện giữa đêm, bước đêm chạy hai lần…).
+  const epoch = useRef(0);
   const later = useCallback((fn: () => void, ms: number) => {
-    timers.current.push(setTimeout(fn, ms));
+    const e = epoch.current;
+    // Chờ quản trò đọc xong rồi mới sang bước tiếp theo.
+    timers.current.push(
+      setTimeout(
+        () =>
+          whenNarratorIdle(() => {
+            if (e === epoch.current) fn();
+          }),
+        ms
+      )
+    );
   }, []);
   const clearTimers = useCallback(() => {
+    epoch.current++;
     timers.current.forEach(clearTimeout);
     timers.current = [];
   }, []);
@@ -189,13 +231,17 @@ export function WerewolfGame() {
       s.votes = {};
       addLog(s, "narrator", `🌙 Đêm ${s.day} buông xuống. Cả làng nhắm mắt…`);
       botNightActions(s);
+      playNarratorVoice("night_falls");
       if (soundEnabled) soundManager.playWerewolfNight();
     },
     [soundEnabled]
   );
 
-  const advanceStep = useCallback(() => {
-    mutate((s) => {
+  /** `expected`: chỉ tiến nếu vẫn đang ở bước đó, để timer + watchdog gọi trùng không nhảy cóc hai bước. */
+  const advanceStep = useCallback((expected?: string) => {
+    // Người chơi bấm sớm cũng phải đợi quản trò đọc xong bước hiện tại.
+    whenNarratorIdle(() => mutate((s) => {
+      if (s.phase !== "night" || (expected && s.step !== expected)) return;
       const order = ["cupid", "guard", "wolves", "white_wolf", "seer", "witch", "done"] as const;
       const i = order.indexOf(s.step as (typeof order)[number]);
       let next = order[Math.min(order.length - 1, i + 1)];
@@ -210,8 +256,36 @@ export function WerewolfGame() {
       s.step = next;
       if (s.step === "wolves" && soundEnabled) soundManager.playWerewolfWolfHowl();
       if (s.step === "witch") botWitch(s);
-    });
+    }));
   }, [mutate, soundEnabled]);
+
+  // Watchdog: nếu một pha tự chạy (không chờ người chơi) đứng yên quá lâu — timer bị huỷ, quản trò kẹt, vai đã chết…
+  // — thì chạy lại bộ hẹn giờ của pha đó. Mọi bước đều idempotent nên chạy lại không gây nhảy cóc.
+  const stuckKey = g ? `${g.phase}-${g.day}-${g.step}-${g.pendingHunter ?? ""}-${g.log.length}` : "";
+  useEffect(() => {
+    const s = gRef.current;
+    if (!s || s.phase === "over" || s.phase === "reveal" || s.phase === "lobby" || voteRevealState) return;
+    const me = s.players.find((p) => p.isHuman);
+    const roleFor = { cupid: "cupid", guard: "guard", wolves: "wolf", white_wolf: "white_wolf", seer: "seer", witch: "witch" }[s.step as string];
+    const waitingHuman =
+      !!me &&
+      me.alive &&
+      ((s.phase === "night" && !!roleFor && (roleFor === "wolf" ? isWolf(me.role) : me.role === roleFor)) ||
+        (s.phase === "vote" && s.votes[me.id] === undefined) ||
+        (s.phase === "hunter" && s.pendingHunter === me.id));
+    if (waitingHuman || s.phase === "discussion") return;
+    const t = setTimeout(() => {
+      stopNarratorVoice(); // quản trò kẹt thì thả hàng đợi
+      setKick((k) => k + 1);
+    }, 18_000);
+    return () => clearTimeout(t);
+  }, [stuckKey, kick, voteRevealState]);
+  // Thảo luận quá hạn mà vẫn chưa sang phiếu (timer mất) → chuyển.
+  useEffect(() => {
+    if (!deadline || g?.phase !== "discussion") return;
+    const t = setTimeout(() => startVote(), Math.max(0, deadline - Date.now()) + 4000);
+    return () => clearTimeout(t);
+  }, [deadline, g?.phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Night: walk through steps, pausing for the human's role.
   useEffect(() => {
@@ -220,6 +294,7 @@ export function WerewolfGame() {
     if (g.step === "done") {
       later(() => {
         mutate((s) => {
+          if (s.phase !== "night" || s.step !== "done") return;
           const deaths = resolveNight(s);
           s.phase = "dawn";
           if (deaths.length) {
@@ -229,12 +304,14 @@ export function WerewolfGame() {
               addLog(s, "death", `☠️ ${p.name} đã chết${p.cause === "poison" ? " (trúng độc)" : p.cause === "lover" ? " (chết vì người yêu)" : ""}. Vai: ${ROLE_INFO[p.role].emoji} ${ROLE_INFO[p.role].name}.`);
             }
             if (soundEnabled) soundManager.playWerewolfDeath();
+            playNarratorVoice("someone_died");
           } else {
+            playNarratorVoice("no_one_died");
             addLog(s, "narrator", "☀️ Trời sáng. Một đêm bình yên — không ai chết!");
             if (soundEnabled) soundManager.playWerewolfDawn();
           }
         });
-      }, jit(700, 0.7) * pace);
+      }, jit(2000, 0.3) * pace);
       return;
     }
     const roleFor = {
@@ -252,15 +329,16 @@ export function WerewolfGame() {
       return;
     }
     // Pretend-think so roles can't be inferred from timing.
-    later(advanceStep, jit(actorAlive ? 1100 : 900, 0.9) * pace);
-  }, [g?.phase, g?.step]); // eslint-disable-line react-hooks/exhaustive-deps
+    const stepNow = g.step;
+    later(() => advanceStep(stepNow), jit(actorAlive ? 3200 : 2600, 0.3) * pace);
+  }, [g?.phase, g?.step, kick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Announce day/night swaps with a short cinematic banner.
   useEffect(() => {
     if (!g || (g.phase !== "night" && g.phase !== "discussion")) return;
     const night = g.phase === "night";
     setPhaseBanner({ key: `${g.phase}-${g.day}`, night, text: night ? `🌙 Đêm ${g.day}` : `☀️ Ngày ${g.day}` });
-    const t = setTimeout(() => setPhaseBanner(null), 1900);
+    const t = setTimeout(() => setPhaseBanner(null), 2600);
     return () => clearTimeout(t);
   }, [g?.phase, g?.day]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -269,6 +347,7 @@ export function WerewolfGame() {
     if (!g || g.phase !== "dawn") return;
     later(() => {
       mutate((s) => {
+        if (s.phase !== "dawn") return;
         if (endIfWinner(s)) return;
         if (s.pendingHunter) {
           s.phase = "hunter";
@@ -278,8 +357,8 @@ export function WerewolfGame() {
         s.phase = "discussion";
         addLog(s, "narrator", `💬 Ngày ${s.day}: thảo luận ${DISCUSS_MS / 1000}s rồi bỏ phiếu.`);
       });
-    }, jit(1500, 0.5) * pace);
-  }, [g?.phase]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, jit(2800, 0.3) * pace);
+  }, [g?.phase, kick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hunter shot.
   useEffect(() => {
@@ -288,11 +367,12 @@ export function WerewolfGame() {
     if (hunter.isHuman) return; // wait for the human
     later(() => {
       mutate((s) => {
-        const target = botHunterShot(s, s.pendingHunter!);
+        if (s.phase !== "hunter" || !s.pendingHunter) return;
+        const target = botHunterShot(s, s.pendingHunter);
         applyHunter(s, target);
       });
     }, jit(1300, 0.7) * pace);
-  }, [g?.phase, g?.pendingHunter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [g?.phase, g?.pendingHunter, kick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyHunter = useCallback(
     (s: WState, target: string | null) => {
@@ -343,7 +423,7 @@ export function WerewolfGame() {
             });
           }, 4500);
         }),
-        900 + i * spread + Math.random() * 600
+        3000 + i * spread + Math.random() * 600
       )
     );
     later(() => {
@@ -371,19 +451,15 @@ export function WerewolfGame() {
   useEffect(() => {
     if (!g || g.phase !== "vote") return;
     setDeadline(Date.now() + (meAlive ? VOTE_MS : 4000));
-    if (meAlive && g.votes[meP?.id || ""] === undefined) {
-      setShowRotatingVoteModal(true);
-    }
     if (!meAlive) later(() => finalizeVote(null), 2500);
     else later(() => finalizeVote(undefined), VOTE_MS);
-  }, [g?.phase, g?.day]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [g?.phase, g?.day, kick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const finalizeVote = useCallback(
     (humanVote: string | null | undefined) => {
       clearTimers();
       setDeadline(null);
-      setShowRotatingVoteModal(false);
-      if (gRef.current?.phase !== "vote") return;
+        if (gRef.current?.phase !== "vote") return;
       let bot: Record<string, string | null> = {};
       mutate((s) => {
         const h = human(s);
@@ -473,8 +549,7 @@ export function WerewolfGame() {
 
   const castVote = useCallback(
     (targetId: string | null) => {
-      setShowRotatingVoteModal(false);
-      if (soundEnabled) soundManager.playWerewolfVote();
+        if (soundEnabled) soundManager.playWerewolfVote();
       mutate((s) => {
         s.votes[human(s).id] = targetId;
         addLog(
@@ -527,10 +602,10 @@ export function WerewolfGame() {
     return null;
   }, [g, meP, seerReveal, witchChoice]);
 
-  const pickKey = pick ? `${pick.kind}-${g?.day}-${g?.cupidTarget1 ?? ""}` : "";
-  useEffect(() => {
-    setPickerDismissed(false);
-  }, [pickKey]);
+
+  const pickAction = pick
+    ? ({ guard: ["Bảo vệ", "emerald"], wolf: ["Cắn", "red"], white_wolf: ["Cắn", "red"], seer: ["Soi", "violet"], poison: ["Đầu độc", "red"], vote: ["Bỏ phiếu", "amber"], hunter: ["Bắn", "red"], cupid: ["Se duyên", "pink"] } as const)[pick.kind]
+    : undefined;
 
   const canTarget = (p: WPlayer) => {
     if (!pick || !g || !meP || !p.alive) return false;
@@ -687,8 +762,6 @@ export function WerewolfGame() {
     session.clear();
     setDeadline(null);
     setVoteRevealState(null);
-    setShowRotatingVoteModal(false);
-    setPickerDismissed(false);
     setWitchChoice(null);
     setSeerReveal(null);
     setShowRole(false);
@@ -700,6 +773,8 @@ export function WerewolfGame() {
   };
 
   /* --------------------------------- Render --------------------------------- */
+
+  if (onlineRoom) return <WerewolfOnline roomId={onlineRoom} onExit={() => setOnlineRoom(null)} />;
 
   const secondsLeft = deadline ? Math.max(0, Math.ceil((deadline - now) / 1000)) : null;
   const isNight = g?.phase === "night" || g?.phase === "reveal";
@@ -714,7 +789,7 @@ export function WerewolfGame() {
 
   const prompt = (() => {
     if (!g || !meP) return "";
-    if (g.phase === "reveal") return "Xem vai rồi vào đêm";
+    if (g.phase === "reveal") return "Xem vai của bạn — quản trò sắp mở đêm";
     if (g.phase === "over") return g.winner === teamOf(meP.role) ? "🎉 Phe bạn thắng!" : "Phe bạn thua…";
     if (!meP.alive && g.phase !== "hunter") return "👻 Hồn ma — thấy mọi vai";
     if (pick?.kind === "guard") return "🛡️ Chọn người bảo vệ";
@@ -749,6 +824,8 @@ export function WerewolfGame() {
       </GameHeader>
 
       {!g ? (
+        <>
+        <WerewolfOnlineEntry roles={setup.roles} onEnter={setOnlineRoom} />
         <WerewolfLobby
           setup={setup}
           setSetup={setSetup}
@@ -762,6 +839,7 @@ export function WerewolfGame() {
             setShowRole(true);
           }}
         />
+        </>
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_clamp(300px,28vw,400px)]">
           <div className="space-y-4">
@@ -781,8 +859,6 @@ export function WerewolfGame() {
                   </span>
                 )}
 
-                {g.phase === "reveal" && <DockBtn icon={<Moon className="size-4" />} label="Vào đêm" tone="lime" onClick={() => mutate((s) => goNight(s))} />}
-                {g.phase === "discussion" && meAlive && <DockBtn icon={<Vote className="size-4" />} label="Bỏ phiếu" tone="red" onClick={startVote} />}
                 {pick?.kind === "vote" && (
                   <DockBtn
                     icon={<Square className="size-4" />}
@@ -868,7 +944,7 @@ export function WerewolfGame() {
             </div>
 
             {/* Players Arena — mọi hiệu ứng/hành động hiển thị ngay trong khung này */}
-            <div className="relative" style={{ minHeight: showRole || voteRevealState || (pick && (pick.kind !== "vote" || showRotatingVoteModal) && !pickerDismissed) ? "clamp(520px, calc(100dvh - 190px), 680px)" : undefined }}>
+            <div className="relative" style={{ minHeight: showRole || voteRevealState ? "clamp(520px, calc(100dvh - 190px), 680px)" : undefined }}>
             {viewMode === "circle" ? (
               <WerewolfRoundtable
                 state={g}
@@ -882,7 +958,7 @@ export function WerewolfGame() {
                 isHumanMicOn={voice.isMicOn}
                 humanVolume={voice.volume}
                 latestChats={latestChats}
-                onOpenRotatingVote={() => setShowRotatingVoteModal(true)}
+                narrationKey={`${g.phase}-${g.day}-${g.step}`}
               />
             ) : (
               <div className={cn("grid gap-3", g.players.length > 10 ? "grid-cols-3 sm:grid-cols-4 xl:grid-cols-6" : "grid-cols-2 sm:grid-cols-4")}>
@@ -900,6 +976,8 @@ export function WerewolfGame() {
                       role={role}
                       packmate={!role && isWolf(meP?.role || "villager") && isWolf(p.role)}
                       targetable={canTarget(p)}
+                      action={pickAction ? { label: pickAction[0], tone: pickAction[1] } : undefined}
+                      dimmed={!!pickAction && !canTarget(p)}
                       speaking={speaking}
                       micOn={p.alive && (p.isHuman ? voice.isMicOn || voice.isSpeaking : speaking)}
                       hasVoted={g.phase === "vote" && g.votes[p.id] !== undefined}
@@ -919,36 +997,6 @@ export function WerewolfGame() {
                   eliminatedId={voteRevealState.executed}
                   isTie={voteRevealState.isTie}
                   onComplete={onVoteRevealComplete}
-                />
-              )}
-
-              {/* Gradient carousel picker: secret vote and night targets */}
-              {g && meP && pick && (pick.kind !== "vote" || showRotatingVoteModal) && !pickerDismissed && (
-                <GradientCarouselPicker
-                  key={`${pick.kind}-${g.day}-${g.cupidTarget1 ?? ""}`}
-                  title={
-                    pick.kind === "vote" ? "🗳️ BỎ PHIẾU KÍN" : pick.kind === "cupid" ? (g.cupidTarget1 ? "💘 NGƯỜI THỨ 2" : "💘 NGƯỜI THỨ 1") : prompt.toUpperCase()
-                  }
-                  confirmLabel={pick.kind === "vote" ? "Bỏ phiếu kín" : "Chọn"}
-                  items={g.players
-                    .filter((p) => p.alive)
-                    .map((p) => ({
-                      id: p.id,
-                      name: p.name + (p.isHuman ? " (bạn)" : ""),
-                      avatar: p.avatar,
-                      disabled: !canTarget(p),
-                      badge: isWolf(meP.role) && isWolf(p.role) ? "🐺 Bầy Sói" : undefined,
-                    }))}
-                  onConfirm={(id) => {
-                    const p = byId(g, id);
-                    if (p) onTarget(p);
-                  }}
-                  onClose={() => {
-                    setShowRotatingVoteModal(false);
-                    setPickerDismissed(true);
-                  }}
-                  onAbstain={pick.kind === "vote" ? () => castVote(null) : undefined}
-                  abstainLabel="Phiếu trắng"
                 />
               )}
 
@@ -989,9 +1037,6 @@ export function WerewolfGame() {
                   players={g.players}
                   initialMode={roleModalMode}
                   onClose={() => setShowRole(false)}
-                  onStartNight1={() => {
-                    if (g.phase === "reveal") mutate((s) => goNight(s));
-                  }}
                 />
               )}
 
@@ -1006,41 +1051,44 @@ export function WerewolfGame() {
                 <Users className="size-3" /> {alive(g).length} sống
               </span>
             </div>
-            <div ref={logRef} className="flex-1 space-y-2 no-scrollbar overflow-y-auto px-4 py-3">
-              {g.log.filter((l) => l.kind !== "vote").map((l) => {
+            <div ref={logRef} className="flex-1 no-scrollbar overflow-y-auto px-4 py-4">
+              {g.log.filter((l) => l.kind !== "vote").map((l, i, arr) => {
                 if (l.kind === "chat") {
                   const sp = byId(g, l.speaker);
+                  const me = !!sp?.isHuman;
+                  const prev = arr[i - 1];
+                  const grouped = prev?.kind === "chat" && prev.speaker === l.speaker;
                   return (
-                    <motion.div key={l.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className={cn("flex gap-2", sp?.isHuman && "flex-row-reverse")}>
-                      <UserAvatar src={sp?.avatar} name={sp?.name ?? "?"} className="size-7" />
-                      <div className={cn("max-w-[80%] rounded-2xl px-3 py-2 text-[13px]", sp?.isHuman ? "rounded-tr-md bg-lime-400 text-black" : "rounded-tl-md bg-ink-800")}>
-                        {!sp?.isHuman && <p className="text-xs font-bold text-ink-300">{sp?.name}</p>}
-                        {l.text}
+                    <motion.div key={l.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={cn("flex items-end gap-2.5", me && "flex-row-reverse", grouped ? "mt-1" : "mt-4")}>
+                      <div className="size-8 shrink-0">
+                        {!grouped && <UserAvatar src={sp?.avatar} name={sp?.name ?? "?"} className="size-8" />}
+                      </div>
+                      <div className={cn("flex max-w-[78%] flex-col gap-1", me && "items-end")}>
+                        {!grouped && !me && <p className="px-1 text-xs font-semibold text-ink-300">{sp?.name}</p>}
+                        <div className={cn("w-fit break-words rounded-2xl px-3.5 py-2 text-sm leading-snug", me ? "rounded-br-md bg-lime-400 font-medium text-black" : "rounded-bl-md bg-white/[0.07] text-ink-100")}>
+                          {l.text}
+                        </div>
                       </div>
                     </motion.div>
                   );
                 }
+                if (l.kind === "death") {
+                  return (
+                    <motion.p key={l.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 rounded-xl border-l-2 border-pop-red bg-pop-red/10 px-3 py-2.5 text-sm font-medium text-[#ffb3bb]">
+                      {l.text}
+                    </motion.p>
+                  );
+                }
                 return (
-                  <motion.p
-                    key={l.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className={cn(
-                      "rounded-xl px-3 py-2 text-[12px]",
-                      l.kind === "death" && "border border-pop-red/30 bg-pop-red/10 font-semibold text-[#ffb3bb]",
-                      l.kind === "narrator" && "bg-white/[0.03] italic text-ink-200",
-                      l.kind === "vote" && "py-1 font-mono text-xs text-ink-200"
-                    )}
-                  >
+                  <motion.p key={l.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 px-2 text-center text-xs leading-relaxed text-ink-400">
                     {l.text}
                   </motion.p>
                 );
               })}
             </div>
             <div className="border-t border-white/[0.06] p-3">
-              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-ink-850 p-1.5">
-                <WerewolfMicButton voice={voice} />
+              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-ink-850 p-1.5 pl-2 focus-within:border-lime-400/50">
+                <WerewolfMicButton voice={voice} disabled={g.phase !== "discussion" || !meAlive} />
                 <input
                   value={chat}
                   onChange={(e) => setChat(e.target.value)}
@@ -1054,9 +1102,9 @@ export function WerewolfGame() {
                         : "Nói gì đó…"
                       : "🔒"
                   }
-                  className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-[13px] outline-none placeholder:text-ink-500 disabled:opacity-50"
+                  className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-ink-500 disabled:opacity-50"
                 />
-                <button type="button" onClick={sendChat} disabled={g.phase !== "discussion" || !meAlive || !chat.trim()} className="grid size-9 place-items-center rounded-xl bg-lime-400 text-black disabled:opacity-30" aria-label="Gửi">
+                <button type="button" onClick={sendChat} disabled={g.phase !== "discussion" || !meAlive || !chat.trim()} className="grid size-9 place-items-center rounded-full bg-lime-400 text-black disabled:opacity-30" aria-label="Gửi">
                   <Send className="size-4" />
                 </button>
               </div>
@@ -1086,34 +1134,6 @@ export function WerewolfGame() {
       />
     </div>
     </div>
-  );
-}
-
-function DockBtn({ icon, label, onClick, tone = "neutral", disabled }: { icon: React.ReactNode; label: string; onClick: () => void; tone?: "neutral" | "lime" | "red"; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      className={cn(
-        "flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100",
-        tone === "lime" && "bg-lime-400 text-black shadow-[0_0_18px_-4px_rgba(163,230,53,0.8)]",
-        tone === "red" && "bg-red-500 text-white shadow-[0_0_18px_-4px_rgba(239,68,68,0.8)]",
-        tone === "neutral" && "bg-white/10 text-white hover:bg-white/20"
-      )}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-function IconToggle({ active, title, onClick, children }: { active: boolean; title: string; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button type="button" title={title} onClick={onClick} className={cn("grid size-8 place-items-center rounded-lg transition hover:scale-110 active:scale-95", active ? "bg-white text-black" : "text-white/55 hover:text-white")}>
-      {children}
-    </button>
   );
 }
 

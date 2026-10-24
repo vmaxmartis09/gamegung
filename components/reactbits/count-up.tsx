@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { animate, useInView, useReducedMotion } from "framer-motion";
+import { animate, useInView } from "framer-motion";
+import { useReducedMotion } from "@/lib/motion";
 
 /** Counts up to `value` once visible (React Bits Count Up). */
 export function CountUp({

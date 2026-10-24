@@ -24,6 +24,7 @@ import { soundManager } from "@/lib/audio";
 import { isAccountId, pickBotOpponent, MatchmakingOpponent } from "@/lib/supabase-game";
 import { joinMatchQueue, opponentOf } from "@/lib/online-match";
 import { cn } from "@/lib/utils";
+import { MatchCard } from "./match-card";
 
 interface MatchmakingModalProps {
   isOpen: boolean;
@@ -381,14 +382,11 @@ export function MatchmakingModal({
               {/* PHASE 2: SEARCHING RADAR */}
               {phase === "searching" && (
                 <div className="py-6 flex flex-col items-center text-center space-y-6">
-                  {/* Radar Pulse Visual */}
-                  <div className="relative w-32 h-32 flex items-center justify-center">
-                    <div className="absolute inset-0 rounded-full border border-amber-400/20 animate-ping" />
-                    <div className="absolute inset-2 rounded-full border border-amber-400/30 animate-pulse" />
-                    <div className="absolute inset-6 rounded-full border border-white/20" />
-                    <div className="w-16 h-16 rounded-full bg-ink-900 border border-amber-400/60 flex items-center justify-center text-2xl shadow-[0_0_25px_rgba(251,191,36,0.25)]">
-                      {GAME_OPTIONS.find((g) => g.id === selectedGame)?.icon}
-                    </div>
+                  {/* Thẻ của bạn đối diện thẻ đang chờ đối thủ */}
+                  <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
+                    <MatchCard tone="me" name={currentUser.username} avatar={currentUser.avatar} elo={currentElo} tier={currentTier} footer="Bạn" />
+                    <span className="font-mono text-base font-black text-amber-400">VS</span>
+                    <MatchCard tone="empty" name="Đối thủ" searching footer="Đang chờ" />
                   </div>
 
                   <div>
@@ -441,35 +439,17 @@ export function MatchmakingModal({
                   </div>
 
                   {/* VS Layout */}
-                  <div className="grid grid-cols-7 items-center gap-2">
-                    {/* User */}
-                    <div className="col-span-3 flex flex-col items-center">
-                      <UserAvatar src={currentUser.avatar} name={currentUser.username} className="w-14 h-14 rounded-full border-2 border-white bg-ink-950 shadow-lg" />
-                      <p className="text-xs font-bold text-white mt-2 truncate max-w-[120px]">
-                        {currentUser.username}
-                      </p>
-                      <p className="text-[10px] text-ink-400 font-mono">
-                        {currentElo} ELO
-                      </p>
-                    </div>
-
-                    {/* VS Center */}
-                    <div className="col-span-1 flex flex-col items-center">
-                      <span className="text-base font-black font-mono text-amber-400 animate-pulse">
-                        VS
-                      </span>
-                    </div>
-
-                    {/* Opponent */}
-                    <div className="col-span-3 flex flex-col items-center">
-                      <UserAvatar src={matchedOpponent.avatar} name={matchedOpponent.username} className="w-14 h-14 rounded-full border-2 border-amber-400 bg-ink-950 shadow-lg" />
-                      <p className="text-xs font-bold text-white mt-2 truncate max-w-[120px]">
-                        {matchedOpponent.username}
-                      </p>
-                      <p className="text-[10px] text-amber-300 font-mono">
-                        {matchedOpponent.elo} ELO
-                      </p>
-                    </div>
+                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                    <MatchCard tone="me" name={currentUser.username} avatar={currentUser.avatar} elo={currentElo} tier={currentTier} footer="Bạn" />
+                    <span className="animate-pulse font-mono text-base font-black text-amber-400">VS</span>
+                    <MatchCard
+                      tone="opp"
+                      name={matchedOpponent.username}
+                      avatar={matchedOpponent.avatar}
+                      elo={matchedOpponent.elo}
+                      tier={getRankTier(matchedOpponent.elo)}
+                      footer={matchedOpponent.isBot ? "Máy" : "Đối thủ"}
+                    />
                   </div>
 
                   {/* Pot Summary */}

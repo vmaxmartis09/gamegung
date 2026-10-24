@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import * as THREE from "three";
 import { cn } from "@/lib/utils";
+import { createAdaptiveQuality, getReducedMotion, subscribeReducedMotion } from "@/lib/motion";
 
 export interface BlackHoleProps {
   width?: string | number;
@@ -83,18 +84,6 @@ function rgbToOklab(r: number, g: number, b: number): [number, number, number] {
     0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
   ];
 }
-
-const subscribeReducedMotion = (cb: () => void) => {
-  if (typeof window === "undefined") return () => {};
-  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-  mq.addEventListener("change", cb);
-  return () => mq.removeEventListener("change", cb);
-};
-
-const getReducedMotion = () => {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-};
 
 const VERTEX_SHADER = `
 in vec3 position;
@@ -544,6 +533,7 @@ export const BlackHole = forwardRef<BlackHoleRef, BlackHoleProps>(function Black
     let introFade = 1;
     let rafId = 0;
     let lastFrameTime = 0;
+    const quality = createAdaptiveQuality();
     let isVisible = false;
     let isDestroyed = false;
     let isContextLost = false;
@@ -617,7 +607,7 @@ export const BlackHole = forwardRef<BlackHoleRef, BlackHoleProps>(function Black
         return false;
       }
 
-      const dprVal = Math.min(win.devicePixelRatio || 1, clamp(num(p.dpr, 2), 0.5, 3));
+      const dprVal = Math.min(win.devicePixelRatio || 1, clamp(num(p.dpr, 2), 0.5, 3)) * quality.scale;
       if (hasSize && w === clientWidth && h === clientHeight && dprVal === pixelRatio) {
         return false;
       }
@@ -751,6 +741,7 @@ export const BlackHole = forwardRef<BlackHoleRef, BlackHoleProps>(function Black
         lastFrameTime && timestamp - lastFrameTime < 100
           ? Math.min(Math.max((timestamp - lastFrameTime) / 1000, 0), 0.05)
           : 1 / 60;
+      if (lastFrameTime && quality.tick(timestamp - lastFrameTime) && updateSize()) render();
       lastFrameTime = timestamp;
 
       const targetHover = p.cursorInteraction && !p.reduced && isHovered ? 1 : 0;

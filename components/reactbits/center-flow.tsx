@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useId } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
 export interface CenterFlowNode {
@@ -29,6 +29,21 @@ export function CenterFlow({
   className = "",
 }: CenterFlowProps) {
   const flowId = useId();
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 800, h: 600 });
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    setSize({ w: el.clientWidth, h: el.clientHeight });
+    return () => ro.disconnect();
+  }, []);
+  // toạ độ % → px để đường dẫn không bị méo
+  const px = (x: number) => (x / 100) * size.w;
+  const py = (y: number) => (y / 100) * size.h;
+  const cx = px(50);
+  const cy = py(50);
 
   // Primary colors
   const primaryColor = isNight ? "#a855f7" : "#f59e0b";
@@ -36,6 +51,7 @@ export function CenterFlow({
 
   return (
     <div
+      ref={boxRef}
       className={`relative w-full aspect-[4/3] max-w-[880px] min-h-[520px] sm:min-h-[600px] mx-auto select-none overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-b from-[#0a0712] via-[#050309] to-[#020104] shadow-2xl p-4 ${className}`}
     >
       {/* Background radial ambiance */}
@@ -75,17 +91,19 @@ export function CenterFlow({
         {nodes.map((node, i) => {
           // Curved path from (50, 50) to (node.x, node.y)
           // We can introduce a gentle curve through a control point
-          const midX = (50 + node.x) / 2;
-          const midY = (50 + node.y) / 2;
+          const nx = px(node.x);
+          const ny = py(node.y);
+          const midX = (cx + nx) / 2;
+          const midY = (cy + ny) / 2;
           // slight curvature perpendicular to the vector
-          const dx = node.x - 50;
-          const dy = node.y - 50;
+          const dx = nx - cx;
+          const dy = ny - cy;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          const curvature = (i % 2 === 0 ? 1 : -1) * 3;
+          const curvature = (i % 2 === 0 ? 1 : -1) * 18;
           const ctrlX = dist > 0 ? midX - (dy / dist) * curvature : midX;
           const ctrlY = dist > 0 ? midY + (dx / dist) * curvature : midY;
 
-          const pathD = `M 50 50 Q ${ctrlX} ${ctrlY} ${node.x} ${node.y}`;
+          const pathD = `M ${cx} ${cy} Q ${ctrlX} ${ctrlY} ${nx} ${ny}`;
           const isAlive = node.isAlive !== false;
 
           return (
@@ -104,7 +122,7 @@ export function CenterFlow({
                 <>
                   {[0, 0.45, 0.9].map((b) => (
                     <circle key={b} r="3.4" fill="#d9f99d" filter={`url(#glow-${flowId})`}>
-                      <animateMotion path={`M ${node.x} ${node.y} Q ${ctrlX} ${ctrlY} 50 50`} dur="1.3s" repeatCount="indefinite" begin={`${b}s`} />
+                      <animateMotion path={`M ${nx} ${ny} Q ${ctrlX} ${ctrlY} ${cx} ${cy}`} dur="1.3s" repeatCount="indefinite" begin={`${b}s`} />
                     </circle>
                   ))}
                 </>
@@ -131,6 +149,13 @@ export function CenterFlow({
           );
         })}
       </svg>
+
+      {/* Hub glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/2 z-[15] size-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl transition-colors duration-1000"
+        style={{ background: `radial-gradient(circle, ${glowColor} 0%, transparent 65%)` }}
+      />
 
       {/* Central Hub */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center justify-center">

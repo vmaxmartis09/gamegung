@@ -17,15 +17,14 @@ import {
   type AnimationPlaybackControls,
   animate,
   LayoutGroup,
-  MotionConfig,
   type MotionValue,
   motion,
   useMotionValue,
   useMotionValueEvent,
-  useReducedMotion,
   useSpring,
   useTransform,
 } from "framer-motion";
+import { useReducedMotion, AppMotionConfig } from "@/lib/motion";
 import {
   memo,
   type KeyboardEvent,
@@ -819,7 +818,7 @@ export default function AvatarPicker({
   const diceRotate = useTransform(spinner.angle, (a) => `rotate(${round2(a / 4)}deg)`);
 
   return (
-    <MotionConfig reducedMotion="user">
+    <AppMotionConfig>
       <div className={cn("mx-auto w-full max-w-[360px] text-white", className)} ref={rootRef}>
         {!embedded && (
           <div className="space-y-1">
@@ -965,6 +964,6 @@ export default function AvatarPicker({
           {announcement}
         </p>
       </div>
-    </MotionConfig>
+    </AppMotionConfig>
   );
 }

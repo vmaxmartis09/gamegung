@@ -15,7 +15,7 @@ import { supabase, isSupabaseConfigured } from "./supabase";
 
 export interface MatchRow {
   id: string;
-  game: "chess" | "xiangqi";
+  game: "chess" | "xiangqi" | "caro";
   p1: string;
   p2: string;
   p1_name: string | null;
@@ -110,11 +110,13 @@ export function describeEnd(row: MatchRow, userId: string): { outcome: "win" | "
 /** Mở (hoặc vào lại) trận cho kèo cược bạn bè; id trận = id kèo. */
 export async function openBetMatch(args: {
   id: string;
-  game: "chess" | "xiangqi";
+  game: "chess" | "xiangqi" | "caro";
   oppId: string;
   stake: number;
   me: { name: string; avatar: string };
   opp: { name: string; avatar: string };
+  /** Thời gian mỗi bên (ms); game không đồng hồ truyền số rất lớn. */
+  baseMs?: number;
 }): Promise<MatchRow | null> {
   if (!isSupabaseConfigured) return null;
   const { data, error } = await supabase.rpc("match_open", {
@@ -126,6 +128,7 @@ export async function openBetMatch(args: {
     p_my_avatar: args.me.avatar,
     p_opp_name: args.opp.name,
     p_opp_avatar: args.opp.avatar,
+    ...(args.baseMs ? { p_base_ms: args.baseMs } : {}),
   });
   if (error) {
     console.warn("[match] open:", error.message);

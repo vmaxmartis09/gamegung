@@ -14,7 +14,8 @@
  */
 
 import { LogOut, Volume2, VolumeX } from "lucide-react";
-import { animate, motion, type Transition, useMotionTemplate, useMotionValue, useReducedMotion } from "framer-motion";
+import { animate, motion, type Transition, useMotionTemplate, useMotionValue } from "framer-motion";
+import { useReducedMotion } from "@/lib/motion";
 import { type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { UserAvatar, type PresenceStatus } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";

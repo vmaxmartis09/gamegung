@@ -237,13 +237,13 @@ html[data-tab-hidden] *::after {
   animation-play-state: paused !important;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+/* Driven by the in-app motion preference (lib/motion.tsx), not the OS flag: Windows reports
+   "reduce" whenever "Show animations in Windows" is off, which used to freeze every effect. */
+html[data-reduced-motion] *,
+html[data-reduced-motion] *::before,
+html[data-reduced-motion] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }

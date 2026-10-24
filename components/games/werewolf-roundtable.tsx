@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Volume2, VolumeX, Vote as VoteIcon, Mic } from "lucide-react";
-import { WPlayer, WState, isWolf } from "@/lib/games/werewolf-engine";
+import { Role, WPlayer, WState, isWolf } from "@/lib/games/werewolf-engine";
 import { cn } from "@/lib/utils";
 import { CenterFlow, CenterFlowNode } from "@/components/reactbits/center-flow";
 import { playNarratorVoice, stopNarratorVoice } from "@/lib/narrator-audio";
@@ -21,7 +21,13 @@ export interface WerewolfRoundtableProps {
   isHumanMicOn?: boolean;
   humanVolume?: number;
   latestChats?: Record<string, string>; // speakerId -> text
-  onOpenRotatingVote?: () => void;
+  /** Online: server chỉ gửi vai được phép thấy, nên bàn hỏi vai qua đây thay vì tự suy từ state. */
+  roleOf?: (p: WPlayer) => Role | null;
+  packmateOf?: (p: WPlayer) => boolean;
+  /** Khoá quản trò: đổi khi pha / bước đổi, để mọi người (kể cả người đã chết hay đã hành động) đều nghe từng bước. */
+  narrationKey?: string;
+  /** false = bên ngoài tự đọc (chế độ online). */
+  narrate?: boolean;
 }
 
 export function WerewolfRoundtable({
@@ -29,12 +35,16 @@ export function WerewolfRoundtable({
   humanPlayer,
   canTarget,
   onTarget,
+  targetKind,
   secondsLeft,
   prompt,
   isHumanSpeaking = false,
   isHumanMicOn = false,
   latestChats = {},
-  onOpenRotatingVote,
+  roleOf,
+  packmateOf,
+  narrationKey,
+  narrate = true,
 }: WerewolfRoundtableProps) {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isNarratorSpeaking, setIsNarratorSpeaking] = useState(false);
@@ -43,8 +53,9 @@ export function WerewolfRoundtable({
 
   // Quản trò LyLy đọc theo từng bước
   useEffect(() => {
-    if (!voiceEnabled || !prompt || prompt === lastPromptRef.current) return;
-    lastPromptRef.current = prompt;
+    const key = narrationKey ?? prompt;
+    if (!narrate || !voiceEnabled || !prompt || key === lastPromptRef.current) return;
+    lastPromptRef.current = key;
 
     let audioKey = "";
     if (state.phase === "night") {
@@ -58,7 +69,7 @@ export function WerewolfRoundtable({
       setIsNarratorSpeaking(true);
       playNarratorVoice(audioKey, prompt, () => setIsNarratorSpeaking(false));
     }
-  }, [prompt, state.phase, state.step, state.winner, voiceEnabled]);
+  }, [prompt, narrationKey, narrate, state.phase, state.step, state.winner, voiceEnabled]);
 
   // Người chơi thật luôn ở đáy bàn
   const playersWithCoords = useMemo(() => {
@@ -67,11 +78,12 @@ export function WerewolfRoundtable({
     return state.players.map((p, i) => {
       const relIdx = (i - humanIdx + total) % total;
       const angle = (relIdx / total) * (2 * Math.PI) + Math.PI / 2;
-      return { ...p, x: 50 + 40 * Math.cos(angle), y: 50 + 36 * Math.sin(angle) };
+      return { ...p, x: 50 + 40 * Math.cos(angle), y: 50 + 33 * Math.sin(angle) };
     });
   }, [state.players, humanPlayer.id]);
 
   const knownRole = (p: WPlayer) => {
+    if (roleOf) return roleOf(p);
     if (p.isHuman || !p.alive || state.phase === "over" || !humanPlayer.alive) return p.role;
     if (isWolf(humanPlayer.role) && isWolf(p.role)) return p.role;
     return null;
@@ -79,7 +91,17 @@ export function WerewolfRoundtable({
 
   const speakerIds = state.players.filter((p) => p.alive && (p.isHuman ? isHumanSpeaking : !!latestChats[p.id])).map((p) => p.id);
   const speakerNames = state.players.filter((p) => speakerIds.includes(p.id)).map((p) => (p.isHuman ? "Bạn" : p.name.split(" ")[0]));
-  const canVote = state.phase === "vote" && onOpenRotatingVote && state.votes[humanPlayer.id] === undefined;
+  const ACTIONS: Record<string, { label: string; tone: "red" | "violet" | "emerald" | "pink" | "amber" }> = {
+    guard: { label: "Bảo vệ", tone: "emerald" },
+    wolf: { label: "Cắn", tone: "red" },
+    white_wolf: { label: "Cắn", tone: "red" },
+    seer: { label: "Soi", tone: "violet" },
+    poison: { label: "Đầu độc", tone: "red" },
+    vote: { label: "Bỏ phiếu", tone: "amber" },
+    hunter: { label: "Bắn", tone: "red" },
+    cupid: { label: "Se duyên", tone: "pink" },
+  };
+  const action = targetKind ? ACTIONS[targetKind] : undefined;
 
   const centerHub = (
     <div className="relative flex flex-col items-center justify-center">
@@ -128,19 +150,6 @@ export function WerewolfRoundtable({
         )}
       </AnimatePresence>
 
-      {canVote && (
-        <motion.button
-          type="button"
-          onClick={onOpenRotatingVote}
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.94 }}
-          className="mt-2 flex items-center gap-1.5 rounded-full bg-gradient-to-r from-red-600 to-rose-500 px-4 py-2 text-xs font-black uppercase tracking-wide text-white shadow-lg shadow-red-900/60"
-          animate={{ boxShadow: ["0 0 0 0 rgba(244,63,94,0.6)", "0 0 0 12px rgba(244,63,94,0)"] }}
-          transition={{ repeat: Infinity, duration: 1.4 }}
-        >
-          <VoteIcon className="size-4" /> Bỏ phiếu
-        </motion.button>
-      )}
     </div>
   );
 
@@ -178,8 +187,10 @@ export function WerewolfRoundtable({
             alive={p.alive}
             isMe={p.isHuman}
             role={role}
-            packmate={!role && isWolf(humanPlayer.role) && isWolf(p.role)}
+            packmate={packmateOf ? packmateOf(p) : !role && isWolf(humanPlayer.role) && isWolf(p.role)}
             targetable={canTarget(p)}
+            action={action}
+            dimmed={!!action && !canTarget(p)}
             micOn={micOn}
             speaking={speaking}
             hasVoted={state.phase === "vote" && state.votes[p.id] !== undefined}

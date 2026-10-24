@@ -20,3 +20,6 @@ export * from "./tilted-card";
 export * from "./interference-ribbons";
 export * from "./black-hole";
 export * from "./cylinder-text";
+export * from "./text-loop";
+export * from "./true-focus";
+export * from "./velocity-marquee";

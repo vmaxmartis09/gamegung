@@ -16,12 +16,11 @@ import {
   AnimatePresence,
   type AnimationPlaybackControls,
   animate,
-  MotionConfig,
   motion,
   useMotionValue,
-  useReducedMotion,
   useTransform,
 } from "framer-motion";
+import { useReducedMotion, AppMotionConfig } from "@/lib/motion";
 import { type ButtonHTMLAttributes, type KeyboardEvent, type PointerEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -172,7 +171,7 @@ export default function HoldButton({
   const labelKey = phase === "holding" && !showHoldingLabel ? "idle" : phase;
 
   return (
-    <MotionConfig reducedMotion="user">
+    <AppMotionConfig>
       <button
         {...props}
         aria-disabled={phase === "complete" || undefined}
@@ -213,6 +212,6 @@ export default function HoldButton({
           {phase === "complete" ? completeLabel : ""}
         </span>
       </button>
-    </MotionConfig>
+    </AppMotionConfig>
   );
 }

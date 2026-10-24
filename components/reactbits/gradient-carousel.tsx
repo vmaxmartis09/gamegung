@@ -1,5 +1,7 @@
 "use client";
 
+import { whenNarratorIdle } from "@/lib/narrator-audio";
+
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Skull, AlertTriangle, Flame, ChevronLeft, ChevronRight, FastForward, X, Check } from "lucide-react";
@@ -337,6 +339,19 @@ export function GradientCarousel({ candidates, eliminatedId, isTie = false, onCo
   const targetIndex = eliminatedId ? Math.max(0, candidates.findIndex((c) => c.id === eliminatedId)) : 0;
   const eliminated = eliminatedId ? candidates[targetIndex] : null;
 
+  // Quản trò tự dẫn dắt: hiện kết luận một lúc rồi tự chuyển, không cần bấm.
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  useEffect(() => {
+    if (!showVerdict) return;
+    let cancelled = false;
+    const t = setTimeout(() => whenNarratorIdle(() => !cancelled && onCompleteRef.current()), 4500);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [showVerdict]);
+
   const land = useCallback(() => {
     setIsSpinning(false);
     setCurrentIndex(targetIndex);
@@ -436,24 +451,6 @@ export function GradientCarousel({ candidates, eliminatedId, isTie = false, onCo
           }}
         />
 
-        {isSpinning ? (
-          <button type="button" onClick={skip} className="mt-2 flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-xs font-bold text-white/80 transition hover:bg-white/20">
-            <FastForward className="h-4 w-4" /> Bỏ qua
-          </button>
-        ) : (
-          <div className="flex w-full flex-col items-center gap-3">
-            <div className="flex w-full items-center justify-center gap-3">
-              <button type="button" onClick={() => step(-1)} className="rounded-xl bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Trước">
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <Scrubber count={total} index={currentIndex} onJump={setCurrentIndex} />
-              <button type="button" onClick={() => step(1)} className="rounded-xl bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Sau">
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        )}
-
         <AnimatePresence>
           {showVerdict && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mt-4 flex w-full max-w-md flex-col items-center gap-3">
@@ -461,9 +458,6 @@ export function GradientCarousel({ candidates, eliminatedId, isTie = false, onCo
                 {isTie ? <AlertTriangle className="h-7 w-7 shrink-0 text-amber-400" /> : <Skull className="h-7 w-7 shrink-0 animate-bounce text-red-400" />}
                 <div className="text-base font-bold text-white">{isTie ? "Không ai bị treo" : `${eliminated?.name} bị treo cổ · ${eliminated?.votes} phiếu`}</div>
               </div>
-              <button type="button" onClick={onComplete} className="w-full rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 px-6 py-3 text-sm font-black uppercase tracking-wider text-white shadow-lg shadow-red-900/50 transition-all hover:scale-[1.02] hover:from-red-500 hover:to-amber-500 active:scale-[0.98]">
-                Tiếp tục
-              </button>
             </motion.div>
           )}
         </AnimatePresence>

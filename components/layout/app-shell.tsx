@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
-import { AnimatePresence, MotionConfig, motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { AppMotionConfig, initMotion } from "@/lib/motion";
 import { useShallow } from "zustand/react/shallow";
 import { MessageCircle, Trophy, UserRound, Wallet, X } from "lucide-react";
 import { useAppStore } from "@/lib/store";
@@ -39,6 +40,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Khi khung chat mở, nội dung nhường chỗ (đẩy sang trái) thay vì bị chat đè lên.
   const chatShown = useAppStore((st) => st.isChatOpen && !st.isChatCollapsed);
   const chatPad = chatShown ? "sm:pr-[392px] xl:pr-[432px]" : "";
+  useEffect(() => {
+    initMotion();
+  }, []);
   // Freeze looping CSS animations while the tab is hidden.
   useEffect(() => {
     const sync = () => document.documentElement.toggleAttribute("data-tab-hidden", document.hidden);
@@ -46,7 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("visibilitychange", sync);
   }, []);
   return (
-    <MotionConfig reducedMotion="user">
+    <AppMotionConfig>
       <DailyBackground />
       {inGame ? (
         <main className={cn("relative z-10 flex h-dvh w-full flex-col overflow-hidden transition-[padding] duration-300 ease-out", chatPad)}>{children}</main>
@@ -60,7 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
       <ChatBubble />
       <GlobalModals />
-    </MotionConfig>
+    </AppMotionConfig>
   );
 }
 
