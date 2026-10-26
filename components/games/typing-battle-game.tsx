@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, Crosshair, Keyboard, Play, RotateCcw, Send, Sparkles, Trophy, UserPlus, X, Zap } from "lucide-react";
+import { Bot, Crosshair, Flag, Keyboard, Play, RotateCcw, Send, Sparkles, Trophy, UserPlus, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/lib/store";
@@ -972,6 +972,16 @@ export function TypingBattleGame() {
     return () => cancelAnimationFrame(raf);
   }, [hooks]);
 
+  /** Xin thua giữa ván: đối thủ thắng ngay (online thì báo máy kia), ván tính thua như thường. */
+  const forfeit = useCallback(() => {
+    const g = gRef.current;
+    if (!g || g.phase === "over") return;
+    const on = onlineRef.current;
+    if (on) void on.ch.send({ type: "broadcast", event: "left", payload: {} });
+    finish(g, 1, hooks);
+    force();
+  }, [hooks]);
+
   // P1 gõ trong một ô nhập duy nhất: xoá, sửa, cách như ô thường, chỉ Enter mới gửi
   const typeP1 = useCallback((text: string) => {
     const g = gRef.current;
@@ -1105,6 +1115,11 @@ export function TypingBattleGame() {
         subtitle={phase === "setup" ? "Đấu trường gõ phím đối kháng" : mode === 2 ? "Băng chuyền thẻ" : mode === 1 ? "Đọ tên lửa" : "Đua gõ đoạn văn"}
       >
         <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
+        {phase === "playing" && (
+          <button type="button" onClick={forfeit} title="Xin thua (Esc)" className="btn-ghost flex items-center gap-1.5 px-3 py-1.5 text-xs text-pop-red">
+            <Flag className="size-3.5" /> Xin thua
+          </button>
+        )}
       </GameHeader>
 
       {phase === "setup" && (

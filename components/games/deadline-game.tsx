@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowDownUp, Code2, Coffee, Crown, Hand, Heart, Layers, Megaphone, PenTool, Play, Repeat, RotateCcw, Shuffle, Siren, TrendingUp } from "lucide-react";
+import { ArrowDownUp, Code2, Coffee, Crown, Flag, Hand, Heart, Layers, Megaphone, PenTool, Play, Repeat, RotateCcw, Shuffle, Siren, TrendingUp } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/lib/store";
 import { soundManager } from "@/lib/audio";
@@ -30,7 +30,7 @@ import TextLoading from "@/components/kokonut/text-loading";
 import { cn } from "@/lib/utils";
 import { MatchResultModal } from "./match-result-modal";
 import { GameFxOverlay, MatchIntro, NarratorButton, useFxQueue, useNarrator } from "./game-fx";
-import { GameHeader, Segmented, StakePicker, useGameSession, useMatchSettlement } from "./shared";
+import { ConfirmDialog, GameHeader, Segmented, StakePicker, useGameSession, useMatchSettlement } from "./shared";
 import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 const DEPT_ICON: Record<Dept, typeof Code2> = { tech: Code2, sales: TrendingUp, hr: Heart, design: PenTool };
@@ -216,6 +216,16 @@ export function DeadlineGame() {
     setTurnStart(Date.now());
     setIntro(true);
     narrator.say("Chia bài! Ai hết bài trước sẽ thắng.", "dl_deal");
+  };
+
+  /** Xin thua: kết thúc trận ngay, tính thua (mất tiền cược nếu có), về màn chọn bàn. */
+  const [confirmQuit, setConfirmQuit] = useState(false);
+  const forfeit = () => {
+    setConfirmQuit(false);
+    const cur = sRef.current;
+    if (cur && !matchOver(cur)) settle("loss", { name: "Bàn Deadline Rush", elo: 1250 }, stake);
+    session.clear();
+    commit(null);
   };
 
   const nextRound = () => {
@@ -432,7 +442,19 @@ export function DeadlineGame() {
       <GameHeader game="uno" subtitle={`Ván ${s.round}${s.target ? ` · đến ${s.target}` : ""}`}>
         <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
         {stake > 0 && <span className="chip">{stake} <Emoji e="🌾" /></span>}
+        <button type="button" onClick={() => (over ? commit(null) : setConfirmQuit(true))} className="btn-ghost flex items-center gap-1.5 px-3 py-1.5 text-xs text-pop-red">
+          <Flag className="size-3.5" /> {over ? "Rời bàn" : "Xin thua"}
+        </button>
       </GameHeader>
+      <ConfirmDialog
+        open={confirmQuit}
+        title="Xin thua?"
+        body={stake > 0 ? `Trận kết thúc ngay, tính thua và mất ${stake} Lúa.` : "Trận kết thúc ngay và tính là thua."}
+        confirmLabel="Xin thua"
+        danger
+        onConfirm={forfeit}
+        onCancel={() => setConfirmQuit(false)}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="panel relative flex min-h-[min(calc(100dvh-8.5rem),720px)] flex-col justify-between overflow-hidden p-4 sm:p-6">

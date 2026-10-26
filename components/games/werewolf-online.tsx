@@ -182,6 +182,7 @@ export function WerewolfOnlineEntry({ roles, onEnter }: { roles: Role[]; onEnter
 export function WerewolfOnline({ roomId, onExit }: { roomId: string; onExit: () => void }) {
   const r = useWerewolfRoom(roomId);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const { settle: settleQuit } = useMatchSettlement("werewolf");
 
   // Giữ mã phòng trên URL để tải lại trang / gửi link vẫn vào đúng phòng.
   useEffect(() => {
@@ -198,13 +199,16 @@ export function WerewolfOnline({ roomId, onExit }: { roomId: string; onExit: () 
     onExit();
   }, [onExit]);
 
+  const playing = r.room?.status === "playing";
+  const meAlive = !!r.seats.find((s) => s.me)?.alive;
+
   const leave = useCallback(async () => {
     setConfirmLeave(false);
+    // Xin lui giữa ván = chết (server loại ghế), tính là thua.
+    if (playing && meAlive) settleQuit("loss", { name: "Làng Ma Sói online", elo: 1250 }, 0);
     await wwLeave(roomId);
     exit();
-  }, [roomId, exit]);
-
-  const playing = r.room?.status === "playing";
+  }, [roomId, exit, playing, meAlive, settleQuit]);
 
   // Vào phòng không được (sai mã, phòng đã đóng…): về trang chủ, báo lý do ở ô nhập mã.
   const router = useRouter();
@@ -239,9 +243,15 @@ export function WerewolfOnline({ roomId, onExit }: { roomId: string; onExit: () 
       </div>
       <ConfirmDialog
         open={confirmLeave}
-        title={playing ? "Rời bàn?" : "Rời phòng?"}
-        body={playing ? "Bot sẽ chơi thay bạn. Bạn có thể vào lại bằng mã phòng trước khi ván kết thúc." : "Ghế của bạn sẽ được nhả cho người khác."}
-        confirmLabel="Rời"
+        title={playing ? (meAlive ? "Xin lui?" : "Rời bàn?") : "Rời phòng?"}
+        body={
+          playing
+            ? meAlive
+              ? "Xin lui giữa ván coi như bạn đã chết: bị loại khỏi ván, lộ vai và tính thua."
+              : "Bạn đã bị loại; rời bàn sẽ không xem tiếp ván này."
+            : "Ghế của bạn sẽ được nhả cho người khác."
+        }
+        confirmLabel={playing && meAlive ? "Xin lui" : "Rời"}
         danger
         onConfirm={() => void leave()}
         onCancel={() => setConfirmLeave(false)}

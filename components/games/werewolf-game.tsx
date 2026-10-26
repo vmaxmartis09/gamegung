@@ -767,6 +767,8 @@ export function WerewolfGame() {
   const stopGame = () => {
     // bỏ ngang ván có cược → phạt cooldown dài hơn
     if (stake > 0 && g && g.phase !== "over") useCooldownStore.getState().start(COOLDOWN.abandon, "Bỏ giữa trận");
+    // Xin lui giữa ván = chết, tính thua (mất tiền cược nếu có).
+    if (g && g.phase !== "over" && g.phase !== "lobby") settle("loss", { name: matchOpp?.name ?? "Làng Ma Sói", elo: matchOpp?.elo ?? 1250 }, stake);
     clearTimers();
     stopNarratorVoice();
     resetSettlement();
@@ -910,10 +912,10 @@ export function WerewolfGame() {
                 <button
                   type="button"
                   onClick={stopGame}
-                  title="Dừng game"
+                  title={g.phase === "over" ? "Về sảnh" : "Xin lui: coi như bạn đã chết, tính thua"}
                   className="flex items-center gap-1.5 rounded-xl border border-red-400/40 bg-red-500/15 px-3 py-2 text-xs font-black text-red-200 transition hover:scale-105 hover:bg-red-500/30 active:scale-95"
                 >
-                  <Square className="size-3.5 fill-current" /> Dừng
+                  <Square className="size-3.5 fill-current" /> {g.phase === "over" ? "Rời" : "Xin lui"}
                 </button>
               </div>
 

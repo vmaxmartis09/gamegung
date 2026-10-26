@@ -7,7 +7,7 @@ export type Role = "wolf" | "white_wolf" | "wolf_cub" | "seer" | "guard" | "witc
 export type Team = "wolves" | "village" | "lovers";
 export type Phase = "lobby" | "reveal" | "night" | "dawn" | "discussion" | "vote" | "hunter" | "over";
 export type NightStep = "cupid" | "guard" | "wolves" | "white_wolf" | "seer" | "witch" | "done";
-export type DeathCause = "wolf" | "vote" | "poison" | "hunter" | "lover" | "white_wolf";
+export type DeathCause = "wolf" | "vote" | "poison" | "hunter" | "lover" | "white_wolf" | "quit";
 
 export interface WPlayer {
   id: string;
