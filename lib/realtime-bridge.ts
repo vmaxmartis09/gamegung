@@ -238,7 +238,7 @@ class RealtimeBridge {
       else unknown.push(dmOtherId(ch, myId));
     }
     if (unknown.length) {
-      const { data } = await supabase.from("profiles").select("id, username, avatar").in("id", unknown);
+      const { data } = await supabase.from("oa_profiles").select("id, username, avatar").in("id", unknown);
       for (const p of (data ?? []) as { id: string; username: string | null; avatar: string | null }[]) {
         const ch = Object.keys(byChannel).find((c) => isDmChannel(c) && dmOtherId(c, myId) === p.id);
         if (ch) dmPeers[ch] = { id: p.id, username: p.username || "Đồng nghiệp", avatar: p.avatar || "" };

@@ -5,7 +5,7 @@
 -- ====================================================================
 
 -- 1. BẢNG HỒ SƠ NGƯỜI CHƠI (PROFILES)
-create table if not exists public.profiles (
+create table if not exists public.oa_profiles (
   id text primary key,
   username text,
   full_name text,
@@ -31,15 +31,15 @@ create table if not exists public.profiles (
 );
 
 -- Hỗ trợ nâng cấp thêm cột nếu bảng profiles đã tồn tại từ trước:
-alter table public.profiles add column if not exists character jsonb default '{}'::jsonb;
-alter table public.profiles add column if not exists inventory jsonb default '[]'::jsonb;
-alter table public.profiles add column if not exists lua bigint default 1000;
-alter table public.profiles add column if not exists elo_chess integer default 1200;
-alter table public.profiles add column if not exists elo_xiangqi integer default 1200;
-alter table public.profiles add column if not exists elo_werewolf integer default 1000;
-alter table public.profiles add column if not exists badges jsonb default '[]'::jsonb;
-alter table public.profiles add column if not exists equipped_badges jsonb default '[]'::jsonb;
-alter table public.profiles add column if not exists stats jsonb default '{"chess": {"wins": 0, "losses": 0, "draws": 0, "games": 0}, "xiangqi": {"wins": 0, "losses": 0, "draws": 0, "games": 0}, "werewolf": {"wins": 0, "losses": 0, "draws": 0, "games": 0}}'::jsonb;
+alter table public.oa_profiles add column if not exists character jsonb default '{}'::jsonb;
+alter table public.oa_profiles add column if not exists inventory jsonb default '[]'::jsonb;
+alter table public.oa_profiles add column if not exists lua bigint default 1000;
+alter table public.oa_profiles add column if not exists elo_chess integer default 1200;
+alter table public.oa_profiles add column if not exists elo_xiangqi integer default 1200;
+alter table public.oa_profiles add column if not exists elo_werewolf integer default 1000;
+alter table public.oa_profiles add column if not exists badges jsonb default '[]'::jsonb;
+alter table public.oa_profiles add column if not exists equipped_badges jsonb default '[]'::jsonb;
+alter table public.oa_profiles add column if not exists stats jsonb default '{"chess": {"wins": 0, "losses": 0, "draws": 0, "games": 0}, "xiangqi": {"wins": 0, "losses": 0, "draws": 0, "games": 0}, "werewolf": {"wins": 0, "losses": 0, "draws": 0, "games": 0}}'::jsonb;
 
 -- 2. BẢNG LỊCH SỬ ĐẤU & ĐẶT CƯỢC (MATCH_HISTORY)
 create table if not exists public.match_history (
@@ -88,33 +88,33 @@ create table if not exists public.transactions (
 -- ====================================================================
 -- INDEXES CHO TỐI ƯU HIỆU NĂNG QUERY & BẢNG XẾP HẠNG (LEADERBOARD)
 -- ====================================================================
-create index if not exists idx_profiles_elo_chess on public.profiles (elo_chess desc);
-create index if not exists idx_profiles_elo_xiangqi on public.profiles (elo_xiangqi desc);
-create index if not exists idx_profiles_elo_werewolf on public.profiles (elo_werewolf desc);
-create index if not exists idx_profiles_lua on public.profiles (lua desc);
+create index if not exists idx_oa_profiles_elo_chess on public.oa_profiles (elo_chess desc);
+create index if not exists idx_oa_profiles_elo_xiangqi on public.oa_profiles (elo_xiangqi desc);
+create index if not exists idx_oa_profiles_elo_werewolf on public.oa_profiles (elo_werewolf desc);
+create index if not exists idx_oa_profiles_lua on public.oa_profiles (lua desc);
 create index if not exists idx_match_history_player on public.match_history (player_id, created_at desc);
 create index if not exists idx_matchmaking_queue_lookup on public.matchmaking_queue (game_type, stake, status, created_at);
 
 -- ====================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ====================================================================
-alter table public.profiles enable row level security;
+alter table public.oa_profiles enable row level security;
 alter table public.match_history enable row level security;
 alter table public.matchmaking_queue enable row level security;
 alter table public.transactions enable row level security;
 
 -- Cho phép đọc công khai hồ sơ và bảng xếp hạng
-drop policy if exists "Allow public read on profiles" on public.profiles;
-create policy "Allow public read on profiles" on public.profiles
+drop policy if exists "Allow public read on profiles" on public.oa_profiles;
+create policy "Allow public read on profiles" on public.oa_profiles
   for select using (true);
 
 -- Chỉ được ghi hồ sơ của chính mình
-drop policy if exists "Allow upsert on profiles" on public.profiles;
-drop policy if exists "Own profile insert" on public.profiles;
-create policy "Own profile insert" on public.profiles for insert to authenticated
+drop policy if exists "Allow upsert on profiles" on public.oa_profiles;
+drop policy if exists "Own profile insert" on public.oa_profiles;
+create policy "Own profile insert" on public.oa_profiles for insert to authenticated
   with check (auth.uid()::text = id);
-drop policy if exists "Own profile update" on public.profiles;
-create policy "Own profile update" on public.profiles for update to authenticated
+drop policy if exists "Own profile update" on public.oa_profiles;
+create policy "Own profile update" on public.oa_profiles for update to authenticated
   using (auth.uid()::text = id) with check (auth.uid()::text = id);
 
 -- Lịch sử đấu: ai cũng đọc được, chỉ ghi trận của chính mình
@@ -147,7 +147,7 @@ end;
 $$ language plpgsql;
 
 create or replace trigger trg_profiles_updated_at
-before update on public.profiles
+before update on public.oa_profiles
 for each row execute function public.handle_updated_at();
 
 create or replace trigger trg_matchmaking_updated_at
@@ -211,7 +211,7 @@ begin
 
   -- Khóa dòng người dùng để tránh race-condition (double-claim)
   select * into v_profile
-  from public.profiles
+  from public.oa_profiles
   where id = p_user_id
   for update;
 
@@ -244,7 +244,7 @@ begin
   v_new_lua := v_profile.lua + v_allowance;
 
   -- Cập nhật số dư Lúa và thời điểm nhận
-  update public.profiles
+  update public.oa_profiles
   set
     lua = v_new_lua,
     last_daily_claim = now(),
@@ -321,7 +321,7 @@ end;
 $$ language plpgsql security definer;
 
 create or replace trigger trg_profiles_auto_daily_claim
-before update on public.profiles
+before update on public.oa_profiles
 for each row execute function public.trg_fn_auto_claim_daily_on_sync();
 
 -- 5. Hàm chạy định kỳ tự động phát Lúa mỗi ngày cho toàn bộ người chơi (Scheduled Cron)
@@ -338,7 +338,7 @@ declare
 begin
   for r in
     select id, lua, elo_chess, elo_xiangqi, elo_werewolf
-    from public.profiles
+    from public.oa_profiles
     where last_daily_claim is null or (now() - last_daily_claim) >= interval '24 hours'
     for update
   loop
@@ -351,7 +351,7 @@ begin
     v_tier_name := public.get_elo_tier_name(v_max_elo);
     v_new_lua := r.lua + v_allowance;
 
-    update public.profiles
+    update public.oa_profiles
     set
       lua = v_new_lua,
       last_daily_claim = now(),
@@ -386,8 +386,8 @@ $$ language plpgsql security definer;
 -- ====================================================================
 -- MIGRATION 2026-10: CỘT ELO CÒN THIẾU (app đồng bộ các cột này)
 -- ====================================================================
-alter table public.profiles add column if not exists elo_arcade integer default 1200;
-alter table public.profiles add column if not exists elo_uno integer default 1200;
+alter table public.oa_profiles add column if not exists elo_arcade integer default 1200;
+alter table public.oa_profiles add column if not exists elo_uno integer default 1200;
 
 
 -- Nếu bảng đã tồn tại với check cũ, nới rộng game_type:

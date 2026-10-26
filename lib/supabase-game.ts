@@ -39,7 +39,7 @@ export interface SupabaseLeaderboardItem {
 }
 
 /**
- * Đồng bộ hồ sơ người dùng lên bảng `profiles` của Supabase
+ * Đồng bộ hồ sơ người dùng lên bảng `oa_profiles` của Supabase
  */
 // Columns the remote table turned out not to have; skipped on later syncs.
 const missingProfileColumns = new Set<string>();
@@ -74,7 +74,7 @@ export async function syncProfileToSupabase(user: UserProfile): Promise<boolean>
   try {
     // Drop unknown columns one at a time instead of losing the whole profile.
     for (let attempt = 0; attempt < 8; attempt++) {
-      const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "id" });
+      const { error } = await supabase.from("oa_profiles").upsert(payload, { onConflict: "id" });
       if (!error) return true;
       const col =
         error.message.match(/'([a-z_]+)' column/)?.[1] ?? error.message.match(/column "?([a-z_]+)"? .*does not exist/)?.[1];
@@ -96,7 +96,7 @@ export async function syncProfileToSupabase(user: UserProfile): Promise<boolean>
 export async function fetchProfileFromSupabase(id: string): Promise<Partial<UserProfile> | null> {
   if (!isSupabaseConfigured) return null;
   try {
-    const { data, error } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
+    const { data, error } = await supabase.from("oa_profiles").select("*").eq("id", id).maybeSingle();
     if (error || !data) return null;
     const row = data as Record<string, any>;
     const profile: Partial<UserProfile> = {};
@@ -140,7 +140,7 @@ export async function fetchLeaderboardFromSupabase(
     if (category === "lua") orderColumn = "lua";
 
     const { data, error } = await supabase
-      .from("profiles")
+      .from("oa_profiles")
       .select("*")
       .order(orderColumn, { ascending: false })
       .limit(30);

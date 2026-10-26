@@ -11,16 +11,16 @@
 -- --------------------------------------------------------------------
 -- 1. SIẾT RLS CHO CÁC BẢNG CŨ (bỏ các policy "using (true)")
 -- --------------------------------------------------------------------
-drop policy if exists "Allow upsert on profiles" on public.profiles;
+drop policy if exists "Allow upsert on profiles" on public.oa_profiles;
 drop policy if exists "Allow insert on match_history" on public.match_history;
 drop policy if exists "Allow all on matchmaking_queue" on public.matchmaking_queue;
 drop policy if exists "Allow all on transactions" on public.transactions;
 
-drop policy if exists "Own profile insert" on public.profiles;
-create policy "Own profile insert" on public.profiles for insert to authenticated
+drop policy if exists "Own profile insert" on public.oa_profiles;
+create policy "Own profile insert" on public.oa_profiles for insert to authenticated
   with check (auth.uid()::text = id);
-drop policy if exists "Own profile update" on public.profiles;
-create policy "Own profile update" on public.profiles for update to authenticated
+drop policy if exists "Own profile update" on public.oa_profiles;
+create policy "Own profile update" on public.oa_profiles for update to authenticated
   using (auth.uid()::text = id) with check (auth.uid()::text = id);
 
 drop policy if exists "Own match insert" on public.match_history;
