@@ -247,3 +247,23 @@ html[data-reduced-motion] *::after {
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+
+/* Lite mode (lib/motion.tsx): enabled automatically on machines that cannot hold ~35 fps.
+   Backdrop blur re-samples everything behind it every frame, which is what hurts on Windows GPUs. */
+html[data-perf="lite"] [class*="backdrop-blur"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html[data-perf="lite"] .modal-shell,
+html[data-perf="lite"] .glass {
+  background-color: rgb(10 10 12 / 0.97);
+}
+html[data-perf="lite"] [style*="blur("] {
+  filter: none !important;
+}
+html[data-perf="lite"] .animate-pulse,
+html[data-perf="lite"] .animate-ping,
+html[data-perf="lite"] .animate-bounce,
+html[data-perf="lite"] .animate-spin-slow {
+  animation: none !important;
+}

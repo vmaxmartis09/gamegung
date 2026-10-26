@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, useSyncExternalStore, type ReactNode } from "react";
+import { createElement, useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { MotionConfig } from "framer-motion";
 
 /**
@@ -62,9 +62,75 @@ export function setMotionPref(next: MotionPref) {
   listeners.forEach((fn) => fn());
 }
 
-/** Call once on the client so the CSS attribute matches the stored preference. */
+/* ------------------------------ Lite perf mode ----------------------------- */
+
+const PERF_KEY = "gg-perf";
+
+/**
+ * Lite mode (`html[data-perf="lite"]`, see globals.css) drops the effects that cost the most GPU
+ * time: backdrop blur, filter blur and decorative infinite loops. It switches on by itself when
+ * the machine cannot keep up, and the choice is remembered so the next visit starts light.
+ */
+export function enablePerfLite() {
+  if (typeof document === "undefined") return;
+  if (document.documentElement.dataset.perf === "lite") return;
+  document.documentElement.dataset.perf = "lite";
+  try {
+    window.localStorage.setItem(PERF_KEY, "lite");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Set `localStorage["gg-perf"] = "full"` to opt out of automatic lite mode. */
+const perfLocked = () => {
+  try {
+    return window.localStorage.getItem(PERF_KEY) === "full";
+  } catch {
+    return false;
+  }
+};
+
+/** Call once on the client so the CSS attributes match the stored preferences. */
 export function initMotion() {
   applyAttribute();
+  if (perfLocked()) return;
+  let remembered = false;
+  try {
+    remembered = window.localStorage.getItem(PERF_KEY) === "lite";
+  } catch {
+    /* ignore */
+  }
+  if (remembered || !getGpuInfo().hardware) enablePerfLite();
+}
+
+/**
+ * Measures real frame times for a few seconds while `active` (e.g. entering a game) and turns
+ * lite mode on if the page averages worse than ~35 fps.
+ */
+export function usePerfWatchdog(active: boolean) {
+  useEffect(() => {
+    if (!active || perfLocked() || document.documentElement.dataset.perf === "lite") return;
+    let raf = 0;
+    let last = 0;
+    let frames = 0;
+    let total = 0;
+    const loop = (now: number) => {
+      if (last) {
+        const dt = now - last;
+        // Skip gaps from backgrounded tabs and the first frames while the page settles.
+        if (dt < 250 && ++frames > 20) total += dt;
+      }
+      last = now;
+      if (frames - 20 >= 150) {
+        if (total / 150 > 28) enablePerfLite();
+        return;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [active]);
 }
 
 export function subscribeReducedMotion(callback: () => void) {
@@ -167,6 +233,7 @@ export function createAdaptiveQuality(minScale = 0.5, budgetMs = 24): AdaptiveQu
       if (slowFrames < 40 || scale <= minScale) return false;
 
       scale = Math.max(minScale, +(scale * 0.8).toFixed(3));
+      enablePerfLite();
       slowFrames = 0;
       warmup = 30;
       avg = 16.7;

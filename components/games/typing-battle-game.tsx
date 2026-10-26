@@ -827,14 +827,15 @@ export function TypingBattleGame() {
       ended = false;
 
     const loop = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
+      // Real elapsed time, simulated in <=50ms slices: a slow frame no longer slows the game down.
+      const dt = Math.min(0.2, (now - last) / 1000);
       last = now;
       clock += dt;
       acc += dt;
 
       const g = gRef.current;
       if (g && phaseRef.current === "playing") {
-        update(g, dt, hooks);
+        for (let rem = dt; rem > 0 && g.phase !== "over"; rem -= 0.05) update(g, Math.min(rem, 0.05), hooks);
         if (g.phase === "over" && !ended) {
           ended = true;
           const w = g.winner;
@@ -854,7 +855,8 @@ export function TypingBattleGame() {
 
       drawFx(ctx, bg, stars, phaseRef.current === "setup" ? null : g, clock);
 
-      if (acc > 0.016) {
+      // The canvas repaints every frame by itself; React (HUD, skill bar) only needs ~12 updates/s.
+      if (acc > 0.08) {
         acc = 0;
         force();
       }

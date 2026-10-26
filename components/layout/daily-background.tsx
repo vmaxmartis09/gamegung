@@ -35,7 +35,11 @@ const MOTION_LABELS: Record<MotionPref, string> = {
 };
 const MOTION_ORDER: MotionPref[] = ["full", "system", "reduced"];
 
-export function DailyBackground() {
+/**
+ * `inGame` swaps the animated backdrop for a still one: a full-screen shader running behind a live
+ * match steals GPU time from the game and forces every backdrop-blur layer to re-blur each frame.
+ */
+export function DailyBackground({ inGame = false }: { inGame?: boolean }) {
   const ribbonRef = useRef<InterferenceRibbonsHandle>(null);
   const [variant] = useState<Variant>(pickVariant);
   const currentUser = useAppStore((s) => s.currentUser);
@@ -86,19 +90,20 @@ export function DailyBackground() {
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
       >
-        {variant === "blackhole" && (
+        {inGame && <Aurora still />}
+        {!inGame && variant === "blackhole" && (
           <BlackHole className="size-full opacity-80" speed={1} zoom={2.2} orbSize={0.72} bloom={1.1} backgroundColor="#060606" dpr={1.5} />
         )}
-        {variant === "ascii" && (
+        {!inGame && variant === "ascii" && (
           <AsciiRipple className="absolute inset-0" color="rgba(255,255,255,0.10)" activeColor="#e5e5e5" />
         )}
-        {variant === "aurora" && (
+        {!inGame && variant === "aurora" && (
           <>
             <Aurora />
             <TypographicWall />
           </>
         )}
-        {variant === "ribbons" && <InterferenceRibbons
+        {!inGame && variant === "ribbons" && <InterferenceRibbons
           ref={ribbonRef}
           colors={theme.colors}
           backgroundColor="#060606"

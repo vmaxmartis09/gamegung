@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { AppMotionConfig, initMotion } from "@/lib/motion";
+import { AppMotionConfig, initMotion, usePerfWatchdog } from "@/lib/motion";
 import { useShallow } from "zustand/react/shallow";
 import { MessageCircle, Trophy, UserRound, Wallet, X } from "lucide-react";
 import { useAppStore } from "@/lib/store";
@@ -43,6 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initMotion();
   }, []);
+  usePerfWatchdog(inGame);
   // Freeze looping CSS animations while the tab is hidden.
   useEffect(() => {
     const sync = () => document.documentElement.toggleAttribute("data-tab-hidden", document.hidden);
@@ -51,7 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
   return (
     <AppMotionConfig>
-      <DailyBackground />
+      <DailyBackground inGame={inGame} />
       {inGame ? (
         <main className={cn("relative z-10 flex h-dvh w-full flex-col overflow-hidden transition-[padding] duration-300 ease-out", chatPad)}>{children}</main>
       ) : (
