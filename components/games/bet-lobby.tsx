@@ -22,35 +22,36 @@ export function lobbyDeadline(betId: string): number | null {
   return null;
 }
 
-type LobbyPeer = { ready?: boolean; readyAt?: number };
+type LobbyPeer = { ready?: boolean; startAt?: number };
 
 const COUNTDOWN = 3;
 
 /**
- * Waiting room for an accepted bet: both players meet here, each presses "Sẵn sàng",
- * and the table opens for both once everyone is ready.
+ * Phòng chờ của kèo đã nhận: người nhận kèo vào là sẵn sàng luôn, chủ kèo bấm "Bắt đầu"
+ * thì cả hai máy đếm ngược tới cùng một mốc rồi vào bàn.
  */
 export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: BetOpp) => void; onLeave: () => void }) {
   const myId = useAppStore((s) => s.currentUser.id);
   const myName = useAppStore((s) => s.currentUser.username);
   const myAvatar = useAppStore((s) => s.currentUser.avatar);
+  const bet = useAppStore((s) => {
+    for (const list of Object.values(s.messages)) {
+      const b = list.find((m) => m.betChallenge?.id === bo.room)?.betChallenge;
+      if (b) return b;
+    }
+    return null;
+  });
+  // Chủ phòng = chủ kèo. Không tìm thấy kèo thì coi như mình là chủ phòng.
+  const isHost = bet ? bet.creatorId === myId : true;
   const [peers, setPeers] = useState<Record<string, LobbyPeer>>({});
-  const [myReady, setMyReady] = useState(false);
+  const [myStartAt, setMyStartAt] = useState<number | null>(null);
   const [count, setCount] = useState<number | null>(null);
-  const myReadyAt = useRef(0);
   const startedRef = useRef(false);
   const chRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const startRef = useRef(onStart);
   startRef.current = onStart;
   const leaveRef = useRef(onLeave);
   leaveRef.current = onLeave;
-  const betStatus = useAppStore((s) => {
-    for (const list of Object.values(s.messages)) {
-      const b = list.find((m) => m.betChallenge?.id === bo.room)?.betChallenge;
-      if (b) return b.status;
-    }
-    return null;
-  });
   const [left, setLeft] = useState<number | null>(null);
 
   // Hết 9 phút mà chưa vào ván: huỷ kèo (hoàn Lúa cả hai bên) và đóng phòng chờ.
@@ -71,8 +72,8 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
 
   // Kèo đã bị huỷ ở máy kia: đóng phòng chờ.
   useEffect(() => {
-    if (betStatus === "cancelled" && !startedRef.current) leaveRef.current();
-  }, [betStatus]);
+    if (bet?.status === "cancelled" && !startedRef.current) leaveRef.current();
+  }, [bet?.status]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !myId) return;
@@ -84,7 +85,8 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
       for (const [key, metas] of Object.entries(state)) next[key] = metas[metas.length - 1] ?? {};
       setPeers(next);
     }).subscribe((status) => {
-      if (status === "SUBSCRIBED") void ch.track({ ready: false });
+      // Vào phòng là sẵn sàng; chủ phòng còn phải bấm Bắt đầu.
+      if (status === "SUBSCRIBED") void ch.track({ ready: true });
     });
     return () => {
       chRef.current = null;
@@ -92,21 +94,26 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
     };
   }, [bo.room, myId]);
 
-  const toggleReady = () => {
-    const next = !myReady;
-    setMyReady(next);
-    myReadyAt.current = next ? Date.now() : 0;
-    void chRef.current?.track({ ready: next, readyAt: myReadyAt.current });
+  const oppHere = !!peers[bo.oppId];
+  const startAt = isHost ? myStartAt : peers[bo.oppId]?.startAt ?? null;
+
+  const hostStart = () => {
+    if (!oppHere || myStartAt) return;
+    const at = Date.now() + COUNTDOWN * 1000;
+    setMyStartAt(at);
+    void chRef.current?.track({ ready: true, startAt: at });
   };
 
-  const oppHere = !!peers[bo.oppId];
-  const oppReady = !!peers[bo.oppId]?.ready;
-  const bothReady = myReady && oppHere && oppReady;
-  // Cả hai máy đếm ngược tới cùng một mốc: lúc người sẵn sàng sau cùng + COUNTDOWN giây.
-  const startAt = bothReady ? Math.max(myReadyAt.current, peers[bo.oppId]?.readyAt ?? 0) + COUNTDOWN * 1000 : null;
+  // Đối thủ rời phòng trước khi đếm xong: chủ phòng huỷ đếm ngược.
+  useEffect(() => {
+    if (isHost && myStartAt && !oppHere && !startedRef.current) {
+      setMyStartAt(null);
+      void chRef.current?.track({ ready: true });
+    }
+  }, [isHost, myStartAt, oppHere]);
 
   useEffect(() => {
-    if (startAt === null) return setCount(null);
+    if (!startAt) return setCount(null);
     const tick = () => {
       const left = Math.ceil((startAt - Date.now()) / 1000);
       if (left <= 0) {
@@ -125,7 +132,7 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startAt]);
 
-  const slot = (name: string, avatar: string, here: boolean, ready: boolean, you: boolean) => (
+  const slot = (name: string, avatar: string, here: boolean, host: boolean, you: boolean) => (
     <div className="flex flex-1 flex-col items-center gap-2 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-3">
       <UserAvatar src={avatar} name={name} className="size-14" />
       <p className="max-w-full truncate text-sm font-semibold text-ink-100">
@@ -135,54 +142,57 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
       <span
         className={cn(
           "flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
-          ready ? "bg-success/15 text-success" : here ? "bg-white/10 text-ink-200" : "bg-white/5 text-ink-400"
+          here ? "bg-success/15 text-success" : "bg-white/5 text-ink-400"
         )}
       >
-        {ready ? <Check className="size-3" /> : <Hourglass className="size-3" />}
-        {ready ? "Sẵn sàng" : here ? "Đã vào phòng" : "Chưa vào phòng"}
+        {here ? <Check className="size-3" /> : <Hourglass className="size-3" />}
+        {!here ? "Chưa vào phòng" : host ? "Chủ phòng" : "Sẵn sàng"}
       </span>
     </div>
   );
+
+  const status =
+    count !== null
+      ? `Bắt đầu sau ${count}…`
+      : !oppHere
+        ? `Đang chờ ${bo.name} vào phòng…`
+        : isHost
+          ? `${bo.name} đã sẵn sàng. Bấm Bắt đầu để vào bàn.`
+          : `Đang chờ ${bo.name} (chủ phòng) bấm Bắt đầu…`;
 
   return (
     <div role="dialog" aria-label="Phòng chờ" className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md space-y-4 rounded-2xl border border-white/[0.1] bg-ink-950 p-5 shadow-2xl">
         <div className="text-center">
           <h2 className="font-display text-lg font-extrabold text-white">Phòng chờ</h2>
-          <p className="text-xs text-ink-300">Kèo {bo.stake} Lúa · cả hai bấm Sẵn sàng để bắt đầu</p>
+          <p className="text-xs text-ink-300">Kèo {bo.stake} Lúa · chủ phòng bấm Bắt đầu khi đủ người</p>
           {left !== null && count === null && (
             <p className="mt-1 text-[11px] text-ink-400">
-              Tự huỷ và hoàn Lúa sau {Math.floor(left / 60000)}:{String(Math.floor((left % 60000) / 1000)).padStart(2, "0")} nếu chưa cùng sẵn sàng
+              Tự huỷ và hoàn Lúa sau {Math.floor(left / 60000)}:{String(Math.floor((left % 60000) / 1000)).padStart(2, "0")} nếu chưa bắt đầu
             </p>
           )}
         </div>
         <div className="flex items-stretch gap-3">
-          {slot(myName, myAvatar, true, myReady, true)}
-          {slot(bo.name, bo.avatar, oppHere, oppReady, false)}
+          {slot(myName, myAvatar, true, isHost, true)}
+          {slot(bo.name, bo.avatar, oppHere, !isHost, false)}
         </div>
         <p className="min-h-5 text-center text-xs text-ink-300" aria-live="polite">
-          {count !== null
-            ? `Bắt đầu sau ${count}…`
-            : !oppHere
-              ? `Đang chờ ${bo.name} vào phòng…`
-              : myReady
-                ? `Đang chờ ${bo.name} sẵn sàng…`
-                : oppReady
-                  ? `${bo.name} đã sẵn sàng, đến lượt bạn.`
-                  : "Bấm Sẵn sàng khi bạn đã chuẩn bị xong."}
+          {status}
         </p>
         <div className="flex gap-2">
           <button type="button" onClick={onLeave} className="btn-ghost flex items-center gap-1.5 px-3 py-2 text-sm">
             <LogOut className="size-4" /> Rời phòng
           </button>
-          <button
-            type="button"
-            onClick={toggleReady}
-            disabled={count !== null}
-            className={cn("btn-accent flex flex-1 items-center justify-center gap-1.5 py-2 text-sm font-bold disabled:opacity-60", myReady && "opacity-90")}
-          >
-            <Play className="size-4" /> {myReady ? "Huỷ sẵn sàng" : "Sẵn sàng"}
-          </button>
+          {isHost && (
+            <button
+              type="button"
+              onClick={hostStart}
+              disabled={!oppHere || count !== null}
+              className="btn-accent flex flex-1 items-center justify-center gap-1.5 py-2 text-sm font-bold disabled:opacity-50"
+            >
+              <Play className="size-4" /> Bắt đầu
+            </button>
+          )}
         </div>
       </div>
     </div>
