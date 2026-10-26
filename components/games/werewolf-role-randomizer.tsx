@@ -497,7 +497,7 @@ export function WerewolfRoleRandomizer({
                     <CardBackArt />
                     <div className="absolute bottom-6 inset-x-6 text-center pointer-events-none">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 backdrop-blur-md px-3.5 py-1 text-xs font-bold text-white border border-white/20">
-                        <Sparkles className="size-3 text-amber-300" /> Lật
+                        <Sparkles className="size-3 text-amber-300" /> Nhấn để mở xem
                       </span>
                     </div>
                   </div>
@@ -577,47 +577,22 @@ export function WerewolfRoleRandomizer({
                 </motion.div>
               </div>
 
-              {/* Privacy Controls & Peek Button (Chống nhìn lén) */}
-              <div className="mt-5 w-full flex flex-col items-center gap-2.5">
-                <div className="flex items-center gap-2">
-                  {/* Hold to Peek (Hé nhìn) */}
-                  <button
-                    type="button"
-                    onMouseDown={() => setIsPeeking(true)}
-                    onMouseUp={() => setIsPeeking(false)}
-                    onTouchStart={() => setIsPeeking(true)}
-                    onTouchEnd={() => setIsPeeking(false)}
-                    className="flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/15 px-3 py-2 text-xs font-bold text-white border border-white/10 active:scale-95 transition-all select-none"
-                    title="Giữ nút để hé nhìn bài bí mật"
-                  >
-                    <Eye className="size-4 text-amber-400" />
-                  </button>
-
-                  {/* Toggle Flip Button */}
-                  <button
-                    type="button"
-                    onClick={handleFlip}
-                    title={isFlipped ? "Úp thẻ lại" : "Lật mở thẻ"}
-                    className="flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/15 px-3 py-2 text-xs font-bold text-white border border-white/10 transition-all"
-                  >
-                    <RotateCcw className="size-4 text-cyan-400" />
-                  </button>
-
-                  {/* Quick Hide Panic Button */}
-                  {cardShown && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsFlipped(false);
-                        setIsPeeking(false);
-                      }}
-                      title="Che bài ngay" className="flex items-center gap-1.5 rounded-xl bg-red-950/60 hover:bg-red-900/60 px-3 py-2 text-xs font-bold text-red-300 border border-red-500/30 transition-all"
-                    >
-                      <EyeOff className="size-4" />
-                    </button>
+              {/* Một nút duy nhất: nhấn để mở xem, nhấn lần nữa để che lại */}
+              <div className="mt-5 w-full flex justify-center">
+                <button
+                  type="button"
+                  onClick={handleFlip}
+                  aria-pressed={cardShown}
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold border transition-all active:scale-95",
+                    cardShown
+                      ? "bg-red-950/60 hover:bg-red-900/60 text-red-200 border-red-500/30"
+                      : "bg-white/10 hover:bg-white/15 text-white border-white/15"
                   )}
-                </div>
-
+                >
+                  {cardShown ? <EyeOff className="size-4" /> : <Eye className="size-4 text-amber-400" />}
+                  {cardShown ? "Che lại" : "Mở xem"}
+                </button>
               </div>
             </div>
           )}
@@ -628,7 +603,7 @@ export function WerewolfRoleRandomizer({
           {stage === "revealed" && initialMode === "roulette" ? (
             <p className="flex items-center gap-2 text-sm font-semibold text-white/70">
               <Moon className="size-4 text-violet-300" />
-              Quản trò sẽ mở đêm đầu tiên sau {autoStart}s — giữ nút mắt để xem chức năng
+              Quản trò sẽ mở đêm đầu tiên sau {autoStart}s — nhấn Mở xem để xem vai, Che lại để giấu
             </p>
           ) : null}
         </div>
