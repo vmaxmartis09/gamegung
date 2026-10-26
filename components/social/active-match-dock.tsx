@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { openBetLobby } from "@/lib/bet-nav";
 import { AnimatePresence, motion } from "framer-motion";
 import { Eye, X } from "lucide-react";
@@ -52,7 +52,6 @@ function myBets(messages: Record<string, { betChallenge?: BetChallenge }[]>, myI
  */
 export function ActiveMatchDock() {
   const pathname = usePathname() || "";
-  const q = useSearchParams();
   const myId = useAppStore((s) => s.currentUser.id);
   const messages = useAppStore((s) => s.messages);
   const rawSessions = useSessionStore((s) => s.sessions);
@@ -142,14 +141,8 @@ export function ActiveMatchDock() {
     return out.filter((e) => !dismissed.includes(e.id));
   }, [messages, rawSessions, myId, dismissed, peek]);
 
-  // Đang ở đúng bàn đó: không cần nhắc.
-  const here = (e: Entry) => {
-    const [path, query] = e.href.split("?");
-    if (pathname !== path) return false;
-    const p = new URLSearchParams(query ?? "");
-    const id = p.get("bet") ?? p.get("match");
-    return id ? q?.get("bet") === id || q?.get("match") === id : true;
-  };
+  // Đang ở trang của game đó (trang game có thể xoá ?bet khỏi URL khi vào bàn): không nhắc game đó nữa.
+  const here = (e: Entry) => pathname === e.href.split("?")[0];
   const shown = entries.filter((e) => !here(e)).slice(0, 2);
 
   const dismiss = (id: string) => {
