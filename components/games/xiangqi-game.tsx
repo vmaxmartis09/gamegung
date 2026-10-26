@@ -63,7 +63,7 @@ interface Settings {
   ranked: boolean;
   theme: ThemeId;
 }
-const DEFAULTS: Settings = { mode: "ai", level: "medium", color: 1, time: "10+5", ranked: true, theme: "wood" };
+const DEFAULTS: Settings = { mode: "friend", level: "medium", color: 1, time: "10+5", ranked: true, theme: "wood" };
 
 interface PvpInfo {
   /** Chỉ xem (khán giả hoặc trận đã xong): không gửi nước, không tính kèo. */
@@ -105,7 +105,8 @@ export function XiangqiGame() {
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   useEffect(() => {
     try {
-      setSettings({ ...DEFAULTS, ...JSON.parse(localStorage.getItem("oa-xq-settings") || "{}") });
+      // Luôn mở ở chế độ Mời bạn; các thiết lập khác giữ như lần trước.
+      setSettings({ ...DEFAULTS, ...JSON.parse(localStorage.getItem("oa-xq-settings") || "{}"), mode: "friend" });
     } catch {}
   }, []);
   const update = (patch: Partial<Settings>) =>
@@ -567,7 +568,7 @@ export function XiangqiGame() {
     setThinking(false);
     if (pvp) {
       setPvp(null);
-      setSettings((s) => ({ ...s, mode: "ai" }));
+      setSettings((s) => ({ ...s, mode: "friend" }));
       window.history.replaceState(null, "", window.location.pathname);
     }
     setPhase("setup");
@@ -773,7 +774,7 @@ export function XiangqiGame() {
               <h2 className="font-display text-lg font-extrabold">Thiết lập ván</h2>
               <div>
                 <span className="label">Chế độ</span>
-                <Segmented value={settings.mode} onChange={(v) => update({ mode: v })} options={[{ value: "ai", label: "Đấu Engine" }, { value: "local", label: "2 người 1 máy" }, { value: "friend", label: "Mời bạn" }]} />
+                <Segmented value={settings.mode} onChange={(v) => update({ mode: v })} options={[{ value: "friend", label: "Mời bạn" }, { value: "ai", label: "Đấu Engine" }, { value: "local", label: "2 người 1 máy" }]} />
               </div>
               {isAi && (
                 <>

@@ -33,7 +33,7 @@ interface Settings {
   color: Side | 0;
   ranked: boolean;
 }
-const DEFAULTS: Settings = { mode: "ai", level: "medium", color: 1, ranked: true };
+const DEFAULTS: Settings = { mode: "friend", level: "medium", color: 1, ranked: true };
 
 interface PvpInfo {
   /** Chỉ xem (khán giả hoặc trận đã xong): không gửi nước, không tính kèo. */
@@ -155,7 +155,8 @@ export function CaroGame() {
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   useEffect(() => {
     try {
-      setSettings({ ...DEFAULTS, ...JSON.parse(localStorage.getItem("oa-caro-settings") || "{}") });
+      // Luôn mở ở chế độ Mời bạn; các thiết lập khác giữ như lần trước.
+      setSettings({ ...DEFAULTS, ...JSON.parse(localStorage.getItem("oa-caro-settings") || "{}"), mode: "friend" });
     } catch {}
   }, []);
   const update = (patch: Partial<Settings>) =>
@@ -500,7 +501,7 @@ export function CaroGame() {
             <div className="panel space-y-3 p-4">
               <div>
                 <span className="label">Chế độ</span>
-                <Segmented value={settings.mode} onChange={(v) => update({ mode: v })} options={[{ value: "ai", label: "Đấu AI" }, { value: "local", label: "2 người 1 máy" }, { value: "friend", label: "Mời bạn" }]} />
+                <Segmented value={settings.mode} onChange={(v) => update({ mode: v })} options={[{ value: "friend", label: "Mời bạn" }, { value: "ai", label: "Đấu AI" }, { value: "local", label: "2 người 1 máy" }]} />
               </div>
               {isAi && (
                 <>

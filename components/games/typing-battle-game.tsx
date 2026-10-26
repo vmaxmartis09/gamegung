@@ -731,8 +731,9 @@ export function TypingBattleGame() {
     useMatchSettlement("typing");
 
   const [phase, setPhase] = useState<"setup" | "playing" | "over">("setup");
-  const [mode, setMode] = useState<Mode>(2);
-  const [opp, setOpp] = useState<OppKind>("bot");
+  // Mời bạn chỉ có Đua gõ, nên mặc định mở ở chế độ đó.
+  const [mode, setMode] = useState<Mode>(3);
+  const [opp, setOpp] = useState<OppKind>("friend");
   const vsBot = opp === "bot";
   const [diff, setDiff] = useState(3);
   const [stake, setStake] = useState(0);
@@ -1280,9 +1281,9 @@ type OppKind = "bot" | "local" | "friend";
 type FriendInfo = { id: string; name: string; avatar: string; betId: string; stake: number; inGame?: boolean };
 
 const OPPS: { value: OppKind; icon: typeof Bot; name: string; desc: string }[] = [
+  { value: "friend", icon: UserPlus, name: "Mời bạn", desc: "Gửi kèo qua chat, bạn nhận là vào bàn" },
   { value: "bot", icon: Bot, name: "Đấu máy", desc: "Tính điểm xếp hạng, có thể cược Lúa" },
   { value: "local", icon: Keyboard, name: "Cùng máy", desc: "Hai người chung một bàn phím" },
-  { value: "friend", icon: UserPlus, name: "Mời bạn", desc: "Gửi kèo qua chat, bạn nhận là vào bàn" },
 ];
 
 const DIFFS = [

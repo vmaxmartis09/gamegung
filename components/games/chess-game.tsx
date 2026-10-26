@@ -161,11 +161,12 @@ interface Settings {
   theme: ThemeId;
 }
 
-const DEFAULT_SETTINGS: Settings = { mode: "ai", level: "medium", color: "w", time: "10+0", ranked: true, theme: "tournament" };
+const DEFAULT_SETTINGS: Settings = { mode: "friend", level: "medium", color: "w", time: "10+0", ranked: true, theme: "tournament" };
 
 function loadSettings(): Settings {
   try {
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("oa-chess-settings") || "{}") };
+    // Luôn mở ở chế độ Mời bạn; các thiết lập khác giữ như lần trước.
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("oa-chess-settings") || "{}"), mode: "friend" };
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -962,9 +963,9 @@ export function ChessGame() {
                   value={settings.mode}
                   onChange={(v) => updateSettings({ mode: v })}
                   options={[
+                    { value: "friend", label: "Mời bạn" },
                     { value: "ai", label: "Đấu Engine" },
                     { value: "local", label: "2 người 1 máy" },
-                    { value: "friend", label: "Mời bạn" },
                   ]}
                 />
               </div>
