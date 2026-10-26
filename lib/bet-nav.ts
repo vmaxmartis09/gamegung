@@ -2,7 +2,7 @@ import type { BetChallenge } from "@/lib/store";
 import { GAME_BY_ID, type GameId } from "@/components/art/game-art";
 
 /** Game có phòng chờ kèo (?bet=…). */
-const LOBBY_GAMES = new Set(["chess", "xiangqi", "caro", "typing"]);
+const LOBBY_GAMES = new Set(["chess", "xiangqi", "caro", "flip", "typing"]);
 
 export function betHref(b: Pick<BetChallenge, "id" | "gameType" | "stake">): string | null {
   if (!LOBBY_GAMES.has(b.gameType)) return null;

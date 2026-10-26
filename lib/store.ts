@@ -71,6 +71,7 @@ export interface UserProfile {
   eloUno?: number;
   eloTyping?: number;
   eloCaro?: number;
+  eloFlip?: number;
   stats: {
     chess: UserStats;
     xiangqi: UserStats;
@@ -79,6 +80,7 @@ export interface UserProfile {
     uno?: UserStats;
     typing?: UserStats;
     caro?: UserStats;
+    flip?: UserStats;
   };
   badges: string[]; // List of unlocked badge IDs
   equippedBadges: string[]; // Up to 3 showcase badges
@@ -485,6 +487,8 @@ export const useAppStore = create<AppState>()(
             ? "eloTyping"
             : gameType === "caro"
             ? "eloCaro"
+            : gameType === "flip"
+            ? "eloFlip"
             : "eloWerewolf";
         const currentElo = user[currentEloKey] || 1200;
         const statsObj: UserStats = user.stats[gameType] || { wins: 0, losses: 0, draws: 0, games: 0 };
@@ -838,6 +842,7 @@ export const useAppStore = create<AppState>()(
           uno: "Bài UNO 🎴",
           typing: "Typing Battle ⌨️",
           caro: "Cờ Caro ❌",
+          flip: "Lật Thẻ Đối Kháng 🃏",
         };
 
         const targetFriend = targetId

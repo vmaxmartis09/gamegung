@@ -37,10 +37,11 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peers, myStats, jitter, visits]);
   // Bố cục ngẫu nhiên mỗi lần tải trang; ô to nhất dành cho game được truy cập / chơi nhiều nhất.
-  const [layout] = useState(() => LAYOUTS[Math.floor(Math.random() * LAYOUTS.length)]);
+  const [layoutPick] = useState(() => Math.random());
+  const layout = LAYOUTS[GAMES.length]?.[Math.floor(layoutPick * LAYOUTS[GAMES.length].length)];
   const placed = useMemo(() => {
-    // Bố cục cho đúng 6 game; số game khác 6 thì chia đều.
-    const spans = ranked.length === layout.length ? layout : ranked.map(() => 4);
+    // Có sẵn bố cục cho 6 và 7 game; số khác thì chia đều.
+    const spans = layout && ranked.length === layout.length ? layout : ranked.map(() => 4);
     const bySize = spans.map((sp, i) => ({ sp, i, r: Math.random() })).sort((a, b) => b.sp - a.sp || a.r - b.r);
     const out: { game: GameMeta; span: number }[] = new Array(spans.length);
     bySize.forEach((slot, k) => (out[slot.i] = { game: ranked[k], span: slot.sp }));
@@ -141,16 +142,26 @@ function countVisit(id: string) {
  * Các kiểu xếp lưới 12 cột × 2 hàng (mỗi hàng cộng đủ 12), luôn vừa một màn hình.
  * Số là số cột mỗi thẻ chiếm, theo thứ tự trên lưới.
  */
-const LAYOUTS: number[][] = [
-  [6, 3, 3, 4, 4, 4],
-  [5, 4, 3, 3, 4, 5],
-  [7, 5, 3, 3, 3, 3],
-  [8, 4, 3, 3, 3, 3],
-  [4, 4, 4, 6, 3, 3],
-  [3, 6, 3, 4, 4, 4],
-  [4, 8, 3, 3, 3, 3],
-  [5, 7, 3, 3, 3, 3],
-];
+const LAYOUTS: Record<number, number[][]> = {
+  6: [
+    [6, 3, 3, 4, 4, 4],
+    [5, 4, 3, 3, 4, 5],
+    [7, 5, 3, 3, 3, 3],
+    [8, 4, 3, 3, 3, 3],
+    [4, 4, 4, 6, 3, 3],
+    [3, 6, 3, 4, 4, 4],
+    [4, 8, 3, 3, 3, 3],
+    [5, 7, 3, 3, 3, 3],
+  ],
+  7: [
+    [4, 4, 4, 3, 3, 3, 3],
+    [3, 3, 3, 3, 4, 4, 4],
+    [6, 3, 3, 3, 3, 3, 3],
+    [3, 6, 3, 3, 3, 3, 3],
+    [5, 3, 4, 3, 3, 3, 3],
+    [3, 3, 3, 3, 5, 4, 3],
+  ],
+};
 const SPAN_CLASS: Record<number, string> = {
   2: "lg:col-span-2",
   3: "lg:col-span-3",

@@ -22,7 +22,7 @@ const TYPING_IDLE_MS = 15 * 60 * 1000;
 const SWEEP_MS = 20 * 1000;
 const DISMISS_KEY = "oa-dock-dismissed-v1";
 /** Game có bàn trên server (bảng matches): xem lại được sau khi xong. */
-const SERVER_GAMES = new Set(["chess", "xiangqi", "caro"]);
+const SERVER_GAMES = new Set(["chess", "xiangqi", "caro", "flip"]);
 
 type Peek = Record<string, { status: string; winner: string | null; updated_at?: string }>;
 type Entry = { id: string; game: GameId; title: string; detail: string; href: string; watch: boolean; at: number };

@@ -15,7 +15,7 @@ import { supabase, isSupabaseConfigured } from "./supabase";
 
 export interface MatchRow {
   id: string;
-  game: "chess" | "xiangqi" | "caro";
+  game: "chess" | "xiangqi" | "caro" | "flip";
   p1: string;
   p2: string;
   p1_name: string | null;
@@ -110,7 +110,7 @@ export function describeEnd(row: MatchRow, userId: string): { outcome: "win" | "
 /** Mở (hoặc vào lại) trận cho kèo cược bạn bè; id trận = id kèo. */
 export async function openBetMatch(args: {
   id: string;
-  game: "chess" | "xiangqi" | "caro";
+  game: "chess" | "xiangqi" | "caro" | "flip";
   oppId: string;
   stake: number;
   me: { name: string; avatar: string };

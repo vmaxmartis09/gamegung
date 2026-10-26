@@ -57,6 +57,7 @@ const GAME_URL: Record<string, string> = {
   arcade: "/games/arcade",
   typing: "/games/typing",
   caro: "/games/caro",
+  flip: "/games/flip",
 };
 const GAME_LABEL: Record<string, string> = {
   chess: "Cờ Vua",
@@ -65,6 +66,7 @@ const GAME_LABEL: Record<string, string> = {
   uno: "Deadline Rush",
   arcade: "Cyber Slash",
   caro: "Cờ Caro",
+  flip: "Lật Thẻ",
 };
 
 type Tab = "general" | "private" | "profile";
@@ -550,7 +552,7 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
   const cancel = useAppStore((s) => s.cancelBetChallenge);
   const [err, setErr] = useState<string | null>(null);
   const router = useRouter();
-  const game = (["chess", "xiangqi", "werewolf", "arcade", "uno", "typing", "caro"].includes(bet.gameType) ? bet.gameType : "chess") as GameId;
+  const game = (["chess", "xiangqi", "werewolf", "arcade", "uno", "typing", "caro", "flip"].includes(bet.gameType) ? bet.gameType : "chess") as GameId;
 
   return (
     <div className="mt-2 overflow-hidden rounded-2xl border border-black/20 bg-ink-950 text-white">

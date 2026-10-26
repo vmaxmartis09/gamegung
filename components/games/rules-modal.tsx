@@ -31,6 +31,18 @@ const RULES: Record<GameType, { standard: string; items: { t: string; d: string 
       { t: "Chế độ", d: "Đấu AI (Dễ/Vừa/Khó) hoặc 2 người trên cùng máy. Có nút Đi lại." },
     ],
   },
+  flip: {
+    standard: "Lật thẻ 4x6 · 12 cặp",
+    items: [
+      { t: "Lượt chơi", d: "Mỗi lượt lật 2 thẻ úp. Hai thẻ giống nhau là một cặp: bạn ghi điểm, giữ thẻ và được lật tiếp. Khác nhau thì hai thẻ úp lại và đến lượt đối thủ." },
+      { t: "Thẻ vàng", d: "2 cặp thẻ vàng có giá trị 3 điểm, 10 cặp thẻ thường 1 điểm. Nhớ vị trí thẻ vàng để giành trước." },
+      { t: "Chuỗi liên tiếp", d: "Từ cặp thứ 2 trở đi trong một chuỗi ghép đúng liên tiếp, mỗi cặp được cộng thêm 1 điểm." },
+      { t: "Thắng", d: "Hết thẻ, ai nhiều điểm hơn thắng, bằng điểm là hoà. Sớm hơn nếu điểm bên dẫn đã không thể bị bắt kịp." },
+      { t: "Chế độ", d: "Mời bạn chơi online (có thể cược Lúa, nhiều ván trong một kèo, người ngoài vào xem được), đấu AI (Dễ/Vừa/Khó, càng khó AI càng nhớ thẻ) hoặc 2 người trên cùng máy." },
+      { t: "Online", d: "Mỗi người lật cả lượt của mình rồi mới gửi đi; đối thủ xem lại từng cặp thẻ bạn lật để cùng nhớ vị trí." },
+    ],
+    keys: ["Bấm vào thẻ để lật", "Ván xếp hạng và ván cược tính ELO & Lúa"],
+  },
   xiangqi: {
     standard: "Luật WXF",
     items: [

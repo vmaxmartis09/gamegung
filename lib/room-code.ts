@@ -5,7 +5,7 @@ import { GAME_BY_ID, type GameId } from "@/components/art/game-art";
 import { wwJoin } from "@/lib/werewolf-online";
 
 /** Game có bàn trên server: người ngoài vào được để xem. */
-const WATCHABLE = new Set(["chess", "xiangqi", "caro"]);
+const WATCHABLE = new Set(["chess", "xiangqi", "caro", "flip"]);
 
 /** Mã phòng 4 số của một kèo (kèo cũ chưa có mã thì suy ra từ id). */
 export function betCode(b: Pick<BetChallenge, "id" | "code">): string {

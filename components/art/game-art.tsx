@@ -1,7 +1,7 @@
 import React, { memo } from "react";
 import { cn } from "@/lib/utils";
 
-export type GameId = "chess" | "xiangqi" | "werewolf" | "arcade" | "uno" | "typing" | "caro";
+export type GameId = "chess" | "xiangqi" | "werewolf" | "arcade" | "uno" | "typing" | "caro" | "flip";
 
 /* ---------------------------------------------------------------------------
  * Cover illustrations (400×260). Original artwork, pure SVG, no network.
@@ -355,7 +355,31 @@ function CaroCover() {
   );
 }
 
+/* Lật Thẻ — fanned cards, one face-up */
+function FlipCover() {
+  return (
+    <>
+      <Ground id="flip" top="#5b2a73" bottom="#150a22" light="#e4a8ff" cx={0.5} cy={0.4} glow={0.3} />
+      <g strokeLinejoin="round">
+        <g transform="rotate(-18 150 150)">
+          <rect x="105" y="62" width="90" height="128" rx="12" fill="#2a1442" stroke={GOLD} strokeWidth="2.5" />
+          <rect x="116" y="73" width="68" height="106" rx="7" fill="none" stroke={GOLD} strokeOpacity="0.5" strokeWidth="1.5" strokeDasharray="5 4" />
+        </g>
+        <g transform="rotate(16 255 150)">
+          <rect x="210" y="62" width="90" height="128" rx="12" fill="#2a1442" stroke={GOLD} strokeWidth="2.5" />
+          <rect x="221" y="73" width="68" height="106" rx="7" fill="none" stroke={GOLD} strokeOpacity="0.5" strokeWidth="1.5" strokeDasharray="5 4" />
+        </g>
+        <g>
+          <rect x="155" y="48" width="90" height="128" rx="12" fill={IVORY} stroke={GOLD} strokeWidth="2.5" />
+          <path d="M200 84 l11 24 26 3 -19 18 5 26 -23 -13 -23 13 5 -26 -19 -18 26 -3z" fill={GOLD} stroke="#7a5418" strokeWidth="2" />
+        </g>
+      </g>
+    </>
+  );
+}
+
 const COVERS: Record<GameId, () => React.ReactElement> = {
+  flip: FlipCover,
   caro: CaroCover,
   chess: ChessCover,
   xiangqi: XiangqiCover,
@@ -400,6 +424,7 @@ const ICON_BG: Record<GameId | "lounge", [string, string]> = {
   uno: ["#3566d8", "#102766"],
   typing: ["#1fa9a0", "#063036"],
   caro: ["#2f6fb8", "#0a1d38"],
+  flip: ["#8a3fc0", "#210c36"],
   lounge: ["#b8873a", "#3e290c"],
 };
 
@@ -459,6 +484,14 @@ function IconGlyph({ game }: { game: GameId | "lounge" }) {
           <path d="M14 14 l18 18 M32 14 l-18 18" stroke={IVORY} />
           <circle cx="42" cy="42" r="9" stroke={GOLD} />
           <path d="M14 50 h6 M44 14 h6" stroke={IVORY} strokeOpacity="0.4" />
+        </g>
+      );
+    case "flip":
+      return (
+        <g strokeLinejoin="round">
+          <rect x="12" y="18" width="22" height="32" rx="4" fill="#2a1442" stroke={IVORY} strokeWidth="2" transform="rotate(-12 23 34)" />
+          <rect x="28" y="14" width="22" height="32" rx="4" fill={IVORY} stroke={INK} strokeWidth="2" transform="rotate(8 39 30)" />
+          <path d="M39 22 l3 6.5 7 .8 -5.2 4.8 1.4 7 -6.2 -3.6 -6.2 3.6 1.4 -7 -5.2 -4.8 7 -.8z" fill={GOLD} transform="translate(0 -1) scale(.9) translate(4 3)" />
         </g>
       );
     case "lounge":
@@ -585,6 +618,18 @@ export const GAMES: GameMeta[] = [
     mode: "Giải trí",
     accent: "#4a9aea",
     tags: ["Gomoku", "AI", "Đấu 2 người"],
+  },
+  {
+    id: "flip",
+    name: "Lật Thẻ Đối Kháng",
+    short: "Lật Thẻ",
+    tagline: "Lật thẻ ghép cặp, nhớ vị trí, chuỗi combo, thẻ vàng 3 điểm",
+    href: "/games/flip",
+    players: "1-2",
+    duration: "2-5'",
+    mode: "Ranked ELO",
+    accent: "#b46af0",
+    tags: ["Trí nhớ", "Mời bạn", "AI 3 cấp"],
   },
 ];
 
