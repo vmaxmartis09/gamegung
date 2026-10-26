@@ -28,11 +28,24 @@ export default function HomePage() {
   // Độ phổ biến: người đang chơi (presence) + số ván mình đã chơi. Hoà điểm → xáo ngẫu nhiên mỗi lần tải.
   const myStats = useAppStore((s) => s.currentUser.stats) as unknown as Record<string, { games?: number } | undefined>;
   const jitter = useMemo(() => Object.fromEntries(GAMES.map((g) => [g.id, Math.random()])), []);
+  // Lượt truy cập từng game trên máy này (đếm khi bấm vào thẻ).
+  const [visits, setVisits] = useState<Record<string, number>>({});
+  useEffect(() => setVisits(readVisits()), []);
   const ranked = useMemo(() => {
-    const score = (g: GameMeta) => playing(g.name) * 10 + (myStats[g.id]?.games ?? 0) + jitter[g.id] * 0.5;
+    const score = (g: GameMeta) => playing(g.name) * 10 + (myStats[g.id]?.games ?? 0) + (visits[g.id] ?? 0) + jitter[g.id] * 0.5;
     return [...GAMES].sort((a, b) => score(b) - score(a));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [peers, myStats, jitter]);
+  }, [peers, myStats, jitter, visits]);
+  // Bố cục ngẫu nhiên mỗi lần tải trang; ô to nhất dành cho game được truy cập / chơi nhiều nhất.
+  const [layout] = useState(() => LAYOUTS[Math.floor(Math.random() * LAYOUTS.length)]);
+  const placed = useMemo(() => {
+    // Bố cục cho đúng 6 game; số game khác 6 thì chia đều.
+    const spans = ranked.length === layout.length ? layout : ranked.map(() => 4);
+    const bySize = spans.map((sp, i) => ({ sp, i, r: Math.random() })).sort((a, b) => b.sp - a.sp || a.r - b.r);
+    const out: { game: GameMeta; span: number }[] = new Array(spans.length);
+    bySize.forEach((slot, k) => (out[slot.i] = { game: ranked[k], span: slot.sp }));
+    return out.filter(Boolean);
+  }, [layout, ranked]);
   const hotId = ranked[0] && playing(ranked[0].name) + (myStats[ranked[0].id]?.games ?? 0) > 0 ? ranked[0].id : null;
 
   const tasks: IslandTask[] = useMemo(
@@ -86,9 +99,9 @@ export default function HomePage() {
         </dl>
       </section>
 
-      <section className="grid auto-rows-[260px] gap-3 sm:grid-cols-2 lg:min-h-0 lg:flex-1 lg:auto-rows-auto lg:grid-cols-3 lg:grid-rows-2">
-        {ranked.map((g, i) => (
-          <GameCard key={g.id} game={g} index={i} hot={g.id === hotId} playing={playing(g.name)} resumable={tasks.some((t) => t.id === g.id)} />
+      <section className="grid auto-rows-[260px] gap-3 sm:grid-cols-2 lg:min-h-0 lg:flex-1 lg:auto-rows-auto lg:grid-cols-12 lg:grid-rows-2">
+        {placed.map(({ game: g, span }, i) => (
+          <GameCard key={g.id} game={g} index={i} span={span} hot={g.id === hotId} playing={playing(g.name)} resumable={tasks.some((t) => t.id === g.id)} />
         ))}
       </section>
     </div>
@@ -106,16 +119,60 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 
 /** Hạng càng cao → ô càng rộng (7 / 5 / 4 / 4 / 4 trên lưới 12 cột). */
 
+const VISITS_KEY = "oa-game-visits";
+function readVisits(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(VISITS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+function countVisit(id: string) {
+  try {
+    const v = readVisits();
+    v[id] = (v[id] ?? 0) + 1;
+    localStorage.setItem(VISITS_KEY, JSON.stringify(v));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Các kiểu xếp lưới 12 cột × 2 hàng (mỗi hàng cộng đủ 12), luôn vừa một màn hình.
+ * Số là số cột mỗi thẻ chiếm, theo thứ tự trên lưới.
+ */
+const LAYOUTS: number[][] = [
+  [6, 3, 3, 4, 4, 4],
+  [5, 4, 3, 3, 4, 5],
+  [7, 5, 3, 3, 3, 3],
+  [8, 4, 3, 3, 3, 3],
+  [4, 4, 4, 6, 3, 3],
+  [3, 6, 3, 4, 4, 4],
+  [4, 8, 3, 3, 3, 3],
+  [5, 7, 3, 3, 3, 3],
+];
+const SPAN_CLASS: Record<number, string> = {
+  2: "lg:col-span-2",
+  3: "lg:col-span-3",
+  4: "lg:col-span-4",
+  5: "lg:col-span-5",
+  6: "lg:col-span-6",
+  7: "lg:col-span-7",
+  8: "lg:col-span-8",
+};
+
 /** Thẻ game: chỉ ảnh và chữ trên ảnh; luật chơi xem bên trong game. */
 function GameCard({
   game,
   index,
+  span,
   hot,
   playing,
   resumable,
 }: {
   game: GameMeta;
   index: number;
+  span: number;
   hot?: boolean;
   playing: number;
   resumable: boolean;
@@ -124,7 +181,8 @@ function GameCard({
     <Link
       href={game.href}
       aria-label={`Chơi ${game.name}`}
-      className="group relative block h-full min-h-0 animate-fade-up overflow-hidden rounded-[24px] ring-1 ring-white/10 shadow-[0_18px_40px_-20px_rgba(0,0,0,0.9)] outline-none transition-[box-shadow] duration-200 hover:ring-white/30 focus-visible:ring-2 focus-visible:ring-white/60 sm:max-lg:[&:nth-child(odd):last-child]:col-span-2"
+      onClick={() => countVisit(game.id)}
+      className={cn("group relative block h-full min-h-0 animate-fade-up overflow-hidden rounded-[24px] ring-1 ring-white/10 shadow-[0_18px_40px_-20px_rgba(0,0,0,0.9)] outline-none transition-[box-shadow] duration-200 hover:ring-white/30 focus-visible:ring-2 focus-visible:ring-white/60 sm:max-lg:[&:nth-child(odd):last-child]:col-span-2", SPAN_CLASS[span])}
       style={{ animationDelay: `${index * 60}ms` }}
     >
       <GameCover game={game.id} className="transition duration-500 ease-lounge group-hover:scale-[1.04]" />
