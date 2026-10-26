@@ -7,6 +7,7 @@ import { useAppStore } from "@/lib/store";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 import { useBetRounds } from "@/lib/bet-rounds";
+import { betCode } from "@/lib/room-code";
 
 /** `inGame`: hai bên đã vào ván trước đó — vào lại thẳng bàn, không qua phòng chờ. */
 export type BetOpp = { room: string; oppId: string; name: string; avatar: string; stake: number; inGame?: boolean; /** Ván thứ mấy trong kèo (chủ phòng quyết định). */ round?: number };
@@ -180,6 +181,7 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
       <div className="w-full max-w-md space-y-4 rounded-2xl border border-white/[0.1] bg-ink-950 p-5 shadow-2xl">
         <div className="text-center">
           <h2 className="font-display text-lg font-extrabold text-white">Phòng chờ{round > 1 ? ` · Ván ${round}` : ""}</h2>
+          {bet && <p className="mt-0.5 font-mono text-xs tracking-widest text-ink-400">Mã phòng {betCode(bet)} · /join {betCode(bet)}</p>}
           <p className="text-xs text-ink-300">Kèo {bo.stake} Lúa · chủ phòng bấm Bắt đầu khi đủ người</p>
           {left !== null && count === null && (
             <p className="mt-1 text-[11px] text-ink-400">

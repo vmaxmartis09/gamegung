@@ -127,6 +127,8 @@ export interface BetChallenge {
   opponentAvatar?: string;
   winnerId?: string;
   createdAt: number;
+  /** Mã phòng 4 số để vào bằng /join. */
+  code?: string;
   /** Lúc có người nhận kèo (giờ server); phòng chờ tự huỷ sau 9 phút. */
   acceptedAt?: number;
   /** Lúc hai bên vào ván. */
@@ -143,6 +145,8 @@ export interface ChatMessage {
   content: string;
   attachment?: ChatAttachment | null;
   betChallenge?: BetChallenge;
+  /** Lời mời vào phòng (vd. phòng Ma Sói): thẻ có nút Vào phòng. */
+  roomInvite?: { game: string; code: string };
   reactions?: Record<string, string[]>;
   timestamp: number;
 }
@@ -239,7 +243,8 @@ interface AppState {
     channelId: string,
     content: string,
     attachment?: ChatAttachment | null,
-    betChallenge?: BetChallenge
+    betChallenge?: BetChallenge,
+    roomInvite?: { game: string; code: string }
   ) => void;
   toggleReaction: (channelId: string, messageId: string, emoji: string) => void;
   applyReaction: (channelId: string, messageId: string, emoji: string, userId: string) => void;
@@ -673,9 +678,9 @@ export const useAppStore = create<AppState>()(
           };
         });
       },
-      sendMessage: (channelId, content, attachment = null, betChallenge) => {
+      sendMessage: (channelId, content, attachment = null, betChallenge, roomInvite) => {
         const user = get().currentUser;
-        if (!content.trim() && !attachment && !betChallenge) return;
+        if (!content.trim() && !attachment && !betChallenge && !roomInvite) return;
 
         const newMessage: ChatMessage = {
           id: "msg-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
@@ -686,6 +691,7 @@ export const useAppStore = create<AppState>()(
           content: content.trim(),
           attachment: attachment || null,
           betChallenge,
+          ...(roomInvite ? { roomInvite } : {}),
           timestamp: Date.now(),
         };
 
@@ -809,6 +815,7 @@ export const useAppStore = create<AppState>()(
           title: title?.trim().slice(0, 60) || undefined,
           status: "pending",
           createdAt: now,
+          code: String(1000 + Math.floor(Math.random() * 9000)),
         };
 
         // Escrow deduction from creator

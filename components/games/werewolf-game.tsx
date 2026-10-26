@@ -42,7 +42,8 @@ import { GradientCarousel, VoteCandidate } from "@/components/reactbits/gradient
 import { playNarratorVoice, stopNarratorVoice, whenNarratorIdle } from "@/lib/narrator-audio";
 import { SeatCard } from "./werewolf-seat";
 import { DockBtn, IconToggle, WerewolfOnline, WerewolfOnlineEntry } from "./werewolf-online";
-import { wwResume } from "@/lib/werewolf-online";
+import { wwJoin, wwResume } from "@/lib/werewolf-online";
+import { failJoin } from "@/lib/room-code";
 import { COOLDOWN, useCooldownStore, useCooldown } from "@/lib/cooldown-store";
 import { Emoji, EmojiText } from "@/components/ui/emoji";
 
@@ -143,7 +144,16 @@ export function WerewolfGame() {
     if (s > 0) setStake(s);
     // Link mời ?room=MÃ, hoặc vào lại ván online đang dở sau khi tải lại trang / rớt mạng.
     const room = params.get("room");
-    if (room) setOnlineRoom(room.toUpperCase());
+    const join = params.get("join");
+    if (join) {
+      // Vào bằng mã (/join): ngồi vào ghế trước; không được thì về trang chủ báo lý do.
+      const code = join.toUpperCase();
+      const me = useAppStore.getState().currentUser;
+      void wwJoin(code, me.username, me.avatar).then((r) => {
+        if (r.id) setOnlineRoom(r.id);
+        else failJoin(`Không vào được phòng ${code}: ${r.error ?? "không tìm thấy phòng"}`, (href) => window.location.assign(href));
+      });
+    } else if (room) setOnlineRoom(room.toUpperCase());
     else if (!gRef.current) void wwResume().then((id) => id && !gRef.current && setOnlineRoom(id));
   }, []);
 

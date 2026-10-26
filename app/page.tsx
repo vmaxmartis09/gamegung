@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { CountUp } from "@/components/reactbits";
+import { JoinRoomBox } from "@/components/social/room-invite";
 
 export default function HomePage() {
   const router = useRouter();
@@ -65,19 +66,14 @@ export default function HomePage() {
         </div>
       )}
 
-      <section className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 pb-6 pt-2 sm:pb-8">
-        <div className="min-w-0">
-          <h1 className="font-display text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-            Đấu Trường <span className="font-normal italic text-ink-200">Nghỉ Trưa</span>
-          </h1>
-          <p className="mt-2 max-w-xl text-sm text-ink-300 sm:text-base">Cờ Vua, Cờ Tướng, Ma Sói, Uno và Typing Battle. Chọn một môn, ghép trận với đồng nghiệp.</p>
-        </div>
-
+      <section className="flex flex-wrap items-start justify-end gap-x-6 gap-y-3 pb-6 pt-2 sm:pb-8">
         <dl className="flex items-center gap-6 text-left">
           <Stat label="Môn" value={<CountUp value={GAMES.length} duration={1} />} />
           <Stat label="Online" value={<CountUp value={peerList.length + 1} duration={1.2} />} />
           {inMatch > 0 && <Stat label="Đang đấu" value={<CountUp value={inMatch} duration={1} />} />}
         </dl>
+        {/* Vào phòng bằng mã: /join 3314 hoặc chỉ mã */}
+        <JoinRoomBox />
       </section>
 
       <section className="grid auto-rows-[280px] gap-3 sm:grid-cols-2 lg:auto-rows-[300px] lg:grid-cols-12">

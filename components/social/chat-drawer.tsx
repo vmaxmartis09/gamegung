@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { openBetLobby } from "@/lib/bet-nav";
+import { betCode, joinByCode } from "@/lib/room-code";
+import { RoomInviteCard } from "./room-invite";
 import { useShallow } from "zustand/react/shallow";
 import {
   ArrowLeft,
@@ -451,6 +453,7 @@ const MessageRow = memo(function MessageRow({
           >
             {msg.content && <p className="whitespace-pre-wrap"><EmojiText>{msg.content}</EmojiText></p>}
             {msg.betChallenge && <BetCard msg={msg} isMe={isMe} />}
+            {msg.roomInvite && <RoomInviteCard msg={msg} />}
             {msg.attachment && <Attachment att={msg.attachment} onPreview={onPreview} />}
           </div>
         </div>
@@ -512,7 +515,7 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 break-words font-display text-sm font-extrabold">{bet.title || `Kèo ${GAME_BY_ID[game].name}`}</p>
           <p className="truncate text-[11px] text-ink-400">
-            {bet.title ? `${GAME_BY_ID[game].name} · ` : ""}chủ kèo {bet.creatorName}
+            {bet.title ? `${GAME_BY_ID[game].name} · ` : ""}chủ kèo {bet.creatorName} · mã {betCode(bet)}
           </p>
         </div>
         <div className="text-right">
@@ -577,6 +580,7 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
 }
 
 function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }) {
+  const router = useRouter();
   const sendMessage = useAppStore((s) => s.sendMessage);
   const myId = useAppStore((s) => s.currentUser.id);
   const [uploading, setUploading] = useState(false);
@@ -593,6 +597,13 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
 
   const send = () => {
     if (uploading || (!text.trim() && !file)) return;
+    // Lệnh /join <mã>: vào phòng thay vì gửi tin.
+    if (/^\/join\b/i.test(text.trim())) {
+      const e = joinByCode(text, router.push);
+      setErr(e);
+      if (!e) setText("");
+      return;
+    }
     sendMessage(channelId, text, file);
     setText("");
     if (inputRef.current) inputRef.current.style.height = "auto";

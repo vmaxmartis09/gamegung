@@ -24,6 +24,9 @@ import { WerewolfActionFxOverlay, WerewolfFxEvent, FxType } from "./werewolf-act
 import { useWerewolfVoice, WerewolfMicButton } from "./werewolf-voice";
 import { SeatCard } from "./werewolf-seat";
 import { Emoji, EmojiText } from "@/components/ui/emoji";
+import { RoomInviteButtons } from "@/components/social/room-invite";
+import { failJoin } from "@/lib/room-code";
+import { useRouter } from "next/navigation";
 
 /* Ma Sói online: phòng chờ + bàn chơi. Mọi trạng thái đến từ server (lib/werewolf-online.ts). */
 
@@ -184,6 +187,7 @@ export function WerewolfOnline({ roomId, onExit }: { roomId: string; onExit: () 
   useEffect(() => {
     const url = new URL(window.location.href);
     url.searchParams.set("room", roomId);
+    url.searchParams.delete("join");
     window.history.replaceState(null, "", url);
   }, [roomId]);
 
@@ -201,6 +205,12 @@ export function WerewolfOnline({ roomId, onExit }: { roomId: string; onExit: () 
   }, [roomId, exit]);
 
   const playing = r.room?.status === "playing";
+
+  // Vào phòng không được (sai mã, phòng đã đóng…): về trang chủ, báo lý do ở ô nhập mã.
+  const router = useRouter();
+  useEffect(() => {
+    if (!r.room && r.error) failJoin(`Không vào được phòng ${roomId}: ${r.error}`, router.push);
+  }, [r.room, r.error, roomId, router]);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
@@ -302,6 +312,11 @@ function WaitingRoom({ r, onLeave, onExit }: { r: RoomApi; onLeave: () => void; 
             <Button variant="danger" size="sm" onClick={onLeave}>
               <X className="size-4" /> Rời phòng
             </Button>
+          </div>
+
+          <p className="mt-1 font-mono text-xs text-ink-400">Người khác gõ /join {room.id} để vào</p>
+          <div className="mt-4">
+            <RoomInviteButtons game="werewolf" code={room.id} />
           </div>
 
           <ul className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
