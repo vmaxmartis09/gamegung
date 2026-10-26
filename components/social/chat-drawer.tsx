@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { openBetLobby } from "@/lib/bet-nav";
 import { betCode, joinByCode } from "@/lib/room-code";
 import { RoomInviteCard } from "./room-invite";
+import { addFriend } from "@/lib/friends";
+import { UserCheck, UserPlus } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import {
   ArrowLeft,
@@ -411,6 +413,7 @@ const MessageRow = memo(function MessageRow({
           <div className={cn("mb-1 flex items-baseline gap-2 text-[11px]", isMe && "flex-row-reverse")}>
             <span className="font-bold text-ink-100">{isMe ? "Bạn" : msg.senderName}</span>
             <span className="text-ink-500">{time}</span>
+            {!isMe && msg.senderId !== "system" && !isDmChannel(msg.channelId) && <SenderActions msg={msg} />}
           </div>
         )}
         <div className="relative">
@@ -494,6 +497,47 @@ function Attachment({ att, onPreview }: { att: ChatAttachment; onPreview: (url: 
       <span className="min-w-0 flex-1 truncate text-xs font-semibold">{att.name}</span>
       <span className="text-[10px] opacity-70">{att.size}</span>
     </a>
+  );
+}
+
+/** Ở kênh chung: kết bạn ngay hoặc mở chat riêng với người gửi. */
+function SenderActions({ msg }: { msg: ChatMessage }) {
+  const isFriendNow = useAppStore((s) => s.friends.some((f) => f.id === msg.senderId));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const user = { id: msg.senderId, username: msg.senderName, avatar: msg.senderAvatar };
+  return (
+    <span className="flex items-center gap-1">
+      <button
+        type="button"
+        title="Nhắn riêng"
+        aria-label={`Nhắn riêng ${msg.senderName}`}
+        onClick={() => useAppStore.getState().openDm(user)}
+        className="grid size-5 place-items-center rounded-md text-ink-400 transition hover:bg-white/10 hover:text-white"
+      >
+        <MessageSquare className="size-3" />
+      </button>
+      {isFriendNow ? (
+        <span title="Bạn bè" className="grid size-5 place-items-center text-success">
+          <UserCheck className="size-3" />
+        </span>
+      ) : (
+        <button
+          type="button"
+          title={err ?? "Kết bạn"}
+          aria-label={`Kết bạn với ${msg.senderName}`}
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setErr(await addFriend(user));
+            setBusy(false);
+          }}
+          className={cn("grid size-5 place-items-center rounded-md transition hover:bg-white/10 hover:text-white disabled:opacity-50", err ? "text-pop-red" : "text-ink-400")}
+        >
+          <UserPlus className="size-3" />
+        </button>
+      )}
+    </span>
   );
 }
 

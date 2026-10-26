@@ -11,6 +11,7 @@ import { useAppStore } from "@/lib/store";
 import { useAuthStore } from "@/lib/auth";
 import { usePresenceStore } from "@/lib/presence";
 import { useUiStore } from "@/lib/ui-store";
+import { useFriendsSync } from "@/lib/friends";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import AccountMenu, { type ManualStatus } from "@/components/kokonut/account-menu";
 import MessageStack, { type StackMessage } from "@/components/kokonut/message-stack";
@@ -45,6 +46,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     initMotion();
   }, []);
   usePerfWatchdog(inGame);
+  // Danh sách bạn bè thật trên server, cập nhật realtime.
+  useFriendsSync();
   // Freeze looping CSS animations while the tab is hidden.
   useEffect(() => {
     const sync = () => document.documentElement.toggleAttribute("data-tab-hidden", document.hidden);

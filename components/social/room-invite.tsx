@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogIn, Megaphone, Send } from "lucide-react";
+import { LogIn, Megaphone, MessageCircle, Send, UserCheck, UserPlus } from "lucide-react";
 import { useAppStore, type ChatMessage } from "@/lib/store";
 import { dmChannelId } from "@/lib/chat";
 import { JOIN_ERROR_KEY, joinByCode } from "@/lib/room-code";
 import { GAME_BY_ID, GameIcon, type GameId } from "@/components/art/game-art";
 import { useInviteCandidates, type InvitePerson } from "@/components/games/shared";
+import { UserAvatar } from "@/components/ui/user-avatar";
+import { addFriend, searchUsers, type FoundUser } from "@/lib/friends";
+import { cn } from "@/lib/utils";
 
 /** Gửi lời mời vào phòng: riêng cho một người (chat riêng) hoặc vào kênh chung. */
 export function sendRoomInvite(game: GameId, code: string, target: InvitePerson | null) {
@@ -104,11 +107,20 @@ export function RoomInviteCard({ msg }: { msg: ChatMessage }) {
   );
 }
 
-/** Ô "/join mã" ở trang chủ. */
+/** Gõ giống mã phòng: "/join …", toàn số, hoặc chữ in hoa + số (mã Ma Sói). Còn lại là tìm bạn theo tên. */
+function looksLikeCode(t: string) {
+  const v = t.trim();
+  return /^\/join/i.test(v) || /^\d{3,8}$/.test(v) || /^[A-Z0-9]{4,8}$/.test(v);
+}
+
+/** Ô ở trang chủ: nhập mã phòng để vào (/join 3314), hoặc gõ tên để tìm và kết bạn ngay. */
 export function JoinRoomBox({ className }: { className?: string }) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [found, setFound] = useState<FoundUser[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const friends = useAppStore((s) => s.friends);
   // Vào phòng thất bại ở trang khác rồi được đưa về đây: hiện lý do.
   useEffect(() => {
     try {
@@ -121,11 +133,30 @@ export function JoinRoomBox({ className }: { className?: string }) {
       /* ignore */
     }
   }, []);
+
+  // Tìm bạn theo tên khi gõ (không phải mã phòng).
+  useEffect(() => {
+    const q = text.trim();
+    if (q.length < 2 || q.startsWith("/")) return setFound([]);
+    let alive = true;
+    const t = setTimeout(() => void searchUsers(q).then((r) => alive && setFound(r)), 250);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [text]);
+
+  const isFriendId = (id: string) => friends.some((f) => f.id === id);
+
   return (
     <form
-      className={className}
+      className={cn("relative", className)}
       onSubmit={async (e) => {
         e.preventDefault();
+        if (!looksLikeCode(text)) {
+          if (!found.length) setErr("Không tìm thấy mã phòng hay người nào khớp.");
+          return;
+        }
         const r = await joinByCode(text, router.push);
         try {
           sessionStorage.removeItem(JOIN_ERROR_KEY);
@@ -144,8 +175,8 @@ export function JoinRoomBox({ className }: { className?: string }) {
             setText(e.target.value);
             setErr(null);
           }}
-          placeholder="Nhập mã phòng · /join 3314"
-          aria-label="Vào phòng bằng mã"
+          placeholder="Mã phòng (/join 3314) hoặc tên để tìm bạn"
+          aria-label="Vào phòng bằng mã hoặc tìm bạn"
           className="min-w-0 flex-1 bg-transparent font-mono text-sm text-white placeholder:text-ink-500 focus:outline-none"
         />
         <button type="submit" className="btn-accent px-2.5 py-1 text-xs">
@@ -153,6 +184,50 @@ export function JoinRoomBox({ className }: { className?: string }) {
         </button>
       </div>
       {err && <p className="mt-1 text-center text-[11px] text-pop-red">{err}</p>}
+      {found.length > 0 && (
+        <ul className="absolute inset-x-0 top-full z-50 mt-1.5 max-h-72 overflow-y-auto rounded-xl border border-white/10 bg-ink-950/95 p-1 shadow-2xl backdrop-blur-xl" aria-label="Kết quả tìm bạn">
+          {found.map((u) => {
+            const already = isFriendId(u.id);
+            return (
+              <li key={u.id} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-white/[0.05]">
+                <UserAvatar src={u.avatar} name={u.username} className="size-7" />
+                <span className="min-w-0 flex-1 truncate text-sm text-ink-100">{u.username}</span>
+                <button
+                  type="button"
+                  title="Nhắn riêng"
+                  onClick={() => {
+                    const st = useAppStore.getState();
+                    st.openDm({ id: u.id, username: u.username, avatar: u.avatar });
+                    st.toggleChat(true);
+                  }}
+                  className="btn-ghost flex items-center gap-1 px-2 py-1 text-[11px]"
+                >
+                  <MessageCircle className="size-3.5" /> Nhắn
+                </button>
+                {already ? (
+                  <span className="flex items-center gap-1 px-2 text-[11px] text-success">
+                    <UserCheck className="size-3.5" /> Bạn bè
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busy === u.id}
+                    onClick={async () => {
+                      setBusy(u.id);
+                      const e = await addFriend(u);
+                      setBusy(null);
+                      if (e) setErr(e);
+                    }}
+                    className="btn-accent flex items-center gap-1 px-2 py-1 text-[11px] disabled:opacity-50"
+                  >
+                    <UserPlus className="size-3.5" /> Kết bạn
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </form>
   );
 }
