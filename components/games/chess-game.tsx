@@ -33,6 +33,7 @@ import { NarratorButton, useNarrator } from "./game-fx";
 import HoldButton from "@/components/kokonut/hold-button";
 import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
 import { Emoji, EmojiText } from "@/components/ui/emoji";
+import { BetLobby, type BetOpp } from "./bet-lobby";
 
 /* --------------------------------- Config --------------------------------- */
 
@@ -513,7 +514,10 @@ export function ChessGame() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncClock]);
 
-  const startBetPvp = useCallback(
+  const [lobby, setLobby] = useState<BetOpp | null>(null);
+  const startBetPvp = useCallback((bo: BetOpp) => setLobby(bo), []);
+
+  const launchBetPvp = useCallback(
     async (bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) => {
       const row = await openBetMatch({
         id: bo.room,
@@ -1147,6 +1151,7 @@ export function ChessGame() {
         </aside>
       </div>
 
+      {lobby && <BetLobby bo={lobby} onStart={(b) => { setLobby(null); void launchBetPvp(b); }} onLeave={() => setLobby(null)} />}
       <ConfirmDialog
         open={confirm === "resign"}
         title="Xin thua ván này?"

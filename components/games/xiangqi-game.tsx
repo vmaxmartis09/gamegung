@@ -24,6 +24,7 @@ import { NarratorButton, useNarrator } from "./game-fx";
 import HoldButton from "@/components/kokonut/hold-button";
 import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchOpponent, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
 import { Emoji, EmojiText } from "@/components/ui/emoji";
+import { BetLobby, type BetOpp } from "./bet-lobby";
 
 const TIME_CONTROLS = [
   { id: "5+3", base: 300, inc: 3, label: "5+3", kind: "Nhanh" },
@@ -513,7 +514,10 @@ export function XiangqiGame() {
     narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
   };
 
-  async function startBetPvp(bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) {
+  const [lobby, setLobby] = useState<BetOpp | null>(null);
+  const startBetPvp = (bo: BetOpp) => setLobby(bo);
+
+  async function launchBetPvp(bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) {
     const row = await openBetMatch({
       id: bo.room,
       game: "xiangqi",
@@ -930,6 +934,7 @@ export function XiangqiGame() {
         </aside>
       </div>
 
+      {lobby && <BetLobby bo={lobby} onStart={(b) => { setLobby(null); void launchBetPvp(b); }} onLeave={() => setLobby(null)} />}
       <ConfirmDialog open={confirm === "resign"} title="Xin thua ván này?" body={rated ? "Ván xếp hạng: bạn sẽ mất ELO và tiền cược." : undefined} confirmLabel="Xin thua" danger onConfirm={resign} onCancel={() => setConfirm(null)} />
       <ConfirmDialog
         open={confirm === "new"}

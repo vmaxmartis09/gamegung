@@ -12,6 +12,7 @@ import { MatchResultModal } from "./match-result-modal";
 import { NarratorButton, useNarrator } from "./game-fx";
 import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useMatchOpponent, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
 import { Emoji, EmojiText } from "@/components/ui/emoji";
+import { BetLobby, type BetOpp } from "./bet-lobby";
 
 const N = 15;
 const NO_CLOCK_MS = 24 * 3600 * 1000;
@@ -328,7 +329,10 @@ export function CaroGame() {
     narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
   };
 
-  async function startBetPvp(bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) {
+  const [lobby, setLobby] = useState<BetOpp | null>(null);
+  const startBetPvp = (bo: BetOpp) => setLobby(bo);
+
+  async function launchBetPvp(bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) {
     const row = await openBetMatch({
       id: bo.room,
       game: "caro",
@@ -562,6 +566,7 @@ export function CaroGame() {
         </aside>
       </div>
 
+      {lobby && <BetLobby bo={lobby} onStart={(b) => { setLobby(null); void launchBetPvp(b); }} onLeave={() => setLobby(null)} />}
       <ConfirmDialog open={confirm === "resign"} title="Xin thua ván này?" body={rated ? "Ván xếp hạng: bạn sẽ mất ELO và tiền cược." : undefined} confirmLabel="Xin thua" danger onConfirm={resign} onCancel={() => setConfirm(null)} />
       <ConfirmDialog open={confirm === "new"} title="Bỏ ván đang chơi?" body="Ván hiện tại sẽ bị huỷ." confirmLabel="Bỏ ván" danger onConfirm={backToSetup} onCancel={() => setConfirm(null)} />
       <MatchResultModal isOpen={resultOpen} onClose={() => setResultOpen(false)} onPlayAgain={backToSetup} resultData={result} reason={overReason} />
