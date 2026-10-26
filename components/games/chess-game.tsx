@@ -34,6 +34,7 @@ import HoldButton from "@/components/kokonut/hold-button";
 import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
 import { Emoji, EmojiText } from "@/components/ui/emoji";
 import { BetLobby, type BetOpp } from "./bet-lobby";
+import { currentRound, rejoinTable, roomOf, useBetRounds } from "@/lib/bet-rounds";
 
 /* --------------------------------- Config --------------------------------- */
 
@@ -124,6 +125,9 @@ type Mode = "ai" | "local" | "pvp" | "friend";
 interface PvpInfo {
   /** Chỉ xem (khán giả hoặc trận đã xong): không gửi nước, không tính kèo. */
   watch?: boolean;
+  /** Id kèo khi bàn này là một ván của kèo bạn bè (`room` là id bàn của ván đó). */
+  betId?: string;
+  stake?: number;
   room: string;
   oppId: string;
   name: string;
@@ -313,7 +317,7 @@ export function ChessGame() {
         showToast(reason, "info", 4000);
       } else if (rated) {
         const outcome = winner === null ? "draw" : winner === myColor ? "win" : "loss";
-        if (!pvp?.watch) settle(outcome, pvp ? { name: pvp.name, elo: pvp.elo } : { name: `Engine ${level.label}`, elo: level.elo }, stake);
+        if (!pvp?.watch) settle(outcome, pvp ? { name: pvp.name, elo: pvp.elo } : { name: `Engine ${level.label}`, elo: level.elo }, stake, pvp?.betId);
       } else {
         showToast(winner === null ? `Hoà — ${reason}` : `${winner === "w" ? "Trắng" : "Đen"} thắng — ${reason}`, "info", 4000);
       }
@@ -518,14 +522,28 @@ export function ChessGame() {
   }, [syncClock]);
 
   const [lobby, setLobby] = useState<BetOpp | null>(null);
+
+  // Hết ván trong kèo: cả hai quay lại phòng chờ, chủ phòng bấm Bắt đầu là ván mới.
+  const roundOver = !!pvp?.betId && !pvp.watch && online.row?.status === "finished";
+  useEffect(() => {
+    if (!roundOver || !pvp?.betId) return;
+    useBetRounds.getState().end(pvp.betId);
+    const back: BetOpp = { room: pvp.betId, oppId: pvp.oppId, name: pvp.name, avatar: pvp.avatar, stake: pvp.stake ?? stake };
+    const t = setTimeout(() => setLobby(back), 4000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundOver]);
   const launchRef = useRef<(bo: BetOpp) => void>(() => {});
   // Vào lại ván đã bắt đầu: vào thẳng bàn; lần đầu: qua phòng chờ.
-  const startBetPvp = useCallback((bo: BetOpp) => (bo.inGame ? launchRef.current(bo) : setLobby(bo)), []);
+  const startBetPvp = useCallback((bo: BetOpp) => (bo.inGame && rejoinTable(bo.room) ? launchRef.current(bo) : setLobby(bo)), []);
 
   const launchBetPvp = useCallback(
-    async (bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) => {
+    async (bo: BetOpp) => {
+      const round = bo.round ?? currentRound(bo.room);
+      const room = roomOf(bo.room, round);
+      useBetRounds.getState().start(bo.room, round);
       const row = await openBetMatch({
-        id: bo.room,
+        id: room,
         game: "chess",
         oppId: bo.oppId,
         stake: bo.stake,
@@ -533,7 +551,7 @@ export function ChessGame() {
         opp: { name: bo.name, avatar: bo.avatar },
       });
       if (!row) return showToast("Không mở được bàn online — cần đăng nhập tài khoản.", "bad", 4000);
-      beginPvp({ room: bo.room, oppId: bo.oppId, name: bo.name, avatar: bo.avatar, elo: 1200 });
+      beginPvp({ room, betId: bo.room, stake: bo.stake, oppId: bo.oppId, name: bo.name, avatar: bo.avatar, elo: 1200 });
     },
     [beginPvp, me.username, me.avatar, showToast]
   );

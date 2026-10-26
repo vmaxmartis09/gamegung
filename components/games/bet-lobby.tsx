@@ -6,9 +6,10 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAppStore } from "@/lib/store";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
+import { useBetRounds } from "@/lib/bet-rounds";
 
 /** `inGame`: hai bên đã vào ván trước đó — vào lại thẳng bàn, không qua phòng chờ. */
-export type BetOpp = { room: string; oppId: string; name: string; avatar: string; stake: number; inGame?: boolean };
+export type BetOpp = { room: string; oppId: string; name: string; avatar: string; stake: number; inGame?: boolean; /** Ván thứ mấy trong kèo (chủ phòng quyết định). */ round?: number };
 
 /** Sau chừng này kể từ lúc nhận kèo mà hai bên chưa cùng sẵn sàng thì kèo tự huỷ, hoàn Lúa. */
 export const LOBBY_TIMEOUT_MS = 9 * 60 * 1000;
@@ -17,12 +18,15 @@ export const LOBBY_TIMEOUT_MS = 9 * 60 * 1000;
 export function lobbyDeadline(betId: string): number | null {
   for (const list of Object.values(useAppStore.getState().messages)) {
     const b = list.find((m) => m.betChallenge?.id === betId)?.betChallenge;
-    if (b) return (b.acceptedAt ?? b.createdAt) + LOBBY_TIMEOUT_MS;
+    if (!b) continue;
+    // Giữa hai ván: tính từ lúc ván trước kết thúc.
+    const ended = useBetRounds.getState().rounds[betId]?.endedAt ?? 0;
+    return Math.max(b.acceptedAt ?? b.createdAt, ended) + LOBBY_TIMEOUT_MS;
   }
   return null;
 }
 
-type LobbyPeer = { ready?: boolean; startAt?: number };
+type LobbyPeer = { ready?: boolean; startAt?: number; round?: number };
 
 const COUNTDOWN = 3;
 
@@ -45,6 +49,9 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
   const isHost = bet ? bet.creatorId === myId : true;
   const [peers, setPeers] = useState<Record<string, LobbyPeer>>({});
   const [myStartAt, setMyStartAt] = useState<number | null>(null);
+  const played = useBetRounds((s) => s.rounds[bo.room]);
+  // Ván kế tiếp: chưa chơi ván nào là 1, đã chơi thì +1.
+  const nextRound = played ? played.round + (played.active ? 0 : 1) : 1;
   const [count, setCount] = useState<number | null>(null);
   const startedRef = useRef(false);
   const chRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -63,7 +70,9 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
       const ms = dl - Date.now();
       setLeft(Math.max(0, ms));
       if (ms <= 0) {
-        useAppStore.getState().markBetStatus(bo.room, "cancelled", { cancelReason: "lobby_timeout" });
+        // Chưa chơi ván nào: huỷ và hoàn Lúa. Đã chơi rồi: chốt kèo, không hoàn nữa.
+        if (useBetRounds.getState().rounds[bo.room]?.escrowBack) useAppStore.getState().markBetStatus(bo.room, "completed");
+        else useAppStore.getState().markBetStatus(bo.room, "cancelled", { cancelReason: "lobby_timeout" });
         leaveRef.current();
       }
     }, 1000);
@@ -96,12 +105,13 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
 
   const oppHere = !!peers[bo.oppId];
   const startAt = isHost ? myStartAt : peers[bo.oppId]?.startAt ?? null;
+  const round = isHost ? nextRound : peers[bo.oppId]?.round ?? nextRound;
 
   const hostStart = () => {
     if (!oppHere || myStartAt) return;
     const at = Date.now() + COUNTDOWN * 1000;
     setMyStartAt(at);
-    void chRef.current?.track({ ready: true, startAt: at });
+    void chRef.current?.track({ ready: true, startAt: at, round: nextRound });
   };
 
   // Đối thủ rời phòng trước khi đếm xong: chủ phòng huỷ đếm ngược.
@@ -120,7 +130,7 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
         if (!startedRef.current) {
           startedRef.current = true;
           useAppStore.getState().markBetStatus(bo.room, "in_game");
-          startRef.current(bo);
+          startRef.current({ ...bo, round, inGame: true });
         }
         return setCount(0);
       }
@@ -131,6 +141,11 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startAt]);
+
+  // Hết ván, lần nữa vào phòng chờ: cho phép bắt đầu lại.
+  useEffect(() => {
+    startedRef.current = false;
+  }, [bo.room]);
 
   const slot = (name: string, avatar: string, here: boolean, host: boolean, you: boolean) => (
     <div className="flex flex-1 flex-col items-center gap-2 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-3">
@@ -164,7 +179,7 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
     <div role="dialog" aria-label="Phòng chờ" className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md space-y-4 rounded-2xl border border-white/[0.1] bg-ink-950 p-5 shadow-2xl">
         <div className="text-center">
-          <h2 className="font-display text-lg font-extrabold text-white">Phòng chờ</h2>
+          <h2 className="font-display text-lg font-extrabold text-white">Phòng chờ{round > 1 ? ` · Ván ${round}` : ""}</h2>
           <p className="text-xs text-ink-300">Kèo {bo.stake} Lúa · chủ phòng bấm Bắt đầu khi đủ người</p>
           {left !== null && count === null && (
             <p className="mt-1 text-[11px] text-ink-400">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { openBetLobby } from "@/lib/bet-nav";
+import { currentRound, roomOf, useBetRounds } from "@/lib/bet-rounds";
 import { AnimatePresence, motion } from "framer-motion";
 import { Eye, X } from "lucide-react";
 import { useAppStore, type BetChallenge } from "@/lib/store";
@@ -80,25 +81,39 @@ export function ActiveMatchDock() {
       const st = useAppStore.getState();
       const me = st.currentUser.id;
       const bets = myBets(st.messages, me).filter((b) => b.status === "accepted" || b.status === "in_game" || b.status === "completed");
-      const ids = bets.filter((b) => SERVER_GAMES.has(b.gameType)).map((b) => b.id);
+      // Hỏi bàn của ván hiện tại (ván 2 trở đi có id riêng).
+      const ids = bets.filter((b) => SERVER_GAMES.has(b.gameType)).map((b) => roomOf(b.id, currentRound(b.id)));
       const rows = (await peekMatches(ids)) as Peek;
       if (!alive) return;
       setPeek(rows);
       const now = Date.now();
+      const local = useBetRounds.getState().rounds;
       for (const b of bets) {
-        const row = rows[b.id];
+        const room = roomOf(b.id, currentRound(b.id));
+        const row = rows[room];
+        const r = local[b.id];
+        // Đang nghỉ giữa hai ván ở phòng chờ: quá 9 phút thì chốt kèo (đã chơi) hoặc huỷ (chưa chơi).
+        if (b.status === "in_game" && r && !r.active) {
+          if (now > (r.endedAt ?? 0) + LOBBY_TIMEOUT_MS) {
+            if (r.escrowBack) st.markBetStatus(b.id, "completed");
+            else st.markBetStatus(b.id, "cancelled", { cancelReason: "lobby_timeout" });
+          }
+          continue;
+        }
         if (b.status === "accepted" && !row) {
           if (now > (b.acceptedAt ?? b.createdAt) + LOBBY_TIMEOUT_MS) st.markBetStatus(b.id, "cancelled", { cancelReason: "lobby_timeout" });
           continue;
         }
         if (b.status === "completed") continue;
         if (row?.status === "finished") {
+          // Máy này có theo dõi các ván thì kèo vẫn tiếp tục (về phòng chờ); không thì chốt theo bàn.
+          if (r) continue;
           if (row.winner === "none") st.markBetStatus(b.id, "cancelled", { cancelReason: "abandoned" });
           else st.markBetStatus(b.id, "completed");
           continue;
         }
         if (row?.status === "active" && row.updated_at && now - Date.parse(row.updated_at) > IDLE_MS) {
-          const { data } = await supabase.rpc("match_expire", { p_id: b.id });
+          const { data } = await supabase.rpc("match_expire", { p_id: room });
           if ((data as { status?: string; winner?: string } | null)?.winner === "none") st.markBetStatus(b.id, "cancelled", { cancelReason: "abandoned" });
           continue;
         }
@@ -121,17 +136,20 @@ export function ActiveMatchDock() {
       if (Date.now() - b.createdAt > MAX_AGE_MS) continue;
       const meta = GAME_BY_ID[b.gameType as GameId];
       if (!meta) continue;
-      const finished = b.status === "completed" || peek[b.id]?.status === "finished";
+      const room = roomOf(b.id, currentRound(b.id));
+      const tracked = !!useBetRounds.getState().rounds[b.id];
+      // Kèo nhiều ván: hết ván vẫn còn phòng chờ, nên chỉ coi là xong khi kèo đã chốt.
+      const finished = b.status === "completed" || (!tracked && peek[room]?.status === "finished");
       const live = (b.status === "accepted" || b.status === "in_game") && !finished;
       // Ván đã xong: chỉ xem lại được với game có bàn trên server.
-      if (!live && !(finished && SERVER_GAMES.has(b.gameType) && peek[b.id])) continue;
+      if (!live && !(finished && SERVER_GAMES.has(b.gameType) && peek[room])) continue;
       const other = b.creatorId === myId ? b.opponentName : b.creatorName;
       out.push({
         id: `bet:${b.id}`,
         game: b.gameType as GameId,
         title: meta.name,
         detail: `${live ? "" : "Đã xong · "}vs ${other ?? "đối thủ"} · ${b.stake} Lúa`,
-        href: live ? `${meta.href}?stake=${b.stake}&bet=${encodeURIComponent(b.id)}` : `${meta.href}?match=${encodeURIComponent(b.id)}&watch=1`,
+        href: live ? `${meta.href}?stake=${b.stake}&bet=${encodeURIComponent(b.id)}` : `${meta.href}?match=${encodeURIComponent(room)}&watch=1`,
         watch: !live,
       });
     }

@@ -41,6 +41,7 @@ import { MatchResultModal } from "./match-result-modal";
 import { MatchIntro, NarratorButton, useNarrator } from "./game-fx";
 import { GameHeader, Segmented, StakePicker, useMatchSettlement, waitForBetOpponent } from "./shared";
 import { BetLobby, type BetOpp } from "./bet-lobby";
+import { currentRound, rejoinTable, roomOf, useBetRounds } from "@/lib/bet-rounds";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { CylinderText, CylinderWords, FocusFrame, TextLoop } from "@/components/reactbits";
 import { EmojiText } from "@/components/ui/emoji";
@@ -799,7 +800,7 @@ export function TypingBattleGame() {
   const friendRef = useRef<FriendInfo | null>(null);
   const [lobby, setLobby] = useState<BetOpp | null>(null);
   // Đua gõ online: kênh realtime của kèo, đối thủ là người thật ở máy khác.
-  const onlineRef = useRef<{ room: string; oppName: string; stake: number; ch: ReturnType<typeof supabase.channel> } | null>(null);
+  const onlineRef = useRef<{ room: string; bo: BetOpp; oppName: string; stake: number; ch: ReturnType<typeof supabase.channel> } | null>(null);
   const closeOnline = useCallback(() => {
     const o = onlineRef.current;
     onlineRef.current = null;
@@ -819,13 +820,16 @@ export function TypingBattleGame() {
       setLobby(null);
       closeOnline();
       if (!isSupabaseConfigured) return;
+      const round = bo.round ?? currentRound(bo.room);
+      const room = roomOf(bo.room, round);
+      useBetRounds.getState().start(bo.room, round);
       let seed = 0;
-      for (let i = 0; i < bo.room.length; i++) seed = (Math.imul(seed, 31) + bo.room.charCodeAt(i)) >>> 0;
+      for (let i = 0; i < room.length; i++) seed = (Math.imul(seed, 31) + room.charCodeAt(i)) >>> 0;
       gRef.current = createGame({ mode: 3, vsBot: false, diff, names: [me.username || "P1", bo.name], seed });
       botRef.current = { name: bo.name, seed: bo.name, title: "Bạn bè", avatar: bo.avatar };
       setMode(3);
       setStake(bo.stake);
-      const ch = supabase.channel(`typing-online:${bo.room}`, { config: { broadcast: { self: false } } });
+      const ch = supabase.channel(`typing-online:${room}`, { config: { broadcast: { self: false } } });
       ch.on("broadcast", { event: "prog" }, ({ payload }) => {
         const cur = gRef.current;
         if (!cur || cur.phase === "over") return;
@@ -837,7 +841,7 @@ export function TypingBattleGame() {
         if (cur && cur.phase !== "over") finish(cur, 0, hooks);
       });
       ch.subscribe();
-      onlineRef.current = { room: bo.room, oppName: bo.name, stake: bo.stake, ch };
+      onlineRef.current = { room, bo, oppName: bo.name, stake: bo.stake, ch };
       resetSettlement();
       setPhase("playing");
     },
@@ -853,7 +857,7 @@ export function TypingBattleGame() {
       setMode(3);
       setOpp("friend");
       setStake(bo.stake);
-      if (bo.inGame) launchOnline(bo);
+      if (bo.inGame && rejoinTable(bo.room)) launchOnline(bo);
       else setLobby(bo);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -909,8 +913,10 @@ export function TypingBattleGame() {
           setTimeout(() => {
             const on = onlineRef.current;
             if (on && w >= 0) {
-              settleRef.current(w === 0 ? "win" : "loss", { name: on.oppName, elo: 1000 }, on.stake);
-              useAppStore.getState().markBetStatus(on.room, "completed", w === 0 ? { winnerId: useAppStore.getState().currentUser.id } : {});
+              settleRef.current(w === 0 ? "win" : "loss", { name: on.oppName, elo: 1000 }, on.stake, on.bo.room);
+              // Hết ván: cả hai quay lại phòng chờ của kèo để chơi ván mới.
+              useBetRounds.getState().end(on.bo.room);
+              setTimeout(() => setLobby(on.bo), 3000);
             } else if (cfgRef.current.vsBot && w >= 0) {
               settleRef.current(
                 w === 0 ? "win" : "loss",
@@ -1091,7 +1097,7 @@ export function TypingBattleGame() {
             friendRef.current = fr;
             if (opp === "friend" && fr) {
               const bo = { room: fr.betId, oppId: fr.id, name: fr.name, avatar: fr.avatar, stake: fr.stake };
-              if (fr.inGame) launchOnline(bo);
+              if (fr.inGame && rejoinTable(bo.room)) launchOnline(bo);
               else setLobby(bo);
               return;
             }

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useBetRounds } from "@/lib/bet-rounds";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
   GameType,
@@ -708,7 +709,9 @@ export const useAppStore = create<AppState>()(
           existing &&
           (existing.status === "accepted" || existing.status === "in_game") &&
           challenge.status === "cancelled" &&
-          (existing.creatorId === me.id || existing.opponentId === me.id)
+          (existing.creatorId === me.id || existing.opponentId === me.id) &&
+          // Đã chơi ít nhất một ván thì tiền tạm giữ đã được trả rồi.
+          !useBetRounds.getState().rounds[existing.id]?.escrowBack
         ) {
           // Kèo bỏ dở bị huỷ: trả lại tiền cược đã tạm giữ của mình.
           const now = Date.now();

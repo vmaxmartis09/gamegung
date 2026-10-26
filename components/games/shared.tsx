@@ -10,6 +10,7 @@ import { useAppStore, MatchSettlementResult, type BetChallenge } from "@/lib/sto
 import { useUiStore } from "@/lib/ui-store";
 import { recordMatchToSupabase, syncProfileToSupabase } from "@/lib/supabase-game";
 import { useSessionStore } from "@/lib/session-store";
+import { useBetRounds } from "@/lib/bet-rounds";
 import type { GameType } from "@/lib/ranking-system";
 import { GameIcon, GAME_BY_ID, GameId } from "@/components/art/game-art";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -579,9 +580,22 @@ export function useMatchSettlement(gameType: GameType) {
   const settled = useRef(false);
 
   const settle = useCallback(
-    (outcome: "win" | "loss" | "draw", opponent: { name: string; elo: number }, stake: number) => {
+    (outcome: "win" | "loss" | "draw", opponent: { name: string; elo: number }, stake: number, betId?: string) => {
       if (settled.current) return null;
       settled.current = true;
+      // Kèo bạn bè: tiền cược đã tạm giữ lúc tạo/nhận kèo, trả lại một lần ở ván đầu tiên có kết quả;
+      // thắng/thua bên dưới mới là phần cộng/trừ thật.
+      if (betId && stake > 0 && !useBetRounds.getState().rounds[betId]?.escrowBack) {
+        useBetRounds.getState().markEscrowBack(betId);
+        const now = Date.now();
+        useAppStore.setState((s) => ({
+          currentUser: { ...s.currentUser, lua: s.currentUser.lua + stake },
+          transactions: [
+            { id: "tx-escrow-back-" + now, timestamp: now, amount: stake, type: "bet_refund", description: `Trả lại tiền cược tạm giữ (+${stake} 🌾)`, balanceAfter: s.currentUser.lua + stake },
+            ...s.transactions,
+          ],
+        }));
+      }
       useCooldownStore.getState().start(COOLDOWN.afterMatch, "Vừa kết thúc trận");
       const r = settleMatchResult({ gameType, opponentName: opponent.name, opponentElo: opponent.elo, result: outcome, stake });
       setResult(r);

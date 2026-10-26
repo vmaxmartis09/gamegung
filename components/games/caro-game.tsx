@@ -13,6 +13,7 @@ import { NarratorButton, useNarrator } from "./game-fx";
 import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useMatchOpponent, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
 import { Emoji, EmojiText } from "@/components/ui/emoji";
 import { BetLobby, type BetOpp } from "./bet-lobby";
+import { currentRound, rejoinTable, roomOf, useBetRounds } from "@/lib/bet-rounds";
 
 const N = 15;
 const NO_CLOCK_MS = 24 * 3600 * 1000;
@@ -38,6 +39,9 @@ const DEFAULTS: Settings = { mode: "friend", level: "medium", color: 1, ranked: 
 interface PvpInfo {
   /** Chỉ xem (khán giả hoặc trận đã xong): không gửi nước, không tính kèo. */
   watch?: boolean;
+  /** Id kèo khi bàn này là một ván của kèo bạn bè (`room` là id bàn của ván đó). */
+  betId?: string;
+  stake?: number;
   room: string;
   oppId: string;
   name: string;
@@ -233,7 +237,7 @@ export function CaroGame() {
       if (settleIt && (rated || stake > 0) && settings.mode !== "local") {
         const outcome = w === 0 ? "draw" : w === mySide ? "win" : "loss";
         const p = pvpRef.current;
-        if (!p?.watch) settle(outcome, { name: p?.name ?? matchOpp?.name ?? `Caro AI ${level.label}`, elo: p ? p.elo ?? 1200 : matchOpp?.elo ?? level.elo }, stake);
+        if (!p?.watch) settle(outcome, { name: p?.name ?? matchOpp?.name ?? `Caro AI ${level.label}`, elo: p ? p.elo ?? 1200 : matchOpp?.elo ?? level.elo }, stake, p?.betId);
       } else if (!settleIt) showToast(reason, "info", 4000);
       sound(w === mySide || settings.mode === "local" ? "win" : "lose");
       if (settleIt) {
@@ -333,12 +337,26 @@ export function CaroGame() {
   };
 
   const [lobby, setLobby] = useState<BetOpp | null>(null);
-  // Vào lại ván đã bắt đầu: vào thẳng bàn; lần đầu: qua phòng chờ.
-  const startBetPvp = (bo: BetOpp) => (bo.inGame ? void launchBetPvp(bo) : setLobby(bo));
 
-  async function launchBetPvp(bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) {
+  // Hết ván trong kèo: cả hai quay lại phòng chờ, chủ phòng bấm Bắt đầu là ván mới.
+  const roundOver = !!pvp?.betId && !pvp.watch && online.row?.status === "finished";
+  useEffect(() => {
+    if (!roundOver || !pvp?.betId) return;
+    useBetRounds.getState().end(pvp.betId);
+    const back: BetOpp = { room: pvp.betId, oppId: pvp.oppId, name: pvp.name, avatar: pvp.avatar, stake: pvp.stake ?? stake };
+    const t = setTimeout(() => setLobby(back), 4000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundOver]);
+  // Vào lại ván đã bắt đầu: vào thẳng bàn; lần đầu: qua phòng chờ.
+  const startBetPvp = (bo: BetOpp) => (bo.inGame && rejoinTable(bo.room) ? void launchBetPvp(bo) : setLobby(bo));
+
+  async function launchBetPvp(bo: BetOpp) {
+    const round = bo.round ?? currentRound(bo.room);
+    const room = roomOf(bo.room, round);
+    useBetRounds.getState().start(bo.room, round);
     const row = await openBetMatch({
-      id: bo.room,
+      id: room,
       game: "caro",
       oppId: bo.oppId,
       stake: bo.stake,
@@ -349,7 +367,7 @@ export function CaroGame() {
     if (!row) return showToast("Không mở được bàn online — cần đăng nhập tài khoản.", "bad", 4000);
     loadedMatch.current = null;
     setSettings((s) => ({ ...s, mode: "friend" }));
-    setPvp({ room: bo.room, oppId: bo.oppId, name: bo.name, avatar: bo.avatar });
+    setPvp({ room, betId: bo.room, stake: bo.stake, oppId: bo.oppId, name: bo.name, avatar: bo.avatar });
     setStake(bo.stake);
     begin(1);
   }
