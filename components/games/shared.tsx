@@ -89,17 +89,19 @@ export function useMatchOpponent(): MatchOpponent | null {
 }
 
 /** Opponent for a table opened from a chat bet card (`?bet=<id>`); null unless I am one of the two accepted players. */
-export function betOpponentFromUrl(): { room: string; oppId: string; name: string; avatar: string; stake: number } | null {
+export function betOpponentFromUrl(): { room: string; oppId: string; name: string; avatar: string; stake: number; inGame?: boolean } | null {
   if (typeof window === "undefined") return null;
   const id = new URLSearchParams(window.location.search).get("bet");
   if (!id) return null;
   const st = useAppStore.getState();
   for (const list of Object.values(st.messages)) {
     const b = list.find((m) => m.betChallenge?.id === id)?.betChallenge;
-    if (!b || b.status !== "accepted") continue;
+    if (!b || (b.status !== "accepted" && b.status !== "in_game")) continue;
     const meId = st.currentUser.id;
-    if (b.creatorId === meId) return { room: b.id, oppId: b.opponentId ?? "", name: b.opponentName ?? "Đối thủ", avatar: b.opponentAvatar ?? "", stake: b.stake };
-    if (b.opponentId === meId) return { room: b.id, oppId: b.creatorId, name: b.creatorName, avatar: b.creatorAvatar, stake: b.stake };
+    // Đã vào ván rồi thì vào thẳng bàn, không qua phòng chờ nữa.
+    const inGame = b.status === "in_game";
+    if (b.creatorId === meId) return { room: b.id, oppId: b.opponentId ?? "", name: b.opponentName ?? "Đối thủ", avatar: b.opponentAvatar ?? "", stake: b.stake, inGame };
+    if (b.opponentId === meId) return { room: b.id, oppId: b.creatorId, name: b.creatorName, avatar: b.creatorAvatar, stake: b.stake, inGame };
   }
   return null;
 }
@@ -374,7 +376,7 @@ export function useFriendBet(game: GameType) {
     for (const list of Object.values(s.messages)) {
       for (let i = list.length - 1; i >= 0; i--) {
         const b = list[i].betChallenge;
-        if (b && b.gameType === game && (b.creatorId === s.currentUser.id || b.opponentId === s.currentUser.id) && (b.status === "pending" || b.status === "accepted")) {
+        if (b && b.gameType === game && (b.creatorId === s.currentUser.id || b.opponentId === s.currentUser.id) && (b.status === "pending" || b.status === "accepted" || b.status === "in_game")) {
           if (!found || b.createdAt > found.createdAt) found = b;
           break;
         }
@@ -386,7 +388,7 @@ export function useFriendBet(game: GameType) {
   const cancelBet = useAppStore((s) => s.cancelBetChallenge);
 
   const friend: FriendOpp | null =
-    bet?.status === "accepted"
+    bet?.status === "accepted" || bet?.status === "in_game"
       ? bet.creatorId === meId
         ? { id: bet.opponentId ?? "", name: bet.opponentName ?? "Bạn bè", avatar: bet.opponentAvatar ?? "", betId: bet.id }
         : { id: bet.creatorId, name: bet.creatorName, avatar: bet.creatorAvatar, betId: bet.id }
@@ -412,17 +414,57 @@ export function useFriendBet(game: GameType) {
 }
 
 /** Connection line for an online match: is the opponent at the table? */
-export function OnlineStatus({ oppOnline, ready, canAbort, onAbort }: { oppOnline: boolean | null; ready: boolean; canAbort: boolean; onAbort: () => void }) {
-  if (!ready) return <p className="text-center text-[11px] text-ink-300">Đang kết nối bàn đấu…</p>;
-  if (oppOnline !== false) return null;
+export function OnlineStatus({
+  oppOnline,
+  ready,
+  canAbort,
+  onAbort,
+  watchers = [],
+  watching = false,
+}: {
+  oppOnline: boolean | null;
+  ready: boolean;
+  canAbort: boolean;
+  onAbort: () => void;
+  watchers?: { id: string; name: string; avatar: string }[];
+  watching?: boolean;
+}) {
+  const audience =
+    watchers.length > 0 ? (
+      <div className="flex items-center gap-1.5 text-[11px] text-ink-300" title={watchers.map((w) => w.name).join(", ")}>
+        <span className="flex -space-x-1.5">
+          {watchers.slice(0, 5).map((w) => (
+            <UserAvatar key={w.id} src={w.avatar} name={w.name} className="size-5 ring-2 ring-ink-950" />
+          ))}
+        </span>
+        <span className="truncate">
+          {watchers.length} người đang xem{watchers.length <= 2 ? `: ${watchers.map((w) => w.name).join(", ")}` : ""}
+        </span>
+      </div>
+    ) : null;
+  if (!ready) return <p className="text-center text-[11px] text-ink-300">{watching ? "Đang tải trận…" : "Đang kết nối bàn đấu…"}</p>;
+  if (watching)
+    return (
+      <div className="space-y-1.5">
+        <p role="status" className="rounded-xl border border-white/10 bg-white/[0.04] p-2 text-center text-[11px] text-ink-200">
+          Bạn đang xem trận này, không thể đi nước.
+        </p>
+        {audience}
+      </div>
+    );
   return (
-    <div role="status" className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-2 text-center text-[11px] text-amber-200">
-      {canAbort ? "Đối thủ chưa vào bàn." : "Đối thủ mất kết nối — đồng hồ của họ vẫn chạy."}
-      {canAbort && (
-        <button type="button" className="btn-ghost ml-2 px-2 py-0.5 text-[11px]" onClick={onAbort}>
-          Huỷ ván
-        </button>
+    <div className="space-y-1.5">
+      {oppOnline === false && (
+        <div role="status" className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-2 text-center text-[11px] text-amber-200">
+          {canAbort ? "Đối thủ chưa vào bàn." : "Đối thủ mất kết nối — đồng hồ của họ vẫn chạy."}
+          {canAbort && (
+            <button type="button" className="btn-ghost ml-2 px-2 py-0.5 text-[11px]" onClick={onAbort}>
+              Huỷ ván
+            </button>
+          )}
+        </div>
       )}
+      {audience}
     </div>
   );
 }

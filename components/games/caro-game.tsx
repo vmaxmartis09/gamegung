@@ -36,6 +36,8 @@ interface Settings {
 const DEFAULTS: Settings = { mode: "ai", level: "medium", color: 1, ranked: true };
 
 interface PvpInfo {
+  /** Chỉ xem (khán giả hoặc trận đã xong): không gửi nước, không tính kèo. */
+  watch?: boolean;
   room: string;
   oppId: string;
   name: string;
@@ -188,7 +190,7 @@ export function CaroGame() {
     if (s > 0) setStake(s);
   }, []);
 
-  const online = useOnlineMatch(pvp?.room ?? null, myId);
+  const online = useOnlineMatch(pvp?.room ?? null, myId, { watch: !!pvp?.watch, me: { name: me.username, avatar: me.avatar } });
   const onlineRef = useRef(online);
   onlineRef.current = online;
 
@@ -205,7 +207,7 @@ export function CaroGame() {
   const isAi = settings.mode === "ai";
   const rated = (isAi && settings.ranked) || !!pvp;
   const playing = phase === "playing";
-  const myTurn = playing && (settings.mode === "local" || (turn === mySide && (!pvp || !!online.row)));
+  const myTurn = playing && (settings.mode === "local" || (turn === mySide && (!pvp || (!!online.row && !pvp.watch))));
   const aiTurn = playing && isAi && turn !== mySide;
   const last = moves[moves.length - 1];
   const winSet = useMemo(() => new Set(win ?? []), [win]);
@@ -230,7 +232,7 @@ export function CaroGame() {
       if (settleIt && (rated || stake > 0) && settings.mode !== "local") {
         const outcome = w === 0 ? "draw" : w === mySide ? "win" : "loss";
         const p = pvpRef.current;
-        settle(outcome, { name: p?.name ?? matchOpp?.name ?? `Caro AI ${level.label}`, elo: p ? p.elo ?? 1200 : matchOpp?.elo ?? level.elo }, stake);
+        if (!p?.watch) settle(outcome, { name: p?.name ?? matchOpp?.name ?? `Caro AI ${level.label}`, elo: p ? p.elo ?? 1200 : matchOpp?.elo ?? level.elo }, stake);
       } else if (!settleIt) showToast(reason, "info", 4000);
       sound(w === mySide || settings.mode === "local" ? "win" : "lose");
       if (settleIt) {
@@ -330,7 +332,8 @@ export function CaroGame() {
   };
 
   const [lobby, setLobby] = useState<BetOpp | null>(null);
-  const startBetPvp = (bo: BetOpp) => setLobby(bo);
+  // Vào lại ván đã bắt đầu: vào thẳng bàn; lần đầu: qua phòng chờ.
+  const startBetPvp = (bo: BetOpp) => (bo.inGame ? void launchBetPvp(bo) : setLobby(bo));
 
   async function launchBetPvp(bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) {
     const row = await openBetMatch({
@@ -351,7 +354,17 @@ export function CaroGame() {
   }
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("bet")) {
+    const q = new URLSearchParams(window.location.search);
+    const watchId = q.get("match");
+    if (watchId && q.get("watch") === "1") {
+      // Xem trận: bàn chỉ đọc, nước đi lấy từ server.
+      loadedMatch.current = null;
+      setSettings((s) => ({ ...s, mode: "friend" }));
+      setPvp({ room: watchId, oppId: "", name: "Người chơi", avatar: "", watch: true });
+      begin(1);
+      return;
+    }
+    if (q.get("bet")) {
       void waitForBetOpponent().then((bo) => {
         if (bo?.oppId) void startBetPvp(bo);
         else showToast("Không tìm thấy kèo đã được nhận cho bàn này.", "bad", 4000);
@@ -363,7 +376,7 @@ export function CaroGame() {
   const start = () => {
     if (isFriend) {
       if (!fb.friend) return;
-      void startBetPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar, stake: fb.bet?.stake ?? stake });
+      void startBetPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar, stake: fb.bet?.stake ?? stake, inGame: fb.bet?.status === "in_game" });
       return;
     }
     setPvp(null);
@@ -545,7 +558,7 @@ export function CaroGame() {
                 </motion.p>
               </AnimatePresence>
               <p className="text-center text-xs text-ink-400">{moves.length} nước{overReason && phase === "over" ? ` · ${overReason}` : ""}</p>
-              {pvp && playing && <OnlineStatus oppOnline={online.oppOnline} ready={!!online.row} canAbort={moves.length < 2} onAbort={() => void online.act("abort")} />}
+              {pvp && playing && <OnlineStatus watchers={online.watchers} watching={!!pvp?.watch} oppOnline={online.oppOnline} ready={!!online.row} canAbort={moves.length < 2} onAbort={() => void online.act("abort")} />}
               {playing ? (
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" onClick={undo} disabled={!!pvp || rated || !moves.length} className="flex items-center justify-center gap-1.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 text-xs font-bold hover:bg-white/[0.08] disabled:opacity-30">

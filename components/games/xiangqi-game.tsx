@@ -66,6 +66,8 @@ interface Settings {
 const DEFAULTS: Settings = { mode: "ai", level: "medium", color: 1, time: "10+5", ranked: true, theme: "wood" };
 
 interface PvpInfo {
+  /** Chỉ xem (khán giả hoặc trận đã xong): không gửi nước, không tính kèo. */
+  watch?: boolean;
   room: string;
   oppId: string;
   name: string;
@@ -134,7 +136,7 @@ export function XiangqiGame() {
   const pvpRef = useRef<PvpInfo | null>(null);
   pvpRef.current = pvp;
   // Online match state (server-refereed); see lib/online-match.
-  const online = useOnlineMatch(pvp?.room ?? null, myId);
+  const online = useOnlineMatch(pvp?.room ?? null, myId, { watch: !!pvp?.watch, me: { name: me.username, avatar: me.avatar } });
   const onlineRef = useRef(online);
   onlineRef.current = online;
   /** A move of mine is on its way to the server; don't roll the board back meanwhile. */
@@ -173,7 +175,7 @@ export function XiangqiGame() {
   const viewing = viewPly !== null && viewPly !== boards.length - 1;
   const shown = viewPly === null ? boards[boards.length - 1] : boards[viewPly];
   // Online: wait until the server has told us which side we play.
-  const humanTurn = phase === "playing" && (settings.mode === "local" || turn === mySide) && (!pvp || !!online.row);
+  const humanTurn = phase === "playing" && (settings.mode === "local" || turn === mySide) && (!pvp || (!!online.row && !pvp.watch));
   const bottomSide: Side = (settings.mode === "local" ? 1 : mySide) as Side; // người đăng nhập luôn ở phía dưới
   const lastMove = viewing ? moves[(viewPly ?? 1) - 1] : moves[moves.length - 1];
 
@@ -219,7 +221,7 @@ export function XiangqiGame() {
       setDrawOffer(null);
       if (!settleIt) showToast(reason, "info", 4000);
       else if (rated) {
-        settle(winner === 0 ? "draw" : winner === mySide ? "win" : "loss", { name: pvp?.name ?? matchOpp?.name ?? `Engine ${level.label}`, elo: pvp ? pvp.elo ?? 1200 : matchOpp?.elo ?? level.elo }, stake);
+        if (!pvp?.watch) settle(winner === 0 ? "draw" : winner === mySide ? "win" : "loss", { name: pvp?.name ?? matchOpp?.name ?? `Engine ${level.label}`, elo: pvp ? pvp.elo ?? 1200 : matchOpp?.elo ?? level.elo }, stake);
       } else showToast(winner === 0 ? `Hoà — ${reason}` : `${winner === 1 ? "Đỏ" : "Đen"} thắng — ${reason}`, "info", 4000);
     },
     [rated, mySide, level, stake, settle, sound, showToast, matchOpp, pvp, narrator, settings.mode]
@@ -422,7 +424,7 @@ export function XiangqiGame() {
     const q = new URLSearchParams(window.location.search);
     const matchId = q.get("match");
     if (matchId) {
-      beginPvp({ room: matchId, oppId: "", name: "Đối thủ", avatar: "" });
+      beginPvp({ room: matchId, oppId: "", name: "Đối thủ", avatar: "", watch: q.get("watch") === "1" });
       return;
     }
     if (q.get("bet")) {
@@ -515,7 +517,8 @@ export function XiangqiGame() {
   };
 
   const [lobby, setLobby] = useState<BetOpp | null>(null);
-  const startBetPvp = (bo: BetOpp) => setLobby(bo);
+  // Vào lại ván đã bắt đầu: vào thẳng bàn; lần đầu: qua phòng chờ.
+  const startBetPvp = (bo: BetOpp) => (bo.inGame ? void launchBetPvp(bo) : setLobby(bo));
 
   async function launchBetPvp(bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) {
     const row = await openBetMatch({
@@ -533,7 +536,7 @@ export function XiangqiGame() {
   const start = () => {
     if (isFriend) {
       if (!fb.friend) return;
-      void startBetPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar, stake: fb.bet?.stake ?? stake });
+      void startBetPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar, stake: fb.bet?.stake ?? stake, inGame: fb.bet?.status === "in_game" });
       return;
     }
     finishedRef.current = false;
@@ -889,7 +892,7 @@ export function XiangqiGame() {
                   </div>
                 )}
                 {pvp && phase === "playing" && (
-                  <OnlineStatus oppOnline={online.oppOnline} ready={!!online.row} canAbort={moves.length < 2} onAbort={() => void online.act("abort")} />
+                  <OnlineStatus watchers={online.watchers} watching={!!pvp?.watch} oppOnline={online.oppOnline} ready={!!online.row} canAbort={moves.length < 2} onAbort={() => void online.act("abort")} />
                 )}
                 {phase === "playing" && (
                   <HoldButton className="w-full text-xs" variant="red" holdingLabel="Giữ để xác nhận…" completeLabel="Đã xin thua" onHoldComplete={resign}>

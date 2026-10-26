@@ -122,6 +122,8 @@ interface ChessSave {
 type Mode = "ai" | "local" | "pvp" | "friend";
 
 interface PvpInfo {
+  /** Chỉ xem (khán giả hoặc trận đã xong): không gửi nước, không tính kèo. */
+  watch?: boolean;
   room: string;
   oppId: string;
   name: string;
@@ -253,7 +255,7 @@ export function ChessGame() {
   const shownFen = viewPly === null ? liveFen : fens[viewPly];
   const viewing = viewPly !== null && viewPly !== fens.length - 1;
   const turn = liveFen.split(" ")[1] as "w" | "b";
-  const humanTurn = phase === "playing" && (settings.mode === "local" || turn === myColor);
+  const humanTurn = phase === "playing" && (settings.mode === "local" || turn === myColor) && !pvp?.watch;
   const orientation: "w" | "b" = settings.mode === "local" ? "w" : myColor; // người đăng nhập luôn ở phía dưới
 
   const shownBoard = useMemo(() => new Chess(shownFen).board(), [shownFen]);
@@ -310,7 +312,7 @@ export function ChessGame() {
         showToast(reason, "info", 4000);
       } else if (rated) {
         const outcome = winner === null ? "draw" : winner === myColor ? "win" : "loss";
-        settle(outcome, pvp ? { name: pvp.name, elo: pvp.elo } : { name: `Engine ${level.label}`, elo: level.elo }, stake);
+        if (!pvp?.watch) settle(outcome, pvp ? { name: pvp.name, elo: pvp.elo } : { name: `Engine ${level.label}`, elo: level.elo }, stake);
       } else {
         showToast(winner === null ? `Hoà — ${reason}` : `${winner === "w" ? "Trắng" : "Đen"} thắng — ${reason}`, "info", 4000);
       }
@@ -325,7 +327,7 @@ export function ChessGame() {
   }, [finish]);
 
   // Online match state (server-refereed); see lib/online-match.
-  const online = useOnlineMatch(pvp?.room ?? null, myId);
+  const online = useOnlineMatch(pvp?.room ?? null, myId, { watch: !!pvp?.watch, me: { name: me.username, avatar: me.avatar } });
   const onlineRef = useRef(online);
   onlineRef.current = online;
   /** A move of mine is on its way to the server; don't roll the board back meanwhile. */
@@ -515,7 +517,9 @@ export function ChessGame() {
   }, [syncClock]);
 
   const [lobby, setLobby] = useState<BetOpp | null>(null);
-  const startBetPvp = useCallback((bo: BetOpp) => setLobby(bo), []);
+  const launchRef = useRef<(bo: BetOpp) => void>(() => {});
+  // Vào lại ván đã bắt đầu: vào thẳng bàn; lần đầu: qua phòng chờ.
+  const startBetPvp = useCallback((bo: BetOpp) => (bo.inGame ? launchRef.current(bo) : setLobby(bo)), []);
 
   const launchBetPvp = useCallback(
     async (bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) => {
@@ -533,11 +537,13 @@ export function ChessGame() {
     [beginPvp, me.username, me.avatar, showToast]
   );
 
+  launchRef.current = (bo) => void launchBetPvp(bo);
+
   const initPvpFromUrl = useCallback(() => {
     const q = new URLSearchParams(window.location.search);
     const id = q.get("match");
     if (id) {
-      beginPvp({ room: id, oppId: "", name: "Đối thủ", avatar: "", elo: 1200 });
+      beginPvp({ room: id, oppId: "", name: "Đối thủ", avatar: "", elo: 1200, watch: q.get("watch") === "1" });
       return true;
     }
     if (q.get("bet")) {
@@ -684,7 +690,7 @@ export function ChessGame() {
   const startGame = () => {
     if (isFriend) {
       if (!fb.friend) return;
-      void startBetPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar, stake: fb.bet?.stake ?? stake });
+      void startBetPvp({ room: fb.friend.betId, oppId: fb.friend.id, name: fb.friend.name, avatar: fb.friend.avatar, stake: fb.bet?.stake ?? stake, inGame: fb.bet?.status === "in_game" });
       return;
     }
     engine?.cancel();
@@ -1111,7 +1117,7 @@ export function ChessGame() {
                   </div>
                 )}
                 {pvp && phase === "playing" && (
-                  <OnlineStatus oppOnline={online.oppOnline} ready={!!online.row} canAbort={moves.length < 2} onAbort={() => void online.act("abort")} />
+                  <OnlineStatus watchers={online.watchers} watching={!!pvp?.watch} oppOnline={online.oppOnline} ready={!!online.row} canAbort={moves.length < 2} onAbort={() => void online.act("abort")} />
                 )}
                 {pvp && phase === "playing" && <MatchVoice room={pvp.room} />}
                 {phase === "playing" && (

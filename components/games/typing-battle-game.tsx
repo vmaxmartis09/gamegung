@@ -848,13 +848,14 @@ export function TypingBattleGame() {
   useEffect(() => {
     if (!new URLSearchParams(window.location.search).get("bet")) return;
     void waitForBetOpponent().then((bo) => {
-      if (bo?.oppId) {
-        setMode(3);
-        setOpp("friend");
-        setStake(bo.stake);
-        setLobby(bo);
-      }
+      if (!bo?.oppId) return;
+      setMode(3);
+      setOpp("friend");
+      setStake(bo.stake);
+      if (bo.inGame) launchOnline(bo);
+      else setLobby(bo);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const start = useCallback(() => {
@@ -908,6 +909,7 @@ export function TypingBattleGame() {
             const on = onlineRef.current;
             if (on && w >= 0) {
               settleRef.current(w === 0 ? "win" : "loss", { name: on.oppName, elo: 1000 }, on.stake);
+              useAppStore.getState().markBetStatus(on.room, "completed", w === 0 ? { winnerId: useAppStore.getState().currentUser.id } : {});
             } else if (cfgRef.current.vsBot && w >= 0) {
               settleRef.current(
                 w === 0 ? "win" : "loss",
@@ -1087,7 +1089,9 @@ export function TypingBattleGame() {
           onStart={(fr) => {
             friendRef.current = fr;
             if (opp === "friend" && fr) {
-              setLobby({ room: fr.betId, oppId: fr.id, name: fr.name, avatar: fr.avatar, stake: fr.stake });
+              const bo = { room: fr.betId, oppId: fr.id, name: fr.name, avatar: fr.avatar, stake: fr.stake };
+              if (fr.inGame) launchOnline(bo);
+              else setLobby(bo);
               return;
             }
             start();
@@ -1273,7 +1277,7 @@ const MODES: { value: Mode; icon: typeof Zap; name: string; desc: string }[] = [
 ];
 
 type OppKind = "bot" | "local" | "friend";
-type FriendInfo = { id: string; name: string; avatar: string; betId: string; stake: number };
+type FriendInfo = { id: string; name: string; avatar: string; betId: string; stake: number; inGame?: boolean };
 
 const OPPS: { value: OppKind; icon: typeof Bot; name: string; desc: string }[] = [
   { value: "bot", icon: Bot, name: "Đấu máy", desc: "Tính điểm xếp hạng, có thể cược Lúa" },
@@ -1329,7 +1333,7 @@ function TypingLobby({
     const list = s.messages["lounge"] ?? [];
     for (let i = list.length - 1; i >= 0; i--) {
       const b = list[i].betChallenge;
-      if (b && b.gameType === "typing" && (b.creatorId === s.currentUser.id || b.opponentId === s.currentUser.id) && (b.status === "pending" || b.status === "accepted")) return b;
+      if (b && b.gameType === "typing" && (b.creatorId === s.currentUser.id || b.opponentId === s.currentUser.id) && (b.status === "pending" || b.status === "accepted" || b.status === "in_game")) return b;
     }
     return null;
   });
@@ -1342,10 +1346,10 @@ function TypingLobby({
   }, [bet, opp, stake, setStake]);
 
   const friend =
-    bet?.status === "accepted"
+    bet?.status === "accepted" || bet?.status === "in_game"
       ? bet.creatorId === me.id
-        ? { id: bet.opponentId ?? "", name: bet.opponentName ?? "Bạn bè", avatar: bet.opponentAvatar ?? "", betId: bet.id, stake: bet.stake }
-        : { id: bet.creatorId, name: bet.creatorName, avatar: bet.creatorAvatar, betId: bet.id, stake: bet.stake }
+        ? { id: bet.opponentId ?? "", name: bet.opponentName ?? "Bạn bè", avatar: bet.opponentAvatar ?? "", betId: bet.id, stake: bet.stake, inGame: bet.status === "in_game" }
+        : { id: bet.creatorId, name: bet.creatorName, avatar: bet.creatorAvatar, betId: bet.id, stake: bet.stake, inGame: bet.status === "in_game" }
       : null;
   const pending = bet?.status === "pending" && bet.creatorId === me.id ? bet : null;
   const needsBot = mode === 1 && opp !== "bot";

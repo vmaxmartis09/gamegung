@@ -126,6 +126,11 @@ export interface BetChallenge {
   opponentAvatar?: string;
   winnerId?: string;
   createdAt: number;
+  /** Lúc có người nhận kèo (giờ server); phòng chờ tự huỷ sau 9 phút. */
+  acceptedAt?: number;
+  /** Lúc hai bên vào ván. */
+  startedAt?: number;
+  cancelReason?: string;
 }
 
 export interface ChatMessage {
@@ -249,6 +254,8 @@ interface AppState {
     title?: string
   ) => BetChallenge | null;
   acceptBetChallenge: (challengeId: string) => boolean;
+  /** Người trong kèo đổi trạng thái: vào ván, xong ván, hoặc huỷ kèo bỏ dở (hoàn tiền cả hai bên). */
+  markBetStatus: (challengeId: string, status: "in_game" | "completed" | "cancelled", extra?: Partial<BetChallenge>) => void;
   cancelBetChallenge: (challengeId: string) => boolean;
 
   // Audio / Sound
@@ -697,6 +704,23 @@ export const useAppStore = create<AppState>()(
         const cur = get();
         const me = cur.currentUser;
         const existing = cur.messages[challenge.channelId]?.find((m) => m.betChallenge?.id === challenge.id)?.betChallenge;
+        if (
+          existing &&
+          (existing.status === "accepted" || existing.status === "in_game") &&
+          challenge.status === "cancelled" &&
+          (existing.creatorId === me.id || existing.opponentId === me.id)
+        ) {
+          // Kèo bỏ dở bị huỷ: trả lại tiền cược đã tạm giữ của mình.
+          const now = Date.now();
+          const balanceAfter = me.lua + existing.stake;
+          set((state) => ({
+            currentUser: { ...state.currentUser, lua: balanceAfter },
+            transactions: [
+              { id: "tx-refund-" + now, timestamp: now, amount: existing.stake, type: "bet_refund", description: `Hoàn tiền cược: kèo bỏ dở đã tự huỷ (+${existing.stake} 🌾)`, balanceAfter },
+              ...state.transactions,
+            ],
+          }));
+        }
         if (existing && existing.status === "accepted" && challenge.status === "accepted" && existing.opponentId !== challenge.opponentId) {
           // Two people accepted at once: the creator's first acceptance stands.
           if (existing.creatorId === me.id) {
@@ -843,6 +867,20 @@ export const useAppStore = create<AppState>()(
         return challenge;
       },
 
+      markBetStatus: (challengeId, status, extra) => {
+        const state = get();
+        const me = state.currentUser.id;
+        for (const list of Object.values(state.messages)) {
+          const b = list.find((m) => m.betChallenge?.id === challengeId)?.betChallenge;
+          if (!b) continue;
+          if (b.creatorId !== me && b.opponentId !== me) return;
+          if (b.status === status || b.status === "completed" || b.status === "cancelled") return;
+          const next: BetChallenge = { ...b, ...extra, status, ...(status === "in_game" && !b.startedAt ? { startedAt: Date.now() } : {}) };
+          get().applyBetUpdate(next);
+          realtimeBridge.sendBetUpdate(next);
+          return;
+        }
+      },
       acceptBetChallenge: (challengeId: string) => {
         const state = get();
         const user = state.currentUser;
@@ -886,6 +924,7 @@ export const useAppStore = create<AppState>()(
           opponentId: user.id,
           opponentName: user.username,
           opponentAvatar: user.avatar,
+          acceptedAt: now,
         };
 
         const updatedMessages = (state.messages[foundChannel] || []).map((m) => {

@@ -137,10 +137,34 @@ export async function openBetMatch(args: {
   return (data as RpcRow | null) ?? null;
 }
 
-export function useOnlineMatch(matchId: string | null, myId: string) {
+/** Người đang xem trận (không phải người chơi). */
+export type Watcher = { id: string; name: string; avatar: string };
+
+/** Trạng thái gọn của các trận (còn chơi hay đã xong); trận chưa mở thì không có trong kết quả. */
+export async function peekMatches(ids: string[]): Promise<Record<string, { status: string; winner: string | null; updated_at?: string }>> {
+  if (!isSupabaseConfigured || !ids.length) return {};
+  const { data, error } = await supabase.rpc("match_peek", { p_ids: ids });
+  if (error) {
+    console.warn("[match] peek:", error.message);
+    return {};
+  }
+  const out: Record<string, { status: string; winner: string | null; updated_at?: string }> = {};
+  for (const r of (data ?? []) as { id: string; status: string; winner: string | null; updated_at?: string }[]) out[r.id] = { status: r.status, winner: r.winner, updated_at: r.updated_at };
+  return out;
+}
+
+/**
+ * `watch`: xem trận của người khác (hoặc trận đã xong) — chỉ đọc, không gửi nước;
+ * người xem hiện trong danh sách `watchers` của mọi người trong trận.
+ */
+export function useOnlineMatch(matchId: string | null, myId: string, opts: { watch?: boolean; me?: { name: string; avatar: string } } = {}) {
+  const watch = !!opts.watch;
+  const meRef = useRef(opts.me);
+  meRef.current = opts.me;
   const [row, setRow] = useState<MatchRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [oppOnline, setOppOnline] = useState<boolean | null>(null);
+  const [watchers, setWatchers] = useState<Watcher[]>([]);
   const rowRef = useRef<MatchRow | null>(null);
   // Giờ server − giờ máy; giữ phép đo có độ trễ mạng thấp nhất.
   const offset = useRef({ ms: 0, rtt: Infinity });
@@ -190,30 +214,39 @@ export function useOnlineMatch(matchId: string | null, myId: string) {
     setRow(null);
     setError(null);
     setOppOnline(null);
+    setWatchers([]);
     if (!matchId || !isSupabaseConfigured) return;
     let alive = true;
 
     const refresh = () => {
-      if (alive) void call("match_state", { p_id: matchId }).then((r) => alive && !r && !rowRef.current && setError((e) => e ?? "Không tải được trận."));
+      if (alive) void call(watch ? "match_watch" : "match_state", { p_id: matchId }).then((r) => alive && !r && !rowRef.current && setError((e) => e ?? "Không tải được trận."));
     };
     refresh();
 
     const ch: RealtimeChannel = supabase.channel(`match:${matchId}`, { config: { presence: { key: myId } } });
     ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${matchId}` }, (p) => accept(p.new as MatchRow))
       .on("presence", { event: "sync" }, () => {
-        const ids = Object.keys(ch.presenceState());
-        setOppOnline(ids.some((id) => id !== myId));
+        const state = ch.presenceState() as Record<string, { id?: string; watch?: boolean; name?: string; avatar?: string }[]>;
+        const list: Watcher[] = [];
+        let opp = false;
+        for (const [id, metas] of Object.entries(state)) {
+          const m = metas[metas.length - 1] ?? {};
+          if (m.watch) list.push({ id, name: m.name || "Khán giả", avatar: m.avatar || "" });
+          else if (id !== myId) opp = true;
+        }
+        setOppOnline(opp);
+        setWatchers(list);
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          ch.track({ id: myId }).catch(() => {});
+          ch.track(watch ? { id: myId, watch: true, name: meRef.current?.name ?? "", avatar: meRef.current?.avatar ?? "" } : { id: myId }).catch(() => {});
           refresh(); // bắt kịp những gì xảy ra trước khi kênh sẵn sàng
         }
       });
 
     const poll = setInterval(() => {
       if (rowRef.current?.status === "active") refresh();
-    }, POLL_MS);
+    }, watch ? 1500 : POLL_MS);
     const onVisible = () => document.visibilityState === "visible" && refresh();
     document.addEventListener("visibilitychange", onVisible);
 
@@ -223,24 +256,24 @@ export function useOnlineMatch(matchId: string | null, myId: string) {
       document.removeEventListener("visibilitychange", onVisible);
       supabase.removeChannel(ch);
     };
-  }, [matchId, myId, call, accept]);
+  }, [matchId, myId, watch, call, accept]);
 
   /** Gửi nước đi thứ `ply` (đếm từ 0). `result` theo góc nhìn người đi, khi nước này kết thúc ván. */
   const sendMove = useCallback(
     (ply: number, move: unknown, result?: "win" | "loss" | "draw", reason?: string) =>
-      matchId ? call("match_move", { p_id: matchId, p_ply: ply, p_move: move, p_result: result ?? null, p_reason: reason ?? null }) : Promise.resolve(null),
-    [matchId, call]
+      matchId && !watch ? call("match_move", { p_id: matchId, p_ply: ply, p_move: move, p_result: result ?? null, p_reason: reason ?? null }) : Promise.resolve(null),
+    [matchId, watch, call]
   );
 
   const act = useCallback(
     (action: MatchAction, flagDraw = false) =>
-      matchId ? call("match_action", { p_id: matchId, p_action: action, p_flag_draw: flagDraw }) : Promise.resolve(null),
-    [matchId, call]
+      matchId && !watch ? call("match_action", { p_id: matchId, p_action: action, p_flag_draw: flagDraw }) : Promise.resolve(null),
+    [matchId, watch, call]
   );
 
   const serverNow = useCallback(() => Date.now() + offset.current.ms, []);
 
-  return { row, error, oppOnline, sendMove, act, serverNow };
+  return { row, error, oppOnline, watchers, sendMove, act, serverNow };
 }
 
 /* ------------------------------- Matchmaking ------------------------------- */

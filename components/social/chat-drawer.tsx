@@ -541,7 +541,7 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
             )}
           </>
         )}
-        {bet.status === "accepted" && (
+        {(bet.status === "accepted" || bet.status === "in_game") && (
           <>
             <span className="flex min-w-0 items-center gap-1 text-[11px] font-medium text-white">
               <Check className="size-3 shrink-0 text-white" />
@@ -554,7 +554,7 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
                 href={`${GAME_URL[bet.gameType] ?? "/"}?stake=${bet.stake}&bet=${encodeURIComponent(bet.id)}`}
                 className="btn-accent shrink-0 px-3 py-1 text-[11px]"
               >
-                Vào phòng
+                {bet.status === "in_game" ? "Vào lại" : "Vào phòng"}
               </Link>
             ) : (
               <span className="shrink-0 text-[11px] text-ink-500">Kèo đã có người nhận</span>
@@ -562,7 +562,7 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
           </>
         )}
         {(bet.status === "cancelled" || bet.status === "completed") && (
-          <span className="text-[11px] text-ink-500">{bet.status === "cancelled" ? "Kèo đã huỷ" : "Kèo đã kết thúc"}</span>
+          <span className="text-[11px] text-ink-500">{bet.status === "cancelled" ? (bet.cancelReason ? "Kèo bỏ dở, đã tự huỷ và hoàn Lúa" : "Kèo đã huỷ") : "Kèo đã kết thúc"}</span>
         )}
       </div>
       {err && <p className="px-3 pb-2 text-[11px] text-pop-red"><EmojiText>{err}</EmojiText></p>}

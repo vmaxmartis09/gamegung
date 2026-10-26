@@ -7,7 +7,20 @@ import { useAppStore } from "@/lib/store";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 
-export type BetOpp = { room: string; oppId: string; name: string; avatar: string; stake: number };
+/** `inGame`: hai bên đã vào ván trước đó — vào lại thẳng bàn, không qua phòng chờ. */
+export type BetOpp = { room: string; oppId: string; name: string; avatar: string; stake: number; inGame?: boolean };
+
+/** Sau chừng này kể từ lúc nhận kèo mà hai bên chưa cùng sẵn sàng thì kèo tự huỷ, hoàn Lúa. */
+export const LOBBY_TIMEOUT_MS = 9 * 60 * 1000;
+
+/** Hạn chót phòng chờ của một kèo (null nếu không tìm thấy kèo). */
+export function lobbyDeadline(betId: string): number | null {
+  for (const list of Object.values(useAppStore.getState().messages)) {
+    const b = list.find((m) => m.betChallenge?.id === betId)?.betChallenge;
+    if (b) return (b.acceptedAt ?? b.createdAt) + LOBBY_TIMEOUT_MS;
+  }
+  return null;
+}
 
 type LobbyPeer = { ready?: boolean; readyAt?: number };
 
@@ -29,6 +42,37 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
   const chRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const startRef = useRef(onStart);
   startRef.current = onStart;
+  const leaveRef = useRef(onLeave);
+  leaveRef.current = onLeave;
+  const betStatus = useAppStore((s) => {
+    for (const list of Object.values(s.messages)) {
+      const b = list.find((m) => m.betChallenge?.id === bo.room)?.betChallenge;
+      if (b) return b.status;
+    }
+    return null;
+  });
+  const [left, setLeft] = useState<number | null>(null);
+
+  // Hết 9 phút mà chưa vào ván: huỷ kèo (hoàn Lúa cả hai bên) và đóng phòng chờ.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (startedRef.current) return;
+      const dl = lobbyDeadline(bo.room);
+      if (dl === null) return setLeft(null);
+      const ms = dl - Date.now();
+      setLeft(Math.max(0, ms));
+      if (ms <= 0) {
+        useAppStore.getState().markBetStatus(bo.room, "cancelled", { cancelReason: "lobby_timeout" });
+        leaveRef.current();
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [bo.room]);
+
+  // Kèo đã bị huỷ ở máy kia: đóng phòng chờ.
+  useEffect(() => {
+    if (betStatus === "cancelled" && !startedRef.current) leaveRef.current();
+  }, [betStatus]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !myId) return;
@@ -68,6 +112,7 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
       if (left <= 0) {
         if (!startedRef.current) {
           startedRef.current = true;
+          useAppStore.getState().markBetStatus(bo.room, "in_game");
           startRef.current(bo);
         }
         return setCount(0);
@@ -105,6 +150,11 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
         <div className="text-center">
           <h2 className="font-display text-lg font-extrabold text-white">Phòng chờ</h2>
           <p className="text-xs text-ink-300">Kèo {bo.stake} Lúa · cả hai bấm Sẵn sàng để bắt đầu</p>
+          {left !== null && count === null && (
+            <p className="mt-1 text-[11px] text-ink-400">
+              Tự huỷ và hoàn Lúa sau {Math.floor(left / 60000)}:{String(Math.floor((left % 60000) / 1000)).padStart(2, "0")} nếu chưa cùng sẵn sàng
+            </p>
+          )}
         </div>
         <div className="flex items-stretch gap-3">
           {slot(myName, myAvatar, true, myReady, true)}
