@@ -798,7 +798,8 @@ export const useAppStore = create<AppState>()(
       // Bet Challenges
       createBetChallenge: (channelId, gameType, stake, targetId, title) => {
         const user = get().currentUser;
-        if (stake < 10) return null;
+        // 0 = phòng tự do (không cược); có cược thì tối thiểu 10.
+        if (stake !== 0 && stake < 10) return null;
         if (user.lua < stake) return null;
 
         const now = Date.now();

@@ -4,15 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useShallow } from "zustand/react/shallow";
-import { BookOpen, Clock, Flame, Users, X } from "lucide-react";
+import { Clock, Flame, Users } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { usePresenceStore, sortPeers } from "@/lib/presence";
-import { useUiStore } from "@/lib/ui-store";
 import { useSessionStore, sessionsFor } from "@/lib/session-store";
 import { GameCover, GameIcon, GAMES, GAME_BY_ID, GameMeta } from "@/components/art/game-art";
 import { StatusIsland, type IslandTask } from "@/components/kokonut/status-island";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { CountUp } from "@/components/reactbits";
 import { JoinRoomBox } from "@/components/social/room-invite";
@@ -22,9 +20,7 @@ export default function HomePage() {
   const currentUserId = useAppStore((s) => s.currentUser.id);
   const peers = usePresenceStore((s) => s.peers);
   const peerList = useMemo(() => sortPeers(Object.values(peers)), [peers]);
-  const open = useUiStore((s) => s.open);
   const rawSessions = useSessionStore((s) => s.sessions);
-  const clearSession = useSessionStore((s) => s.clear);
 
   const playing = (label: string) => peerList.filter((p) => p.status === "in-game" && p.currentGame === label).length;
   const inMatch = peerList.filter((p) => p.status === "in-game").length;
@@ -55,8 +51,22 @@ export default function HomePage() {
     [rawSessions, currentUserId, router]
   );
 
+  // Màn hình lớn: sảnh vừa khít một màn hình, không cuộn trang.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const apply = () => {
+      document.documentElement.style.overflow = mq.matches ? "hidden" : "";
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => {
+      mq.removeEventListener("change", apply);
+      document.documentElement.style.overflow = "";
+    };
+  }, []);
+
   return (
-    <div className="mx-auto flex max-w-[1360px] flex-col px-4 sm:px-6">
+    <div className="mx-auto flex max-w-[1360px] flex-col px-4 sm:px-6 lg:h-[calc(100dvh-6.5rem)] lg:overflow-hidden">
       {/* Floating "resume" island */}
       {tasks.length > 0 && (
         <div className="pointer-events-none sticky top-3 z-30 mb-2 flex justify-center">
@@ -66,19 +76,19 @@ export default function HomePage() {
         </div>
       )}
 
-      <section className="flex flex-wrap items-start justify-end gap-x-6 gap-y-3 pb-6 pt-2 sm:pb-8">
-        <dl className="flex items-center gap-6 text-left">
+      <section className="relative flex flex-wrap items-center justify-center gap-x-6 gap-y-3 pb-4 pt-1 lg:pb-5">
+        {/* Vào phòng bằng mã, ở chính giữa */}
+        <JoinRoomBox className="w-full max-w-md" />
+        <dl className="flex items-center gap-6 text-left lg:absolute lg:right-0 lg:top-1/2 lg:-translate-y-1/2">
           <Stat label="Môn" value={<CountUp value={GAMES.length} duration={1} />} />
           <Stat label="Online" value={<CountUp value={peerList.length + 1} duration={1.2} />} />
           {inMatch > 0 && <Stat label="Đang đấu" value={<CountUp value={inMatch} duration={1} />} />}
         </dl>
-        {/* Vào phòng bằng mã: /join 3314 hoặc chỉ mã */}
-        <JoinRoomBox />
       </section>
 
-      <section className="grid auto-rows-[280px] gap-3 sm:grid-cols-2 lg:auto-rows-[300px] lg:grid-cols-12">
+      <section className="grid auto-rows-[260px] gap-3 sm:grid-cols-2 lg:min-h-0 lg:flex-1 lg:auto-rows-auto lg:grid-cols-3 lg:grid-rows-2">
         {ranked.map((g, i) => (
-          <GameCard key={g.id} game={g} index={i} hot={g.id === hotId} playing={playing(g.name)} resumable={tasks.some((t) => t.id === g.id)} onDiscard={() => clearSession(g.id)} />
+          <GameCard key={g.id} game={g} index={i} hot={g.id === hotId} playing={playing(g.name)} resumable={tasks.some((t) => t.id === g.id)} />
         ))}
       </section>
     </div>
@@ -95,99 +105,56 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 /** Hạng càng cao → ô càng rộng (7 / 5 / 4 / 4 / 4 trên lưới 12 cột). */
-const RANK_SPAN = ["lg:col-span-7", "lg:col-span-5", "lg:col-span-4", "lg:col-span-4", "lg:col-span-4"];
 
+/** Thẻ game: chỉ ảnh và chữ trên ảnh; luật chơi xem bên trong game. */
 function GameCard({
   game,
   index,
   hot,
   playing,
   resumable,
-  onDiscard,
 }: {
   game: GameMeta;
   index: number;
   hot?: boolean;
   playing: number;
   resumable: boolean;
-  onDiscard: () => void;
 }) {
-  const open = useUiStore((s) => s.open);
-  // Bỏ ván dở là thao tác phá huỷ: bấm lần 1 để xác nhận, tự huỷ sau 4 giây.
-  const [confirming, setConfirming] = useState(false);
-  useEffect(() => {
-    if (!confirming) return;
-    const t = setTimeout(() => setConfirming(false), 4000);
-    return () => clearTimeout(t);
-  }, [confirming]);
-
   return (
-    <article
-      className={cn("group relative flex h-full min-h-0 animate-fade-up flex-col rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-2.5 shadow-[0_18px_40px_-20px_rgba(0,0,0,0.9)] transition-colors duration-200 hover:border-white/30 sm:max-lg:[&:nth-child(odd):last-child]:col-span-2", RANK_SPAN[index] ?? "lg:col-span-4")}
+    <Link
+      href={game.href}
+      aria-label={`Chơi ${game.name}`}
+      className="group relative block h-full min-h-0 animate-fade-up overflow-hidden rounded-[24px] ring-1 ring-white/10 shadow-[0_18px_40px_-20px_rgba(0,0,0,0.9)] outline-none transition-[box-shadow] duration-200 hover:ring-white/30 focus-visible:ring-2 focus-visible:ring-white/60 sm:max-lg:[&:nth-child(odd):last-child]:col-span-2"
       style={{ animationDelay: `${index * 60}ms` }}
     >
-      <Link href={game.href} aria-label={`Chơi ${game.name}`} className="absolute inset-0 z-[1] rounded-[28px] outline-none focus-visible:ring-2 focus-visible:ring-white/60" />
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-[20px] ring-1 ring-white/10">
-        <GameCover game={game.id} className="transition duration-500 ease-lounge group-hover:scale-[1.04]" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/20" />
-        <div className="absolute inset-x-3 top-3 flex items-start justify-between">
-          <span className="flex gap-1.5">
-            {hot && (
-              <Badge className="bg-white text-black">
-                <Flame className="size-3" aria-hidden /> Hot
-              </Badge>
-            )}
-            {resumable && (
-              <Badge tone="accent" className="bg-ink-950/70 backdrop-blur">
-                <span className="size-1.5 rounded-full bg-accent" /> Ván dở
-              </Badge>
-            )}
-          </span>
-          {playing > 0 && (
-            <Badge className="bg-ink-950/70 backdrop-blur" aria-label={`${playing} người đang chơi`}>
-              <span className="size-1.5 rounded-full bg-success" /> {playing} đang chơi
+      <GameCover game={game.id} className="transition duration-500 ease-lounge group-hover:scale-[1.04]" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/20" />
+      <div className="absolute inset-x-3 top-3 flex items-start justify-between">
+        <span className="flex gap-1.5">
+          {hot && (
+            <Badge className="bg-white text-black">
+              <Flame className="size-3" aria-hidden /> Hot
             </Badge>
           )}
-        </div>
-        <div className="absolute inset-x-4 bottom-4">
-          <h3 className="font-display text-2xl font-semibold leading-tight tracking-tight text-white drop-shadow">{game.name}</h3>
-          <p className="mt-1 flex items-center gap-3 text-sm text-white/85">
-            <span className="flex items-center gap-1 whitespace-nowrap"><Users className="size-3.5" aria-hidden />{game.players}</span>
-            <span className="flex items-center gap-1 whitespace-nowrap"><Clock className="size-3.5" aria-hidden />{game.duration}</span>
-          </p>
-        </div>
+          {resumable && (
+            <Badge tone="accent" className="bg-ink-950/70 backdrop-blur">
+              <span className="size-1.5 rounded-full bg-accent" /> Ván dở
+            </Badge>
+          )}
+        </span>
+        {playing > 0 && (
+          <Badge className="bg-ink-950/70 backdrop-blur" aria-label={`${playing} người đang chơi`}>
+            <span className="size-1.5 rounded-full bg-success" /> {playing} đang chơi
+          </Badge>
+        )}
       </div>
-
-      <div className="relative z-10 flex items-center gap-2.5 px-1 pb-0.5 pt-2.5">
-        <GameIcon game={game.id} className="size-9 shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-sm text-ink-200">{game.tagline}</span>
-        {resumable &&
-          (confirming ? (
-            <button
-              type="button"
-              onClick={() => {
-                onDiscard();
-                setConfirming(false);
-              }}
-              onBlur={() => setConfirming(false)}
-              autoFocus
-              className="btn-danger btn-sm h-10"
-            >
-              Xoá ván?
-            </button>
-          ) : (
-            <Tooltip content="Bỏ ván dở">
-              <button type="button" onClick={() => setConfirming(true)} aria-label={`Bỏ ván dở ${game.name}`} className="icon-btn">
-                <X className="size-4" />
-              </button>
-            </Tooltip>
-          ))}
-        <Tooltip content="Luật chơi">
-          <button type="button" onClick={() => open("rules", { game: game.id })} aria-label={`Luật ${game.name}`} className="icon-btn">
-            <BookOpen className="size-4" />
-          </button>
-        </Tooltip>
+      <div className="absolute inset-x-4 bottom-4">
+        <h3 className="font-display text-2xl font-semibold leading-tight tracking-tight text-white drop-shadow">{game.name}</h3>
+        <p className="mt-1 flex items-center gap-3 text-sm text-white/85">
+          <span className="flex items-center gap-1 whitespace-nowrap"><Users className="size-3.5" aria-hidden />{game.players}</span>
+          <span className="flex items-center gap-1 whitespace-nowrap"><Clock className="size-3.5" aria-hidden />{game.duration}</span>
+        </p>
       </div>
-    </article>
+    </Link>
   );
 }

@@ -2,6 +2,7 @@ import { useAppStore, type BetChallenge } from "@/lib/store";
 import { betHref, openBetLobby } from "@/lib/bet-nav";
 import { currentRound, roomOf } from "@/lib/bet-rounds";
 import { GAME_BY_ID, type GameId } from "@/components/art/game-art";
+import { wwJoin } from "@/lib/werewolf-online";
 
 /** Game có bàn trên server: người ngoài vào được để xem. */
 const WATCHABLE = new Set(["chess", "xiangqi", "caro"]);
@@ -58,17 +59,21 @@ function go(href: string, push: (href: string) => void) {
 }
 
 /**
- * Vào phòng theo mã: kèo cược (4 số) — nhận kèo / vào phòng chờ / xem trận;
- * không thấy kèo nào thì coi là mã phòng Ma Sói. Trả về lỗi để hiện cho người dùng, hoặc null.
+ * Vào phòng theo mã, cho mọi game: phòng kèo (Cờ Vua, Cờ Tướng, Caro, Typing — có cược hoặc tự do)
+ * thì nhận kèo / vào phòng chờ / xem trận; phòng Ma Sói thì ngồi vào ghế.
+ * Không tìm thấy phòng nào thì báo lỗi và về trang chủ. Trả về lỗi, hoặc null khi đã vào.
  */
-export function joinByCode(raw: string, push: (href: string) => void): string | null {
+export async function joinByCode(raw: string, push: (href: string) => void): Promise<string | null> {
   const code = parseJoin(raw);
   if (!code) return failJoin("Gõ /join kèm mã phòng, ví dụ: /join 3314", push);
   const st = useAppStore.getState();
   const me = st.currentUser.id;
   const bet = findBetByCode(code);
   if (!bet) {
-    go(`/games/werewolf?join=${encodeURIComponent(code)}`, push);
+    const me = st.currentUser;
+    const r = await wwJoin(code, me.username, me.avatar);
+    if (!r.id) return failJoin(`Không tìm thấy phòng ${code}.`, push);
+    go(`/games/werewolf?room=${encodeURIComponent(r.id)}`, push);
     return null;
   }
   const name = GAME_BY_ID[bet.gameType as GameId]?.name ?? "game";

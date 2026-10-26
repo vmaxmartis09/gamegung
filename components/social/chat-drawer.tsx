@@ -599,9 +599,10 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
     if (uploading || (!text.trim() && !file)) return;
     // Lệnh /join <mã>: vào phòng thay vì gửi tin.
     if (/^\/join\b/i.test(text.trim())) {
-      const e = joinByCode(text, router.push);
-      setErr(e);
-      if (!e) setText("");
+      void joinByCode(text, router.push).then((e) => {
+        setErr(e);
+        if (!e) setText("");
+      });
       return;
     }
     sendMessage(channelId, text, file);

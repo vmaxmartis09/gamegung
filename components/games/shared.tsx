@@ -640,7 +640,7 @@ export function useInviteCandidates(): InvitePerson[] {
  */
 export function sendBetInvite(game: GameType, stake: number, target: InvitePerson | null): string | null {
   const st = useAppStore.getState();
-  if (stake < 10) return "Chọn mức cược từ 50 Lúa để gửi kèo.";
+  if (stake !== 0 && stake < 10) return "Chọn Free (phòng tự do) hoặc mức cược từ 50 Lúa.";
   if (stake > st.currentUser.lua) return "Số dư không đủ để cược.";
   let channel = "lounge";
   if (target) {

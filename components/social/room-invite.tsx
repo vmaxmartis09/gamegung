@@ -95,7 +95,7 @@ export function RoomInviteCard({ msg }: { msg: ChatMessage }) {
           <p className="truncate font-display text-sm font-extrabold">Phòng {meta?.name ?? inv.game}</p>
           <p className="font-mono text-[11px] tracking-widest text-ink-400">Mã {inv.code}</p>
         </div>
-        <button type="button" onClick={() => setErr(joinByCode(inv.code, router.push))} className="btn-accent flex shrink-0 items-center gap-1 px-3 py-1 text-[11px]">
+        <button type="button" onClick={() => void joinByCode(inv.code, router.push).then(setErr)} className="btn-accent flex shrink-0 items-center gap-1 px-3 py-1 text-[11px]">
           <LogIn className="size-3" /> Vào phòng
         </button>
       </div>
@@ -124,9 +124,9 @@ export function JoinRoomBox({ className }: { className?: string }) {
   return (
     <form
       className={className}
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        const r = joinByCode(text, router.push);
+        const r = await joinByCode(text, router.push);
         try {
           sessionStorage.removeItem(JOIN_ERROR_KEY);
         } catch {
@@ -144,15 +144,15 @@ export function JoinRoomBox({ className }: { className?: string }) {
             setText(e.target.value);
             setErr(null);
           }}
-          placeholder="/join 3314"
+          placeholder="Nhập mã phòng · /join 3314"
           aria-label="Vào phòng bằng mã"
-          className="w-36 min-w-0 bg-transparent font-mono text-sm text-white placeholder:text-ink-500 focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent font-mono text-sm text-white placeholder:text-ink-500 focus:outline-none"
         />
         <button type="submit" className="btn-accent px-2.5 py-1 text-xs">
           Vào
         </button>
       </div>
-      {err && <p className="mt-1 text-[11px] text-pop-red">{err}</p>}
+      {err && <p className="mt-1 text-center text-[11px] text-pop-red">{err}</p>}
     </form>
   );
 }
