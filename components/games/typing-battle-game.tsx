@@ -39,7 +39,7 @@ import {
 } from "@/lib/games/typing-battle-engine";
 import { MatchResultModal } from "./match-result-modal";
 import { MatchIntro, NarratorButton, useNarrator } from "./game-fx";
-import { GameHeader, Segmented, StakePicker, useMatchSettlement, waitForBetOpponent } from "./shared";
+import { GameHeader, Segmented, StakePicker, useMatchSettlement, waitForBetOpponent, InviteSender, sendBetInvite, type InvitePerson } from "./shared";
 import { BetLobby, type BetOpp } from "./bet-lobby";
 import { currentRound, rejoinTable, roomOf, useBetRounds } from "@/lib/bet-rounds";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -1337,12 +1337,15 @@ function TypingLobby({
 }) {
   const me = useAppStore(useShallow((s) => ({ id: s.currentUser.id, name: s.currentUser.username, avatar: s.currentUser.avatar, lua: s.currentUser.lua })));
   const bet = useAppStore((s) => {
-    const list = s.messages["lounge"] ?? [];
-    for (let i = list.length - 1; i >= 0; i--) {
+    let found: import("@/lib/store").BetChallenge | null = null;
+    for (const list of Object.values(s.messages)) for (let i = list.length - 1; i >= 0; i--) {
       const b = list[i].betChallenge;
-      if (b && b.gameType === "typing" && (b.creatorId === s.currentUser.id || b.opponentId === s.currentUser.id) && (b.status === "pending" || b.status === "accepted" || b.status === "in_game")) return b;
+      if (b && b.gameType === "typing" && (b.creatorId === s.currentUser.id || b.opponentId === s.currentUser.id) && (b.status === "pending" || b.status === "accepted" || b.status === "in_game")) {
+        if (!found || b.createdAt > found.createdAt) found = b;
+        break;
+      }
     }
-    return null;
+    return found;
   });
   const createBet = useAppStore((s) => s.createBetChallenge);
   const cancelBet = useAppStore((s) => s.cancelBetChallenge);
@@ -1365,14 +1368,10 @@ function TypingLobby({
   const canStart = !needsBot && !needsRace && (opp !== "friend" || !!friend);
   const modeDef = MODES.find((m) => m.value === mode)!;
 
-  const sendInvite = () => {
+  const sendInvite = (to: InvitePerson | null) => {
     setErr(null);
-    if (stake < 10) return setErr("Chọn mức cược từ 50 Lúa để gửi kèo.");
-    if (stake > me.lua) return setErr("Số dư không đủ để cược.");
-    if (!createBet("lounge", "typing", stake)) return setErr("Không thể gửi kèo. Kiểm tra lại số dư.");
-    const st = useAppStore.getState();
-    st.setActiveChannel("lounge");
-    st.toggleChat(true);
+    const e = sendBetInvite("typing", stake, to);
+    if (e) setErr(e);
   };
 
   const oppSeat =
@@ -1390,9 +1389,9 @@ function TypingLobby({
       </Seat>
     ) : (
       <Seat name="Chưa có ai" label="Đối thủ" accent="rgba(255,255,255,0.2)" status="Mời một người bạn vào bàn">
-        <Button size="sm" variant="primary" onClick={sendInvite}>
-          <Send className="size-3.5" /> Mời bạn
-        </Button>
+        <div className="w-56">
+          <InviteSender onSend={sendInvite} label="Mời bạn" />
+        </div>
       </Seat>
     );
 

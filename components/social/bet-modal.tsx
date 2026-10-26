@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Swords, Coins, ShieldAlert, Check, Users, Sparkles } from "lucide-react";
 import { useAppStore } from "@/lib/store";
+import { dmChannelId } from "@/lib/chat";
+import { useInviteCandidates } from "@/components/games/shared";
 import { GameType } from "@/lib/ranking-system";
 import { cn } from "@/lib/utils";
 import { ShinyText } from "@/components/reactbits/shiny-text";
@@ -30,6 +32,7 @@ export function BetModal({
   const [selectedGame, setSelectedGame] = useState<GameType>("chess");
   const [stake, setStake] = useState<number>(100);
   const [targetId, setTargetId] = useState<string>(defaultTargetId || "");
+  const people = useInviteCandidates();
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -44,8 +47,12 @@ export function BetModal({
       return;
     }
 
+    // Mời riêng một người: kèo vào chat riêng với người đó.
+    const peer = targetId ? people.find((p) => p.id === targetId) : undefined;
+    if (peer) useAppStore.getState().openDm({ id: peer.id, username: peer.username, avatar: peer.avatar });
+    const channel = targetId ? dmChannelId(currentUser.id, targetId) : channelId;
     const challenge = createBetChallenge(
-      channelId,
+      channel,
       selectedGame,
       stake,
       targetId || undefined,
@@ -53,6 +60,7 @@ export function BetModal({
     );
 
     if (challenge) {
+      if (channel !== channelId) useAppStore.getState().setActiveChannel(channel);
       onClose();
     } else {
       setError("Không thể tạo thách đấu. Vui lòng kiểm tra lại số dư!");
@@ -214,11 +222,13 @@ export function BetModal({
                 >
                   <option value="">Kênh chung (ai cũng nhận được)</option>
                   {dmTarget && <option value={dmTarget.id}>Mời riêng: {dmTarget.username}</option>}
-                  {friends.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      Thách đấu riêng: {f.username} ({f.title})
-                    </option>
-                  ))}
+                  {people
+                    .filter((p) => p.id !== dmTarget?.id)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.online ? "● " : ""}Mời riêng: {p.username}
+                      </option>
+                    ))}
                 </select>
               </div>
 

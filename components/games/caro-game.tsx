@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { describeEnd, openBetMatch, opponentOf, slotOf, useOnlineMatch } from "@/lib/online-match";
 import { MatchResultModal } from "./match-result-modal";
 import { NarratorButton, useNarrator } from "./game-fx";
-import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useMatchOpponent, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
+import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useMatchOpponent, useMatchSettlement, useToast, waitForBetOpponent, InviteSender } from "./shared";
 import { Emoji, EmojiText } from "@/components/ui/emoji";
 import { BetLobby, type BetOpp } from "./bet-lobby";
 import { currentRound, rejoinTable, roomOf, useBetRounds } from "@/lib/bet-rounds";
@@ -556,9 +556,9 @@ export function CaroGame() {
                         <button type="button" className="btn-ghost shrink-0 whitespace-nowrap px-2 py-1" onClick={() => fb.cancel(fb.pending!.id)}>Huỷ kèo</button>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="space-y-1.5">
                         <span>Chưa có đối thủ</span>
-                        <button type="button" className="btn-accent shrink-0 whitespace-nowrap px-2 py-1" onClick={() => setInviteErr(fb.invite(stake))}>Gửi kèo vào chat</button>
+                        <InviteSender onSend={(to) => setInviteErr(fb.invite(stake, to))} />
                       </div>
                     )}
                     {inviteErr && <p role="alert" className="mt-1 text-danger">{inviteErr}</p>}

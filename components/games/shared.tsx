@@ -11,6 +11,8 @@ import { useUiStore } from "@/lib/ui-store";
 import { recordMatchToSupabase, syncProfileToSupabase } from "@/lib/supabase-game";
 import { useSessionStore } from "@/lib/session-store";
 import { useBetRounds } from "@/lib/bet-rounds";
+import { usePresenceStore } from "@/lib/presence";
+import { dmChannelId } from "@/lib/chat";
 import type { GameType } from "@/lib/ranking-system";
 import { GameIcon, GAME_BY_ID, GameId } from "@/components/art/game-art";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -385,7 +387,6 @@ export function useFriendBet(game: GameType) {
     }
     return found;
   });
-  const createBet = useAppStore((s) => s.createBetChallenge);
   const cancelBet = useAppStore((s) => s.cancelBetChallenge);
 
   const friend: FriendOpp | null =
@@ -396,20 +397,8 @@ export function useFriendBet(game: GameType) {
       : null;
   const pending = bet?.status === "pending" && bet.creatorId === meId ? bet : null;
 
-  /** Returns an error message, or null when the challenge was posted to the table chat. */
-  const invite = useCallback(
-    (stake: number): string | null => {
-      const lua = useAppStore.getState().currentUser.lua;
-      if (stake < 10) return "Chọn mức cược từ 50 Lúa để gửi kèo.";
-      if (stake > lua) return "Số dư không đủ để cược.";
-      if (!createBet("lounge", game, stake)) return "Không thể gửi kèo. Kiểm tra lại số dư.";
-      const st = useAppStore.getState();
-      st.setActiveChannel("lounge");
-      st.toggleChat(true);
-      return null;
-    },
-    [createBet, game]
-  );
+  /** Gửi kèo (riêng cho `target`, hoặc kênh chung). Trả về lỗi, hoặc null khi đã gửi. */
+  const invite = useCallback((stake: number, target: InvitePerson | null = null): string | null => sendBetInvite(game, stake, target), [game]);
 
   return { bet, friend, pending, invite, cancel: cancelBet };
 }
@@ -626,4 +615,68 @@ export function useMatchSettlement(gameType: GameType) {
   }, []);
 
   return { settle, reset, result, open, setOpen };
+}
+
+/* ------------------------------ Mời riêng ------------------------------ */
+
+export type InvitePerson = { id: string; username: string; avatar: string; online: boolean };
+
+/** Người có thể mời: đang online, bạn bè, người đã nhắn riêng. Online lên trước. */
+export function useInviteCandidates(): InvitePerson[] {
+  const myId = useAppStore((s) => s.currentUser.id);
+  const friends = useAppStore((s) => s.friends);
+  const dmPeers = useAppStore((s) => s.dmPeers);
+  const peers = usePresenceStore((s) => s.peers);
+  const map = new Map<string, InvitePerson>();
+  for (const p of Object.values(peers)) if (p.id && p.id !== myId) map.set(p.id, { id: p.id, username: p.username || "Đồng nghiệp", avatar: p.avatar || "", online: true });
+  for (const f of friends) if (f.id !== myId && !map.has(f.id)) map.set(f.id, { id: f.id, username: f.username, avatar: f.avatar || "", online: false });
+  for (const d of Object.values(dmPeers)) if (d.id !== myId && !map.has(d.id)) map.set(d.id, { id: d.id, username: d.username, avatar: d.avatar || "", online: false });
+  return [...map.values()].sort((a, b) => Number(b.online) - Number(a.online) || a.username.localeCompare(b.username, "vi"));
+}
+
+/**
+ * Gửi kèo: chọn một người thì kèo vào chat riêng với người đó (chỉ họ nhận được);
+ * để trống thì vào kênh chung, ai cũng nhận được. Trả về lỗi hoặc null.
+ */
+export function sendBetInvite(game: GameType, stake: number, target: InvitePerson | null): string | null {
+  const st = useAppStore.getState();
+  if (stake < 10) return "Chọn mức cược từ 50 Lúa để gửi kèo.";
+  if (stake > st.currentUser.lua) return "Số dư không đủ để cược.";
+  let channel = "lounge";
+  if (target) {
+    channel = dmChannelId(st.currentUser.id, target.id);
+    st.openDm({ id: target.id, username: target.username, avatar: target.avatar });
+  }
+  if (!st.createBetChallenge(channel, game, stake, target?.id)) return "Không thể gửi kèo. Kiểm tra lại số dư.";
+  const after = useAppStore.getState();
+  after.setActiveChannel(channel);
+  after.toggleChat(true);
+  return null;
+}
+
+/** Chọn người nhận kèo + nút gửi, dùng ở bảng "Mời bạn" của mỗi game. */
+export function InviteSender({ onSend, label = "Gửi kèo" }: { onSend: (target: InvitePerson | null) => void; label?: string }) {
+  const people = useInviteCandidates();
+  const [to, setTo] = useState("");
+  return (
+    <div className="space-y-1.5">
+      <select
+        aria-label="Gửi kèo cho"
+        value={to}
+        onChange={(e) => setTo(e.target.value)}
+        className="w-full rounded-lg border border-white/10 bg-ink-950 px-2 py-1.5 text-xs text-ink-100 focus:border-white/40 focus:outline-none"
+      >
+        <option value="">Kênh chung (ai cũng nhận được)</option>
+        {people.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.online ? "● " : ""}Mời riêng: {p.username}
+          </option>
+        ))}
+      </select>
+      <button type="button" className="btn-accent w-full whitespace-nowrap px-2 py-1.5" onClick={() => onSend(people.find((p) => p.id === to) ?? null)}>
+        {label}
+        {to ? " riêng" : " vào kênh chung"}
+      </button>
+    </div>
+  );
 }
