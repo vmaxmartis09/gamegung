@@ -500,6 +500,8 @@ export function ChessGame() {
   // Online match: the matchmaking modal passes ?match=<id>; a chat bet opens a match keyed by the bet id.
   // Colours, names, moves and clocks all come from the server row.
   const loadedMatch = useRef<string | null>(null);
+  /** Vào lại ván đang dở (không phải ván mới): không đọc lại lời mở ván. */
+  const quietStart = useRef(false);
   const beginPvp = useCallback((info: PvpInfo) => {
     session.clear();
     const c = new Chess();
@@ -517,7 +519,9 @@ export function ChessGame() {
     finishedRef.current = false;
     setDrawOffer(null);
     setPhase("playing");
-    narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
+    // Vào lại ván đang dở: chơi tiếp, không đọc lại lời mở ván.
+    if (!quietStart.current) narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
+    quietStart.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncClock]);
 
@@ -539,6 +543,7 @@ export function ChessGame() {
 
   const launchBetPvp = useCallback(
     async (bo: BetOpp) => {
+      quietStart.current = !!bo.inGame && !bo.round;
       const round = bo.round ?? currentRound(bo.room);
       const room = roomOf(bo.room, round);
       useBetRounds.getState().start(bo.room, round);
@@ -562,6 +567,7 @@ export function ChessGame() {
     const q = new URLSearchParams(window.location.search);
     const id = q.get("match");
     if (id) {
+      quietStart.current = true;
       beginPvp({ room: id, oppId: "", name: "Đối thủ", avatar: "", elo: 1200, watch: q.get("watch") === "1" });
       return true;
     }

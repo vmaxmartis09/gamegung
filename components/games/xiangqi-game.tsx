@@ -318,6 +318,8 @@ export function XiangqiGame() {
 
   // Reconcile the board with the server row (realtime, poll, or my own move's reply).
   const loadedMatch = useRef<string | null>(null);
+  /** Vào lại ván đang dở (không phải ván mới): không đọc lại lời mở ván. */
+  const quietStart = useRef(false);
   const prevRow = useRef<{ offer: string | null; plies: number } | null>(null);
   useEffect(() => {
     const r = online.row;
@@ -429,6 +431,7 @@ export function XiangqiGame() {
     const q = new URLSearchParams(window.location.search);
     const matchId = q.get("match");
     if (matchId) {
+      quietStart.current = true;
       beginPvp({ room: matchId, oppId: "", name: "Đối thủ", avatar: "", watch: q.get("watch") === "1" });
       return;
     }
@@ -518,7 +521,9 @@ export function XiangqiGame() {
     syncClock();
     resetSettlement();
     setPhase("playing");
-    narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
+    // Vào lại ván đang dở: chơi tiếp, không đọc lại lời mở ván.
+    if (!quietStart.current) narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
+    quietStart.current = false;
   };
 
   const [lobby, setLobby] = useState<BetOpp | null>(null);
@@ -537,6 +542,7 @@ export function XiangqiGame() {
   const startBetPvp = (bo: BetOpp) => (bo.inGame && rejoinTable(bo.room) ? void launchBetPvp(bo) : setLobby(bo));
 
   async function launchBetPvp(bo: BetOpp) {
+    quietStart.current = !!bo.inGame && !bo.round;
     const round = bo.round ?? currentRound(bo.room);
     const room = roomOf(bo.room, round);
     useBetRounds.getState().start(bo.room, round);

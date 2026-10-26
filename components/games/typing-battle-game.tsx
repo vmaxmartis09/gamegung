@@ -811,6 +811,12 @@ export function TypingBattleGame() {
     const o = onlineRef.current;
     const g = gRef.current;
     if (!o || !g) return;
+    // Lưu tiến độ của mình để vào lại ván thì gõ tiếp từ chỗ cũ.
+    try {
+      sessionStorage.setItem(`oa-typing-progress:${o.room}`, String(g.fighters[0].idx));
+    } catch {
+      /* ignore */
+    }
     void o.ch.send({ type: "broadcast", event: "prog", payload: { idx: g.fighters[0].idx } });
   }, []);
 
@@ -825,7 +831,21 @@ export function TypingBattleGame() {
       useBetRounds.getState().start(bo.room, round);
       let seed = 0;
       for (let i = 0; i < room.length; i++) seed = (Math.imul(seed, 31) + room.charCodeAt(i)) >>> 0;
-      gRef.current = createGame({ mode: 3, vsBot: false, diff, names: [me.username || "P1", bo.name], seed });
+      const g = createGame({ mode: 3, vsBot: false, diff, names: [me.username || "P1", bo.name], seed });
+      gRef.current = g;
+      // Vào lại ván đang dở (không phải ván mới): gõ tiếp từ chỗ cũ, bỏ đếm ngược và lời mở ván.
+      const resume = !!bo.inGame && !bo.round;
+      if (resume) {
+        let saved = 0;
+        try {
+          saved = Number(sessionStorage.getItem(`oa-typing-progress:${room}`)) || 0;
+        } catch {
+          /* ignore */
+        }
+        g.fighters[0].idx = Math.min(saved, g.fighters[0].text.length);
+        g.phase = "play";
+        g.count = 0;
+      }
       botRef.current = { name: bo.name, seed: bo.name, title: "Bạn bè", avatar: bo.avatar };
       setMode(3);
       setStake(bo.stake);
@@ -836,16 +856,24 @@ export function TypingBattleGame() {
         const f = cur.fighters[1];
         f.idx = Math.max(f.idx, Math.min(Number(payload?.idx) || 0, f.text.length));
         if (f.idx >= f.text.length) finish(cur, 1, hooks);
+      }).on("broadcast", { event: "hello" }, () => {
+        // Đối thủ vừa vào lại: gửi tiến độ của mình để họ thấy đúng.
+        sendProgress();
       }).on("broadcast", { event: "left" }, () => {
         const cur = gRef.current;
         if (cur && cur.phase !== "over") finish(cur, 0, hooks);
       });
-      ch.subscribe();
+      ch.subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          void ch.send({ type: "broadcast", event: "hello", payload: {} });
+          sendProgress();
+        }
+      });
       onlineRef.current = { room, bo, oppName: bo.name, stake: bo.stake, ch };
       resetSettlement();
       setPhase("playing");
     },
-    [closeOnline, diff, hooks, me.username, resetSettlement]
+    [closeOnline, diff, hooks, me.username, resetSettlement, sendProgress]
   );
   useEffect(() => () => closeOnline(), [closeOnline]);
 
