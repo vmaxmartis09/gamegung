@@ -75,11 +75,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 /* ---------------------------------- Dock ---------------------------------- */
 
-/** The game's open lobby room; hidden at an online match table, which has its own private room. */
+/**
+ * Chat + mic realtime (không lưu database) trong mọi game: phòng chung của game, hoặc phòng riêng
+ * của bàn đang chơi / đang xem. Ma Sói có phòng thoại riêng của nó nên không dùng cái này.
+ */
 function RoomDockGate({ gameId }: { gameId: string }) {
   const q = useSearchParams();
-  if (q?.get("match") || q?.get("bet")) return null;
-  return <GameRoomDock key={gameId} game={gameId} />;
+  const tableRoom = useUiStore((s) => s.tableRoom);
+  // Rời trang game thì bỏ phòng riêng của bàn.
+  useEffect(() => () => useUiStore.getState().setTableRoom(null), [gameId]);
+  if (gameId === "werewolf") return null;
+  const table = q?.get("bet") ?? q?.get("match")?.split("~")[0] ?? tableRoom;
+  return <GameRoomDock key={`${gameId}:${table ?? ""}`} game={gameId} room={table ? `${gameId}-table-${table}` : undefined} />;
 }
 
 /* ------------------------- Chat (always on, right) ------------------------- */

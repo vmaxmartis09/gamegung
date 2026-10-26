@@ -10,14 +10,15 @@ import { cn } from "@/lib/utils";
 import { Emoji } from "@/components/ui/emoji";
 
 /** Phòng chat + thoại realtime của từng game, nằm góc trái dưới trang game. */
-export function GameRoomDock({ game }: { game: string }) {
-  const room = useGameRoom(game);
+/** `room`: kênh riêng của một bàn (người chơi + người xem); bỏ trống là phòng chung của game. */
+export function GameRoomDock({ game, room: roomKey }: { game: string; room?: string }) {
+  const room = useGameRoom(roomKey ?? game);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [unread, setUnread] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const seen = useRef(0);
-  const title = GAME_BY_ID[game as GameId]?.name ?? game;
+  const title = `${GAME_BY_ID[game as GameId]?.name ?? game}${roomKey ? " · bàn riêng" : ""}`;
   const talking = room.speaking.length > 0;
   const others = room.members.filter((m) => m.id !== room.me.id);
 

@@ -1138,7 +1138,6 @@ export function ChessGame() {
                 {pvp && phase === "playing" && (
                   <OnlineStatus watchers={online.watchers} watching={!!pvp?.watch} oppOnline={online.oppOnline} ready={!!online.row} canAbort={moves.length < 2} onAbort={() => void online.act("abort")} />
                 )}
-                {pvp && phase === "playing" && <MatchVoice room={pvp.room} />}
                 {phase === "playing" && (
                   <HoldButton className="w-full text-xs" variant="red" holdingLabel="Giữ để xác nhận…" completeLabel="Đã xin thua" onHoldComplete={resign}>
                     Giữ để xin thua

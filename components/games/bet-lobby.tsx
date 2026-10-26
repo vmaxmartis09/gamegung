@@ -8,6 +8,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 import { useBetRounds } from "@/lib/bet-rounds";
 import { betCode } from "@/lib/room-code";
+import { useUiStore } from "@/lib/ui-store";
 
 /** `inGame`: hai bên đã vào ván trước đó — vào lại thẳng bàn, không qua phòng chờ. */
 export type BetOpp = { room: string; oppId: string; name: string; avatar: string; stake: number; inGame?: boolean; /** Ván thứ mấy trong kèo (chủ phòng quyết định). */ round?: number };
@@ -61,6 +62,11 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
   const leaveRef = useRef(onLeave);
   leaveRef.current = onLeave;
   const [left, setLeft] = useState<number | null>(null);
+
+  // Từ phòng chờ trở đi, chat + mic góc trái là phòng riêng của kèo này.
+  useEffect(() => {
+    useUiStore.getState().setTableRoom(bo.room);
+  }, [bo.room]);
 
   // Hết 9 phút mà chưa vào ván: huỷ kèo (hoàn Lúa cả hai bên) và đóng phòng chờ.
   useEffect(() => {
