@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { describeEnd, openBetMatch, opponentOf, slotOf, timeLeft, useOnlineMatch } from "@/lib/online-match";
 import { MatchResultModal } from "./match-result-modal";
+import { NarratorButton, useNarrator } from "./game-fx";
 import HoldButton from "@/components/kokonut/hold-button";
 import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchOpponent, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
 
@@ -93,6 +94,7 @@ export function XiangqiGame() {
   const soundEnabled = useAppStore((s) => s.soundEnabled);
   const { settle, reset: resetSettlement, result, open: resultOpen, setOpen: setResultOpen } = useMatchSettlement("xiangqi");
   const { show: showToast, node: toastNode } = useToast();
+  const narrator = useNarrator();
   const session = useGameSession<XqSave>("xiangqi");
   const matchOpp = useMatchOpponent();
 
@@ -207,13 +209,18 @@ export function XiangqiGame() {
       setOverReason(reason);
       setSelected(null);
       sound("end");
+      if (settleIt) {
+        if (winner === 0) narrator.say("Ván đấu kết thúc với tỉ số hoà.", "gm_draw");
+        else if (winner === mySide || settings.mode === "local") narrator.say("Chúc mừng, bạn đã chiến thắng!", "gm_win");
+        else narrator.say("Rất tiếc, bạn đã thua. Ván sau nhé!", "gm_lose");
+      }
       setDrawOffer(null);
       if (!settleIt) showToast(reason, "info", 4000);
       else if (rated) {
         settle(winner === 0 ? "draw" : winner === mySide ? "win" : "loss", { name: pvp?.name ?? matchOpp?.name ?? `Engine ${level.label}`, elo: pvp ? pvp.elo ?? 1200 : matchOpp?.elo ?? level.elo }, stake);
       } else showToast(winner === 0 ? `Hoà — ${reason}` : `${winner === 1 ? "Đỏ" : "Đen"} thắng — ${reason}`, "info", 4000);
     },
-    [rated, mySide, level, stake, settle, sound, showToast, matchOpp, pvp]
+    [rated, mySide, level, stake, settle, sound, showToast, matchOpp, pvp, narrator, settings.mode]
   );
 
   const applyMove = useCallback(
@@ -244,14 +251,17 @@ export function XiangqiGame() {
       setViewPly(null);
       setSelected(null);
       setHint(null);
-      if (p.inCheck()) sound("check");
+      if (p.inCheck()) {
+        sound("check");
+        if (!p.result()) narrator.say("Chiếu tướng!", "gm_check");
+      }
       else if (captured) sound("capture");
       else sound("move");
       const r = p.result();
       if (r) finish(r.winner, r.reason);
       return true;
     },
-    [tc, syncClock, sound, finish]
+    [tc, syncClock, sound, finish, narrator]
   );
 
   // AI
@@ -326,6 +336,7 @@ export function XiangqiGame() {
     prevRow.current = { offer: r.draw_offer_by, plies: remote.length };
     if (r.status === "active") {
       setDrawOffer(r.draw_offer_by ? (r.draw_offer_by === myId ? "out" : "in") : null);
+      if (r.draw_offer_by && r.draw_offer_by !== myId && prev?.offer !== r.draw_offer_by) narrator.say("Đối thủ đang xin hoà.", "gm_draw_offer");
       if (prev?.offer === myId && !r.draw_offer_by && prev.plies === remote.length) showToast("Đối thủ từ chối hoà", "bad");
     } else if (!finishedRef.current) {
       // A game that was already over when I opened it is shown, not paid out again.
@@ -498,6 +509,7 @@ export function XiangqiGame() {
     syncClock();
     resetSettlement();
     setPhase("playing");
+    narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
   };
 
   async function startBetPvp(bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) {
@@ -539,6 +551,7 @@ export function XiangqiGame() {
     syncClock();
     resetSettlement();
     setPhase("playing");
+    narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
   };
 
   const backToSetup = () => {
@@ -670,6 +683,7 @@ export function XiangqiGame() {
       )}
     >
       <GameHeader game="xiangqi" subtitle="Luật WXF · chống chiếu dai">
+        <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
         {phase !== "setup" && <span className={cn("chip", rated && "border-lime-400/40 text-lime-300")}>{rated ? `Xếp hạng${stake ? ` · ${stake} 🌾` : ""}` : "Tập luyện"}</span>}
       </GameHeader>
 

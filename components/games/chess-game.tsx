@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { useGameRoom } from "@/lib/game-room";
 import { ChessIcon } from "./chess-icons";
 import { MatchResultModal } from "./match-result-modal";
+import { NarratorButton, useNarrator } from "./game-fx";
 import HoldButton from "@/components/kokonut/hold-button";
 import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
 
@@ -180,6 +181,7 @@ export function ChessGame() {
   const isChatVisible = isChatOpen && !isChatCollapsed;
   const { settle, reset: resetSettlement, result, open: resultOpen, setOpen: setResultOpen } = useMatchSettlement("chess");
   const { show: showToast, node: toastNode } = useToast();
+  const narrator = useNarrator();
   const session = useGameSession<ChessSave>("chess");
 
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -297,6 +299,11 @@ export function ChessGame() {
       setOverReason(reason);
       setSelected(null);
       play("end");
+      if (settleIt) {
+        if (winner === null) narrator.say("Ván đấu kết thúc với tỉ số hoà.", "gm_draw");
+        else if (winner === myColor || settings.mode === "local") narrator.say("Chúc mừng, bạn đã chiến thắng!", "gm_win");
+        else narrator.say("Rất tiếc, bạn đã thua. Ván sau nhé!", "gm_lose");
+      }
       if (!settleIt) {
         showToast(reason, "info", 4000);
       } else if (rated) {
@@ -306,7 +313,7 @@ export function ChessGame() {
         showToast(winner === null ? `Hoà — ${reason}` : `${winner === "w" ? "Trắng" : "Đen"} thắng — ${reason}`, "info", 4000);
       }
     },
-    [rated, myColor, level, stake, pvp, settle, play, showToast]
+    [rated, myColor, level, stake, pvp, settle, play, showToast, narrator, settings.mode]
   );
 
   const checkGameEnd = useCallback(() => {
@@ -355,7 +362,10 @@ export function ChessGame() {
       setSelected(null);
       setHint(null);
       setDrawOffer(null);
-      if (c.inCheck()) play("check");
+      if (c.inCheck()) {
+        play("check");
+        if (!c.isGameOver()) narrator.say("Chiếu!", "gm_check");
+      }
       else if (mv.promotion) play("promotion");
       else if (mv.captured) play("capture");
       else if (mv.flags.includes("k") || mv.flags.includes("q")) play("castle");
@@ -498,6 +508,7 @@ export function ChessGame() {
     finishedRef.current = false;
     setDrawOffer(null);
     setPhase("playing");
+    narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncClock]);
 
@@ -584,6 +595,7 @@ export function ChessGame() {
     prevRow.current = { offer: r.draw_offer_by, plies: remote.length };
     if (r.status === "active") {
       setDrawOffer(r.draw_offer_by ? (r.draw_offer_by === myId ? "out" : "in") : null);
+      if (r.draw_offer_by && r.draw_offer_by !== myId && prev?.offer !== r.draw_offer_by) narrator.say("Đối thủ đang xin hoà.", "gm_draw_offer");
       if (prev?.offer === myId && !r.draw_offer_by && prev.plies === remote.length) showToast("Đối thủ từ chối hoà", "bad");
     } else if (!finishedRef.current) {
       // A game that was already over when I opened it is shown, not paid out again.
@@ -690,6 +702,7 @@ export function ChessGame() {
     resetSettlement();
     finishedRef.current = false;
     setPhase("playing");
+    narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
   };
 
   const backToSetup = () => {
@@ -826,6 +839,7 @@ export function ChessGame() {
       )}
     >
       <GameHeader game="chess" subtitle={opening ? `📖 ${opening}` : "Luật FIDE · Engine 4 cấp · Đồng hồ có cộng giờ"}>
+        <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
         {phase !== "setup" && (
           <span className={cn("chip", rated ? "border-lime-400/40 text-lime-300" : "")}>{rated ? `Xếp hạng${stake ? ` · ${stake} 🌾` : ""}` : "Tập luyện"}</span>
         )}

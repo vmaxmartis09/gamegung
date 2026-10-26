@@ -9,6 +9,7 @@ import { soundManager } from "@/lib/audio";
 import { cn } from "@/lib/utils";
 import { describeEnd, openBetMatch, opponentOf, slotOf, useOnlineMatch } from "@/lib/online-match";
 import { MatchResultModal } from "./match-result-modal";
+import { NarratorButton, useNarrator } from "./game-fx";
 import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useMatchOpponent, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
 
 const N = 15;
@@ -144,6 +145,7 @@ export function CaroGame() {
   const soundEnabled = useAppStore((s) => s.soundEnabled);
   const { settle, reset: resetSettlement, result, open: resultOpen, setOpen: setResultOpen } = useMatchSettlement("caro");
   const { show: showToast, node: toastNode } = useToast();
+  const narrator = useNarrator();
   const matchOpp = useMatchOpponent();
 
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
@@ -229,8 +231,13 @@ export function CaroGame() {
         settle(outcome, { name: p?.name ?? matchOpp?.name ?? `Caro AI ${level.label}`, elo: p ? p.elo ?? 1200 : matchOpp?.elo ?? level.elo }, stake);
       } else if (!settleIt) showToast(reason, "info", 4000);
       sound(w === mySide || settings.mode === "local" ? "win" : "lose");
+      if (settleIt) {
+        if (w === 0) narrator.say("Ván đấu kết thúc với tỉ số hoà.", "gm_draw");
+        else if (w === mySide || settings.mode === "local") narrator.say("Chúc mừng, bạn đã chiến thắng!", "gm_win");
+        else narrator.say("Rất tiếc, bạn đã thua. Ván sau nhé!", "gm_lose");
+      }
     },
-    [rated, stake, settings.mode, mySide, level, matchOpp, settle, sound, showToast]
+    [rated, stake, settings.mode, mySide, level, matchOpp, settle, sound, showToast, narrator]
   );
 
   const play = useCallback(
@@ -317,6 +324,7 @@ export function CaroGame() {
     setMySide(side);
     resetSettlement();
     setPhase("playing");
+    narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
   };
 
   async function startBetPvp(bo: { room: string; oppId: string; name: string; avatar: string; stake: number }) {
@@ -416,6 +424,7 @@ export function CaroGame() {
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col px-3 py-3">
       <GameHeader game="caro" subtitle="5 quân liền nhau là thắng">
+        <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
         {phase !== "setup" && <span className={cn("chip", rated && "border-lime-400/40 text-lime-300")}>{rated ? `Xếp hạng${stake ? ` · ${stake} 🌾` : ""}` : "Tập luyện"}</span>}
       </GameHeader>
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_300px]">

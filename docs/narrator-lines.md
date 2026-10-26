@@ -20,3 +20,9 @@ Lưu mp3 vào `public/audio/narrator/<tên file>`. Chưa có file thì game tự
 | `ty_merge.mp3` | Hợp thể! |
 | `ty_ko.mp3` | Hạ gục! Trận đấu kết thúc. |
 | `ty_versus.mp3` | Hai đối thủ đối đầu! |
+| `gm_start.mp3` | Bắt đầu ván đấu! Chúc bạn may mắn. |
+| `gm_check.mp3` | Chiếu! |
+| `gm_win.mp3` | Chúc mừng, bạn đã chiến thắng! |
+| `gm_lose.mp3` | Rất tiếc, bạn đã thua. Ván sau nhé! |
+| `gm_draw.mp3` | Ván đấu kết thúc với tỉ số hoà. |
+| `gm_draw_offer.mp3` | Đối thủ đang xin hoà. |

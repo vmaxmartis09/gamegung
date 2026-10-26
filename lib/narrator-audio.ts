@@ -44,6 +44,12 @@ export const NARRATOR_AUDIO_MAP: Record<string, string> = {
   ty_merge: "/audio/narrator/ty_merge.mp3",
   ty_ko: "/audio/narrator/ty_ko.mp3",
   ty_versus: "/audio/narrator/ty_versus.mp3",
+  gm_start: "/audio/narrator/gm_start.mp3",
+  gm_check: "/audio/narrator/gm_check.mp3",
+  gm_win: "/audio/narrator/gm_win.mp3",
+  gm_lose: "/audio/narrator/gm_lose.mp3",
+  gm_draw: "/audio/narrator/gm_draw.mp3",
+  gm_draw_offer: "/audio/narrator/gm_draw_offer.mp3",
 };
 
 function flushIdle() {
@@ -107,7 +113,10 @@ function playNext() {
       playNext();
     }, CLIP_GAP_MS);
   };
+  let fellBack = false;
   const speakFallback = () => {
+    if (fellBack) return;
+    fellBack = true;
     if (clip.text && typeof window !== "undefined" && "speechSynthesis" in window) {
       try {
         window.speechSynthesis.cancel();
