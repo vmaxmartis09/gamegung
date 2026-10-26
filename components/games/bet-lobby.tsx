@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 export type BetOpp = { room: string; oppId: string; name: string; avatar: string; stake: number };
 
-type LobbyPeer = { ready?: boolean };
+type LobbyPeer = { ready?: boolean; readyAt?: number };
 
 const COUNTDOWN = 3;
 
@@ -24,6 +24,8 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
   const [peers, setPeers] = useState<Record<string, LobbyPeer>>({});
   const [myReady, setMyReady] = useState(false);
   const [count, setCount] = useState<number | null>(null);
+  const myReadyAt = useRef(0);
+  const startedRef = useRef(false);
   const chRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const startRef = useRef(onStart);
   startRef.current = onStart;
@@ -49,30 +51,34 @@ export function BetLobby({ bo, onStart, onLeave }: { bo: BetOpp; onStart: (bo: B
   const toggleReady = () => {
     const next = !myReady;
     setMyReady(next);
-    void chRef.current?.track({ ready: next });
+    myReadyAt.current = next ? Date.now() : 0;
+    void chRef.current?.track({ ready: next, readyAt: myReadyAt.current });
   };
 
   const oppHere = !!peers[bo.oppId];
   const oppReady = !!peers[bo.oppId]?.ready;
   const bothReady = myReady && oppHere && oppReady;
+  // Cả hai máy đếm ngược tới cùng một mốc: lúc người sẵn sàng sau cùng + COUNTDOWN giây.
+  const startAt = bothReady ? Math.max(myReadyAt.current, peers[bo.oppId]?.readyAt ?? 0) + COUNTDOWN * 1000 : null;
 
   useEffect(() => {
-    if (!bothReady) return setCount(null);
-    setCount(COUNTDOWN);
-    const t = setInterval(() => {
-      setCount((c) => {
-        if (c === null) return c;
-        if (c <= 1) {
-          clearInterval(t);
+    if (startAt === null) return setCount(null);
+    const tick = () => {
+      const left = Math.ceil((startAt - Date.now()) / 1000);
+      if (left <= 0) {
+        if (!startedRef.current) {
+          startedRef.current = true;
           startRef.current(bo);
-          return 0;
         }
-        return c - 1;
-      });
-    }, 1000);
+        return setCount(0);
+      }
+      setCount(Math.min(COUNTDOWN, left));
+    };
+    tick();
+    const t = setInterval(tick, 200);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bothReady]);
+  }, [startAt]);
 
   const slot = (name: string, avatar: string, here: boolean, ready: boolean, you: boolean) => (
     <div className="flex flex-1 flex-col items-center gap-2 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-3">

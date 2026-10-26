@@ -27,6 +27,7 @@ const DailyBackground = dynamic(
 
 const ChatDrawer = dynamic(() => import("@/components/social/chat-drawer").then((m) => m.ChatDrawer), { ssr: false });
 const GameRoomDock = dynamic(() => import("@/components/social/game-room-dock").then((m) => m.GameRoomDock), { ssr: false });
+const ActiveMatchDock = dynamic(() => import("@/components/social/active-match-dock").then((m) => m.ActiveMatchDock), { ssr: false });
 const WalletModal = dynamic(() => import("@/components/social/wallet-modal").then((m) => m.WalletModal), { ssr: false });
 const RankingModal = dynamic(() => import("@/components/social/ranking-modal").then((m) => m.RankingModal), { ssr: false });
 const ProfileModal = dynamic(() => import("@/components/social/profile-modal").then((m) => m.ProfileModal), { ssr: false });
@@ -63,6 +64,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <RoomDockGate gameId={gameId} />
         </Suspense>
       )}
+      <Suspense fallback={null}>
+        <ActiveMatchDock />
+      </Suspense>
       <ChatBubble />
       <GlobalModals />
     </AppMotionConfig>

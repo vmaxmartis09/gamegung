@@ -227,7 +227,20 @@ function ensureSeq(g: Game) {
   for (const f of g.fighters) f.word = g.seq[g.seqI];
 }
 
-export function createGame(opts: { mode: Mode; vsBot: boolean; diff: number; names: [string, string] }): Game {
+/** Bộ sinh số giả ngẫu nhiên có hạt giống: hai máy cùng seed sẽ ra cùng một đoạn văn. */
+function seeded(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** `seed` chỉ dùng cho chế độ Đua gõ online: cả hai người gõ cùng một đoạn văn. */
+export function createGame(opts: { mode: Mode; vsBot: boolean; diff: number; names: [string, string]; seed?: number }): Game {
   const f0 = fighter(0, opts.names[0], false);
   const f1 = fighter(1, opts.names[1], opts.vsBot);
   const g: Game = {
@@ -240,10 +253,13 @@ export function createGame(opts: { mode: Mode; vsBot: boolean; diff: number; nam
     else if (opts.mode === 2) { f.maxHp = f.hp = f.ghost = 3000; f.ammo = 1; }
     else {
       f.maxHp = f.hp = f.ghost = 1;
+      if (opts.seed !== undefined && f.id === 1) { f.text = g.fighters[0].text; continue; }
+      const rand = opts.seed !== undefined ? seeded(opts.seed) : Math.random;
       const words: string[] = [];
       let len = 0, last = "";
       while (len < 115) {
-        const w = rnd(POOL[f.id].filter((x) => x !== last && x.length <= 7));
+        const pool = POOL[f.id].filter((x) => x !== last && x.length <= 7);
+        const w = pool[(rand() * pool.length) | 0];
         words.push(w); len += w.length + 1; last = w;
       }
       f.text = words.join(" ");

@@ -27,6 +27,7 @@ import {
   Mode,
   W,
   createGame,
+  finish,
   keyOf,
   onFire,
   onKey,
@@ -38,7 +39,9 @@ import {
 } from "@/lib/games/typing-battle-engine";
 import { MatchResultModal } from "./match-result-modal";
 import { MatchIntro, NarratorButton, useNarrator } from "./game-fx";
-import { GameHeader, Segmented, StakePicker, useMatchSettlement } from "./shared";
+import { GameHeader, Segmented, StakePicker, useMatchSettlement, waitForBetOpponent } from "./shared";
+import { BetLobby, type BetOpp } from "./bet-lobby";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { CylinderText, CylinderWords, FocusFrame, TextLoop } from "@/components/reactbits";
 import { EmojiText } from "@/components/ui/emoji";
 
@@ -792,7 +795,68 @@ export function TypingBattleGame() {
   }, [narrow]);
 
   const pendingOpp = useRef<{ name: string; seed: string; title: string; avatar?: string }>(BOTS[0]);
-  const friendRef = useRef<{ name: string; avatar: string } | null>(null);
+  const friendRef = useRef<FriendInfo | null>(null);
+  const [lobby, setLobby] = useState<BetOpp | null>(null);
+  // Đua gõ online: kênh realtime của kèo, đối thủ là người thật ở máy khác.
+  const onlineRef = useRef<{ room: string; oppName: string; stake: number; ch: ReturnType<typeof supabase.channel> } | null>(null);
+  const closeOnline = useCallback(() => {
+    const o = onlineRef.current;
+    onlineRef.current = null;
+    if (o) void supabase.removeChannel(o.ch);
+  }, []);
+
+  const sendProgress = useCallback(() => {
+    const o = onlineRef.current;
+    const g = gRef.current;
+    if (!o || !g) return;
+    void o.ch.send({ type: "broadcast", event: "prog", payload: { idx: g.fighters[0].idx } });
+  }, []);
+
+  /** Cả hai đã sẵn sàng trong phòng chờ: mở kênh đua và vào ván (cùng seed = cùng đoạn văn). */
+  const launchOnline = useCallback(
+    (bo: BetOpp) => {
+      setLobby(null);
+      closeOnline();
+      if (!isSupabaseConfigured) return;
+      let seed = 0;
+      for (let i = 0; i < bo.room.length; i++) seed = (Math.imul(seed, 31) + bo.room.charCodeAt(i)) >>> 0;
+      gRef.current = createGame({ mode: 3, vsBot: false, diff, names: [me.username || "P1", bo.name], seed });
+      botRef.current = { name: bo.name, seed: bo.name, title: "Bạn bè", avatar: bo.avatar };
+      setMode(3);
+      setStake(bo.stake);
+      const ch = supabase.channel(`typing-online:${bo.room}`, { config: { broadcast: { self: false } } });
+      ch.on("broadcast", { event: "prog" }, ({ payload }) => {
+        const cur = gRef.current;
+        if (!cur || cur.phase === "over") return;
+        const f = cur.fighters[1];
+        f.idx = Math.max(f.idx, Math.min(Number(payload?.idx) || 0, f.text.length));
+        if (f.idx >= f.text.length) finish(cur, 1, hooks);
+      }).on("broadcast", { event: "left" }, () => {
+        const cur = gRef.current;
+        if (cur && cur.phase !== "over") finish(cur, 0, hooks);
+      });
+      ch.subscribe();
+      onlineRef.current = { room: bo.room, oppName: bo.name, stake: bo.stake, ch };
+      resetSettlement();
+      setPhase("playing");
+    },
+    [closeOnline, diff, hooks, me.username, resetSettlement]
+  );
+  useEffect(() => () => closeOnline(), [closeOnline]);
+
+  // Mở từ thẻ kèo trong chat (?bet=…): vào thẳng phòng chờ.
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).get("bet")) return;
+    void waitForBetOpponent().then((bo) => {
+      if (bo?.oppId) {
+        setMode(3);
+        setOpp("friend");
+        setStake(bo.stake);
+        setLobby(bo);
+      }
+    });
+  }, []);
+
   const start = useCallback(() => {
     const fr = friendRef.current;
     pendingOpp.current = vsBot
@@ -841,7 +905,10 @@ export function TypingBattleGame() {
           ended = true;
           const w = g.winner;
           setTimeout(() => {
-            if (cfgRef.current.vsBot && w >= 0) {
+            const on = onlineRef.current;
+            if (on && w >= 0) {
+              settleRef.current(w === 0 ? "win" : "loss", { name: on.oppName, elo: 1000 }, on.stake);
+            } else if (cfgRef.current.vsBot && w >= 0) {
               settleRef.current(
                 w === 0 ? "win" : "loss",
                 { name: botRef.current.name, elo: 1000 + cfgRef.current.diff * 120 },
@@ -878,8 +945,9 @@ export function TypingBattleGame() {
     const g = gRef.current;
     if (!g) return;
     onSubmit(g, g.fighters[0], hooks);
+    sendProgress();
     force();
-  }, [hooks]);
+  }, [hooks, sendProgress]);
 
   useEffect(() => {
     if (phase === "playing") boxRef.current?.focus();
@@ -895,6 +963,14 @@ export function TypingBattleGame() {
       if (!inBox && t?.closest("input,textarea,select,[contenteditable='true']")) return;
       const g = gRef.current;
       if (phaseRef.current === "playing" && e.key === "Escape") {
+        const on = onlineRef.current;
+        if (on && g && g.phase !== "over") {
+          // Rời ván online giữa chừng = chịu thua; đối thủ nhận thắng.
+          void on.ch.send({ type: "broadcast", event: "left", payload: {} });
+          finish(g, 1, hooks);
+          return;
+        }
+        closeOnline();
         setPhase("setup");
         return;
       }
@@ -910,7 +986,7 @@ export function TypingBattleGame() {
       }
 
       const p2 = g.fighters[1];
-      if (!p2.bot) {
+      if (!p2.bot && !onlineRef.current) {
         const ch = e.key.length === 1 ? e.key.toLowerCase() : "";
         if (e.code === "ShiftRight") {
           e.preventDefault();
@@ -941,7 +1017,7 @@ export function TypingBattleGame() {
 
     window.addEventListener("keydown", onDown);
     return () => window.removeEventListener("keydown", onDown);
-  }, [hooks, submitP1]);
+  }, [hooks, submitP1, closeOnline]);
 
   const g = gRef.current;
   const show = phase !== "setup" && g;
@@ -1002,6 +1078,7 @@ export function TypingBattleGame() {
           setOpp={(o) => {
             setOpp(o);
             if (o === "local") setStake(0);
+            if (o === "friend") setMode(3);
           }}
           diff={diff}
           setDiff={setDiff}
@@ -1009,6 +1086,10 @@ export function TypingBattleGame() {
           setStake={setStake}
           onStart={(fr) => {
             friendRef.current = fr;
+            if (opp === "friend" && fr) {
+              setLobby({ room: fr.betId, oppId: fr.id, name: fr.name, avatar: fr.avatar, stake: fr.stake });
+              return;
+            }
             start();
           }}
         />
@@ -1173,6 +1254,7 @@ export function TypingBattleGame() {
         </p>
       </div>
 
+      {lobby && <BetLobby bo={lobby} onStart={launchOnline} onLeave={() => setLobby(null)} />}
       <MatchResultModal
         isOpen={resultOpen && phase === "over"}
         onClose={() => setResultOpen(false)}
@@ -1191,6 +1273,7 @@ const MODES: { value: Mode; icon: typeof Zap; name: string; desc: string }[] = [
 ];
 
 type OppKind = "bot" | "local" | "friend";
+type FriendInfo = { id: string; name: string; avatar: string; betId: string; stake: number };
 
 const OPPS: { value: OppKind; icon: typeof Bot; name: string; desc: string }[] = [
   { value: "bot", icon: Bot, name: "Đấu máy", desc: "Tính điểm xếp hạng, có thể cược Lúa" },
@@ -1239,7 +1322,7 @@ function TypingLobby({
   setDiff: (d: number) => void;
   stake: number;
   setStake: (s: number) => void;
-  onStart: (friend: { name: string; avatar: string } | null) => void;
+  onStart: (friend: FriendInfo | null) => void;
 }) {
   const me = useAppStore(useShallow((s) => ({ id: s.currentUser.id, name: s.currentUser.username, avatar: s.currentUser.avatar, lua: s.currentUser.lua })));
   const bet = useAppStore((s) => {
@@ -1261,12 +1344,14 @@ function TypingLobby({
   const friend =
     bet?.status === "accepted"
       ? bet.creatorId === me.id
-        ? { name: bet.opponentName ?? "Bạn bè", avatar: bet.opponentAvatar ?? "" }
-        : { name: bet.creatorName, avatar: bet.creatorAvatar }
+        ? { id: bet.opponentId ?? "", name: bet.opponentName ?? "Bạn bè", avatar: bet.opponentAvatar ?? "", betId: bet.id, stake: bet.stake }
+        : { id: bet.creatorId, name: bet.creatorName, avatar: bet.creatorAvatar, betId: bet.id, stake: bet.stake }
       : null;
   const pending = bet?.status === "pending" && bet.creatorId === me.id ? bet : null;
   const needsBot = mode === 1 && opp !== "bot";
-  const canStart = !needsBot && (opp !== "friend" || !!friend);
+  // Online chỉ có Đua gõ: mỗi máy tự gõ, hai bên chỉ trao đổi tiến độ.
+  const needsRace = opp === "friend" && mode !== 3;
+  const canStart = !needsBot && !needsRace && (opp !== "friend" || !!friend);
   const modeDef = MODES.find((m) => m.value === mode)!;
 
   const sendInvite = () => {
@@ -1285,7 +1370,7 @@ function TypingLobby({
     ) : opp === "local" ? (
       <Seat name="Người chơi 2" label="Đối thủ" accent={P_COL[1]} status="Nửa phải bàn phím · Shift phải để bắn" />
     ) : friend ? (
-      <Seat avatar={friend.avatar} name={friend.name} label="Đối thủ" accent={P_COL[1]} status="Đã nhận kèo, sẵn sàng" />
+      <Seat avatar={friend.avatar} name={friend.name} label="Đối thủ" accent={P_COL[1]} status="Đã nhận kèo · vào phòng chờ để bắt đầu" />
     ) : pending ? (
       <Seat name="Đang chờ người nhận…" label="Đối thủ" accent={P_COL[1]} status={`Kèo ${pending.stake} 🌾 đã gửi vào chat`}>
         <Button size="sm" onClick={() => cancelBet(pending.id)}>
@@ -1384,12 +1469,13 @@ function TypingLobby({
         ) : (
           <p className="text-xs text-ink-400">Chơi cùng máy không tính Lúa và xếp hạng.</p>
         )}
+        {needsRace && <p className="text-xs text-ink-400">Chơi online với bạn bè hiện chỉ có chế độ "Đua gõ": chọn chế độ đó để tiếp tục.</p>}
         {needsBot && <p className="text-xs text-ink-400">Hai bên cùng gõ một từ nên cần cả bàn phím: chọn "Đấu máy" cho chế độ này.</p>}
         {err && <p role="alert" className="text-xs text-danger">{err}</p>}
 
         <div className="mt-auto space-y-2">
           <Button variant="solid" size="lg" disabled={!canStart} onClick={() => onStart(opp === "friend" ? friend : null)} className="w-full">
-            <Play className="size-4" /> {needsBot ? "Đọ tên lửa cần đối thủ máy" : canStart ? "Vào bàn" : "Chờ đối thủ nhận kèo"}
+            <Play className="size-4" /> {needsRace ? "Mời bạn chỉ có Đua gõ" : needsBot ? "Đọ tên lửa cần đối thủ máy" : canStart ? "Vào bàn" : "Chờ đối thủ nhận kèo"}
           </Button>
           <p className="text-center text-xs text-ink-400">Esc trong ván để quay lại phòng chờ.</p>
         </div>
