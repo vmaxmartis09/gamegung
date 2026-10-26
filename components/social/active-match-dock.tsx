@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { openBetLobby } from "@/lib/bet-nav";
 import { AnimatePresence, motion } from "framer-motion";
 import { Eye, X } from "lucide-react";
 import { useAppStore, type BetChallenge } from "@/lib/store";
@@ -58,6 +59,20 @@ export function ActiveMatchDock() {
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [peek, setPeek] = useState<Peek>({});
   useEffect(() => setDismissed(readDismissed()), []);
+  const router = useRouter();
+
+  // Kèo mình tạo vừa có người nhận: chủ kèo cũng vào phòng chờ luôn.
+  useEffect(() => {
+    const status = new Map<string, string>();
+    for (const b of myBets(useAppStore.getState().messages, myId)) status.set(b.id, b.status);
+    return useAppStore.subscribe((s) => {
+      for (const b of myBets(s.messages, myId)) {
+        const prev = status.get(b.id);
+        status.set(b.id, b.status);
+        if (prev === "pending" && b.status === "accepted" && b.creatorId === myId) openBetLobby(b, router.push);
+      }
+    });
+  }, [myId, router]);
 
   // Dọn kèo bỏ dở + hỏi server trạng thái các bàn.
   useEffect(() => {

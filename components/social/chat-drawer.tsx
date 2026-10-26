@@ -3,6 +3,8 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { openBetLobby } from "@/lib/bet-nav";
 import { useShallow } from "zustand/react/shallow";
 import {
   ArrowLeft,
@@ -500,6 +502,7 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
   const accept = useAppStore((s) => s.acceptBetChallenge);
   const cancel = useAppStore((s) => s.cancelBetChallenge);
   const [err, setErr] = useState<string | null>(null);
+  const router = useRouter();
   const game = (["chess", "xiangqi", "werewolf", "arcade", "uno", "typing", "caro"].includes(bet.gameType) ? bet.gameType : "chess") as GameId;
 
   return (
@@ -532,7 +535,10 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
                 type="button"
                 onClick={() => {
                   if (lua < bet.stake) return setErr(`Cần ${bet.stake} 🌾, bạn có ${lua}.`);
-                  if (accept(bet.id) && soundEnabled) soundManager.playCoin();
+                  if (!accept(bet.id)) return;
+                  if (soundEnabled) soundManager.playCoin();
+                  // Nhận kèo là vào phòng chờ luôn.
+                  openBetLobby(bet, router.push);
                 }}
                 className="btn-accent px-3 py-1 text-[11px]"
               >
