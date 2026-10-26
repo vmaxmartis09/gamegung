@@ -15,6 +15,7 @@ import { GameIcon, GAME_BY_ID, GameId } from "@/components/art/game-art";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import TextLoading from "@/components/kokonut/text-loading";
 import { cn } from "@/lib/utils";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 /* ------------------------------- Game header ------------------------------- */
 
@@ -34,7 +35,7 @@ export function GameHeader({ game, subtitle, children }: { game: GameId; subtitl
       <span className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] py-1 pl-1 pr-3" title={meta.tagline}>
         <GameIcon game={game} className="size-8" />
         <span className="text-sm font-bold">{meta.name}</span>
-        {subtitle && <span className="hidden max-w-[260px] truncate text-xs text-ink-400 md:inline">· {subtitle}</span>}
+        {subtitle && <span className="hidden max-w-[260px] truncate text-xs text-ink-400 md:inline">· <EmojiText>{subtitle}</EmojiText></span>}
       </span>
       {children}
       <span className="ml-auto flex items-center gap-1.5">
@@ -330,7 +331,7 @@ export function Segmented<T extends string | number>({
             value === o.value ? "seg-active" : "text-ink-300 hover:text-white"
           )}
         >
-          {o.label}
+          <EmojiText>{o.label}</EmojiText>
         </button>
       ))}
     </div>
@@ -343,7 +344,7 @@ export function StakePicker({ value, onChange, disabled }: { value: number; onCh
     <div>
       <div className="mb-1.5 flex items-center justify-between">
         <span className="label mb-0">Cược Lúa</span>
-        <span className="text-xs text-ink-400">Ví: {lua.toLocaleString("vi-VN")} 🌾</span>
+        <span className="text-xs text-ink-400">Ví: {lua.toLocaleString("vi-VN")} <Emoji e="🌾" /></span>
       </div>
       <Segmented
         value={value}
@@ -507,7 +508,7 @@ export function useToast() {
             toast.tone === "info" && "border-white/15 bg-ink-900 text-ink-100"
           )}
         >
-          {toast.text}
+          <EmojiText>{toast.text}</EmojiText>
         </motion.div>
       )}
     </AnimatePresence>

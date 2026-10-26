@@ -24,6 +24,7 @@ import { calculateDailyBonus, DAILY_BONUS_TIERS } from "@/lib/ranking-system";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { CountUp } from "@/components/reactbits/count-up";
 import { cn } from "@/lib/utils";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -101,7 +102,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-accent/10 border border-accent/30 flex items-center justify-center text-lg shadow-inner">
-                  🌾
+                  <Emoji e="🌾" />
                 </div>
                 <div>
                   <h3 className="font-display text-base font-bold tracking-tight text-white">
@@ -165,7 +166,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                       <span className="font-display text-3xl sm:text-4xl font-bold tabular text-accent tracking-tight">
                         <CountUp value={currentUser.lua} />
                       </span>
-                      <span className="text-xl">🌾</span>
+                      <span className="text-xl"><Emoji e="🌾" /></span>
                       <span className="text-xs font-mono text-ink-400">Lúa</span>
                     </div>
                   </div>
@@ -186,11 +187,11 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                       <Gift className="w-3.5 h-3.5 text-accent" />
                       Điểm danh hôm nay:{" "}
                       <span className="text-accent font-bold font-mono">
-                        +{bonusInfo.total} Lúa 🌾
+                        +{bonusInfo.total} Lúa <Emoji e="🌾" />
                       </span>
                     </p>
                     <p className="text-xs text-ink-500 font-mono mt-0.5">
-                      Cơ bản 500 🌾 {bonusInfo.bonus > 0 ? `+ Thưởng ELO ${bonusInfo.bonus} 🌾` : "(Rank Tập Sự)"}
+                      Cơ bản 500 <Emoji e="🌾" /> <EmojiText>{bonusInfo.bonus > 0 ? `+ Thưởng ELO ${bonusInfo.bonus} 🌾` : "(Rank Tập Sự)"}</EmojiText>
                     </p>
                   </div>
 
@@ -222,12 +223,12 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                           )}
                         >
                           <span className="flex items-center gap-1.5">
-                            <span>{tier.icon}</span>
+                            <span><EmojiText>{tier.icon}</EmojiText></span>
                             <span>{tier.name}</span>
                             {tier.minElo > 0 && <span className="opacity-60">({tier.minElo}+)</span>}
                           </span>
                           <span className={cn(isCurrent ? "text-accent font-bold" : "text-ink-300")}>
-                            +{tier.total} 🌾 {isCurrent && "★ Bạn"}
+                            +{tier.total} <Emoji e="🌾" /> {isCurrent && "★ Bạn"}
                           </span>
                         </div>
                       );
@@ -243,7 +244,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                     className="btn-accent gap-2 px-3 py-2.5 text-xs"
                   >
                     <Gift className="w-4 h-4" />
-                    <span>Điểm Danh (+{bonusInfo.total} 🌾)</span>
+                    <span>Điểm Danh (+{bonusInfo.total} <Emoji e="🌾" />)</span>
                   </button>
 
                   <button
@@ -263,7 +264,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                     }
                   >
                     <LifeBuoy className="w-4 h-4 text-rose-400" />
-                    <span>Cứu Trợ (+200 🌾)</span>
+                    <span>Cứu Trợ (+200 <Emoji e="🌾" />)</span>
                   </button>
                 </div>
               </div>
@@ -304,7 +305,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                             )}
                           </div>
                           <div className="truncate">
-                            <p className="font-medium text-white truncate">{tx.description}</p>
+                            <p className="font-medium text-white truncate"><EmojiText>{tx.description}</EmojiText></p>
                             <p className="text-xs font-mono text-ink-500">
                               {new Date(tx.timestamp).toLocaleString("vi-VN", {
                                 hour: "2-digit",
@@ -323,10 +324,10 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                               isPositive ? "text-white" : "text-neutral-400"
                             )}
                           >
-                            {isPositive ? `+${tx.amount}` : tx.amount} 🌾
+                            {isPositive ? `+${tx.amount}` : tx.amount} <Emoji e="🌾" />
                           </span>
                           <p className="text-xs font-mono text-ink-400">
-                            Dư: {tx.balanceAfter.toLocaleString()} 🌾
+                            Dư: {tx.balanceAfter.toLocaleString()} <Emoji e="🌾" />
                           </p>
                         </div>
                       </div>
@@ -338,7 +339,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
 
             {/* Footer */}
             <div className="pt-4 border-t border-ink-800/80 flex items-center justify-between text-xs font-mono text-ink-400">
-              <span>🌾 Khởi điểm: 1,000 Lúa • Điểm danh: 500+ Lúa</span>
+              <span><Emoji e="🌾" /> Khởi điểm: 1,000 Lúa • Điểm danh: 500+ Lúa</span>
               <button
                 type="button"
                 onClick={onClose}

@@ -25,6 +25,7 @@ import { UserAvatar, kokonutAvatar, KOKONUT_PREFIX } from "@/components/ui/user-
 import { uploadAvatar, AVATAR_ACCEPT } from "@/lib/avatar-upload";
 import { syncProfileToSupabase } from "@/lib/supabase-game";
 import { cn } from "@/lib/utils";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -185,7 +186,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   <div className="mt-4 flex items-center justify-between border-t border-white/[0.08] pt-3">
                     <span className="eyebrow text-xs">Số dư</span>
                     <span className="font-display text-lg font-bold tabular text-accent">
-                      <CountUp value={currentUser.lua} /> <span className="text-sm">🌾</span>
+                      <CountUp value={currentUser.lua} /> <span className="text-sm"><Emoji e="🌾" /></span>
                     </span>
                   </div>
                 </SpotlightCard>
@@ -203,7 +204,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                     { icon: "⚡", name: "Cyber Slash", elo: currentUser.eloArcade ?? 1200, tier: arcadeTier, st: currentUser.stats.arcade },
                   ].map((g) => (
                     <SpotlightCard key={g.name} className="panel-soft space-y-1 p-3 text-center">
-                      <span className="block text-xl">{g.icon}</span>
+                      <span className="block text-xl"><EmojiText>{g.icon}</EmojiText></span>
                       <p className="text-xs font-semibold text-ink-100">{g.name}</p>
                       <p className="font-mono text-xs font-bold tabular text-ink-200">{g.elo} ELO</p>
                       <span className={cn("inline-block max-w-full truncate rounded-full border px-1.5 text-xs font-medium", g.tier.badgeBg, g.tier.borderColor, g.tier.color)}>
@@ -237,7 +238,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                           key={b.id}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-ink-900 border border-ink-700 text-xs text-white"
                         >
-                          <span className="text-base">{b.icon}</span>
+                          <span className="text-base"><EmojiText>{b.icon}</EmojiText></span>
                           <span className="font-semibold text-xs">{b.name}</span>
                         </div>
                       );

@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { CatalogRole, CatalogSet, CatalogTeam, SETS, TEAM_META, WEREWOLF_CATALOG, catalogImage } from "@/lib/games/werewolf-catalog";
 import { cn } from "@/lib/utils";
+import { Emoji } from "@/components/ui/emoji";
 
 /** Các vai đã chơi được trong game hiện tại. */
 const PLAYABLE_IDS = new Set(["soi-thuong", "soi-con", "soi-trang", "tien-tri", "bao-ve", "phu-thuy", "tho-san", "cupid", "gia-lang", "dan-lang"]);
@@ -34,7 +35,7 @@ function Art({ role, className, fit = "contain" }: { role: CatalogRole; classNam
           <img src={src} alt={role.name} loading="lazy" className={cn("relative h-full w-full drop-shadow-[0_12px_24px_rgba(0,0,0,0.55)]", fit === "contain" ? "object-contain p-5" : "object-cover")} />
         </>
       ) : (
-        <div className="relative grid h-full w-full place-items-center text-7xl drop-shadow-[0_0_24px_rgba(255,255,255,0.35)]">{role.emoji}</div>
+        <div className="relative grid h-full w-full place-items-center text-7xl drop-shadow-[0_0_24px_rgba(255,255,255,0.35)]"><Emoji e={role.emoji} /></div>
       )}
     </div>
   );

@@ -27,6 +27,7 @@ import {
   useState,
 } from "react";
 import { cn } from "@/lib/utils";
+import { EmojiText } from "@/components/ui/emoji";
 
 export type IslandTaskStatus = "running" | "done" | "error";
 
@@ -93,7 +94,7 @@ function RollingNumber({ value }: { value: number }) {
 }
 
 function TaskIcon({ task }: { task: IslandTask }) {
-  if (task.icon) return <span className="shrink-0">{task.icon}</span>;
+  if (task.icon) return <span className="shrink-0"><EmojiText>{task.icon}</EmojiText></span>;
   if (task.status === "done") {
     return (
       <svg
@@ -203,9 +204,9 @@ function TaskRow({ task }: { task: IslandTask }) {
     <div className="flex min-w-0 items-center gap-2.5">
       <TaskIcon task={task} />
       <span className="min-w-0 flex-1 truncate text-[13px] leading-4">
-        {task.label}
+        <EmojiText>{task.label}</EmojiText>
         {task.detail ? (
-          <span className="text-white/50"> · {task.detail}</span>
+          <span className="text-white/50"> · <EmojiText>{task.detail}</EmojiText></span>
         ) : null}
       </span>
       <TaskTrailing task={task} />
@@ -405,11 +406,11 @@ export function StatusIsland({
                         <div className="flex min-w-56 items-center gap-2.5">
                           <TaskIcon task={current} />
                           <span className="min-w-0 flex-1 truncate text-[13px] leading-4">
-                            {current.label}
+                            <EmojiText>{current.label}</EmojiText>
                             {current.detail ? (
                               <span className="text-white/50">
                                 {" "}
-                                · {current.detail}
+                                · <EmojiText>{current.detail}</EmojiText>
                               </span>
                             ) : null}
                           </span>

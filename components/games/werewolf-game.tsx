@@ -44,6 +44,7 @@ import { SeatCard } from "./werewolf-seat";
 import { DockBtn, IconToggle, WerewolfOnline, WerewolfOnlineEntry } from "./werewolf-online";
 import { wwResume } from "@/lib/werewolf-online";
 import { COOLDOWN, useCooldownStore, useCooldown } from "@/lib/cooldown-store";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 const DISCUSS_MS = 60_000;
 const VOTE_MS = 30_000;
@@ -847,11 +848,11 @@ export function WerewolfGame() {
             <div className="space-y-2">
               <div className={cn("flex flex-wrap items-center gap-2 rounded-2xl border p-2 pl-2.5 backdrop-blur-xl transition-colors duration-700", isNight ? "border-violet-400/25 bg-[#120d24]/85" : "border-amber-300/30 bg-[#1f1608]/85")}>
                 <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl", isNight ? "bg-violet-500/25 text-violet-200" : "bg-amber-400/25 text-amber-200")}>
-                  {isNight ? <Moon className="size-5" /> : g.phase === "over" ? <span className="text-xl">🏁</span> : <Sun className="size-5" />}
+                  {isNight ? <Moon className="size-5" /> : g.phase === "over" ? <span className="text-xl"><Emoji e="🏁" /></span> : <Sun className="size-5" />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-white/50">{g.phase === "over" ? "Kết thúc" : isNight ? `Đêm ${g.day}` : `Ngày ${g.day}`}</p>
-                  <p className="truncate text-sm font-extrabold text-white sm:text-base">{prompt}</p>
+                  <p className="truncate text-sm font-extrabold text-white sm:text-base"><EmojiText>{prompt}</EmojiText></p>
                 </div>
                 {secondsLeft !== null && (g.phase === "discussion" || g.phase === "vote") && (
                   <span className={cn("flex items-center gap-1 rounded-xl px-2.5 py-1.5 font-mono text-sm font-extrabold", secondsLeft <= 10 ? "animate-pulse bg-red-500/25 text-red-200" : "bg-white/10 text-white")}>
@@ -927,7 +928,7 @@ export function WerewolfGame() {
               )}
               {seerReveal && (
                 <div className={cn("flex items-center gap-3 rounded-2xl border px-4 py-2.5 font-bold", seerReveal.wolf ? "border-red-400/50 bg-red-500/20 text-red-100" : "border-emerald-400/40 bg-emerald-500/15 text-emerald-100")}>
-                  🔮 {seerReveal.name} {seerReveal.wolf ? "🐺 SÓI" : "✅ Người tốt"}
+                  <Emoji e="🔮" /> {seerReveal.name} <EmojiText>{seerReveal.wolf ? "🐺 SÓI" : "✅ Người tốt"}</EmojiText>
                   <button
                     type="button"
                     className="ml-auto grid size-8 place-items-center rounded-xl bg-white text-black transition hover:scale-110 active:scale-95"
@@ -1020,7 +1021,7 @@ export function WerewolfGame() {
                       transition={{ type: "spring", stiffness: 140, damping: 16 }}
                       className="font-display text-5xl font-black text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.6)] sm:text-7xl"
                     >
-                      {phaseBanner.text}
+                      <EmojiText>{phaseBanner.text}</EmojiText>
                     </motion.p>
                   </motion.div>
                 )}
@@ -1066,7 +1067,7 @@ export function WerewolfGame() {
                       <div className={cn("flex max-w-[78%] flex-col gap-1", me && "items-end")}>
                         {!grouped && !me && <p className="px-1 text-xs font-semibold text-ink-300">{sp?.name}</p>}
                         <div className={cn("w-fit break-words rounded-2xl px-3.5 py-2 text-sm leading-snug", me ? "rounded-br-md bg-lime-400 font-medium text-black" : "rounded-bl-md bg-white/[0.07] text-ink-100")}>
-                          {l.text}
+                          <EmojiText>{l.text}</EmojiText>
                         </div>
                       </div>
                     </motion.div>
@@ -1075,13 +1076,13 @@ export function WerewolfGame() {
                 if (l.kind === "death") {
                   return (
                     <motion.p key={l.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 rounded-xl border-l-2 border-pop-red bg-pop-red/10 px-3 py-2.5 text-sm font-medium text-[#ffb3bb]">
-                      {l.text}
+                      <EmojiText>{l.text}</EmojiText>
                     </motion.p>
                   );
                 }
                 return (
                   <motion.p key={l.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 px-2 text-center text-xs leading-relaxed text-ink-400">
-                    {l.text}
+                    <EmojiText>{l.text}</EmojiText>
                   </motion.p>
                 );
               })}
@@ -1098,9 +1099,9 @@ export function WerewolfGame() {
                   placeholder={
                     g.phase === "discussion" && meAlive
                       ? voice.isMicOn
-                        ? "🎤 …"
+                        ? "…"
                         : "Nói gì đó…"
-                      : "🔒"
+                      : "Chat đã khoá"
                   }
                   className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-ink-500 disabled:opacity-50"
                 />
@@ -1141,7 +1142,7 @@ function WitchPanel({ state, onHeal }: { state: WState; onHeal: (heal: boolean) 
   const victim = byId(state, state.wolfTarget);
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-2xl border-2 border-black bg-ink-100 px-4 py-2 text-black">
-      <span className="font-bold">🧪 {victim ? `Sói vừa cắn ${victim.name}.` : "Đêm nay Sói không cắn ai."}</span>
+      <span className="font-bold"><Emoji e="🧪" /> {victim ? `Sói vừa cắn ${victim.name}.` : "Đêm nay Sói không cắn ai."}</span>
       {victim && !state.healUsed ? (
         <>
           <button type="button" className="rounded-xl bg-black px-3 py-1 text-xs font-bold text-white" onClick={() => onHeal(true)}>

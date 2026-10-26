@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import { BadgeDefinition, GameType, getRankTier } from "@/lib/ranking-system";
 import { cn } from "@/lib/utils";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 export interface MatchSettlementModalProps {
   isOpen: boolean;
@@ -104,7 +105,7 @@ export function MatchSettlementModal({
                     "bg-ink-900 border-ink-700 text-ink-300 shadow-ink-500/20"
                 )}
               >
-                {isWin ? "🏆" : isLoss ? "💥" : "🤝"}
+                <EmojiText>{isWin ? "🏆" : isLoss ? "💥" : "🤝"}</EmojiText>
               </div>
             </div>
 
@@ -145,14 +146,14 @@ export function MatchSettlementModal({
                 <div className="text-xs font-mono text-ink-300 flex items-center justify-center gap-1">
                   <span>Mới:</span>
                   <span className="font-bold text-white">{newPlayerElo}</span>
-                  <span className="text-xs">{currentTier.icon}</span>
+                  <span className="text-xs"><EmojiText>{currentTier.icon}</EmojiText></span>
                 </div>
               </div>
 
               {/* Lúa Coins Change Card */}
               <div className="p-4 rounded-2xl bg-ink-900/80 border border-ink-800 flex flex-col justify-between">
                 <span className="text-xs font-mono uppercase tracking-wider text-ink-400">
-                  Tiền Cược Lúa 🌾
+                  Tiền Cược Lúa <Emoji e="🌾" />
                 </span>
                 <div className="flex items-center justify-center gap-1.5 my-1">
                   <span
@@ -169,7 +170,7 @@ export function MatchSettlementModal({
                   </span>
                 </div>
                 <div className="text-xs font-mono text-ink-300">
-                  Số dư: <span className="font-bold text-amber-300">{newLuaBalance.toLocaleString()} 🌾</span>
+                  Số dư: <span className="font-bold text-amber-300">{newLuaBalance.toLocaleString()} <Emoji e="🌾" /></span>
                 </div>
               </div>
             </div>
@@ -187,7 +188,7 @@ export function MatchSettlementModal({
                       key={badge.id}
                       className="flex items-center gap-2.5 p-2 rounded-xl bg-black/40 border border-amber-500/20"
                     >
-                      <span className="text-2xl">{badge.icon}</span>
+                      <span className="text-2xl"><EmojiText>{badge.icon}</EmojiText></span>
                       <div className="flex-1 truncate">
                         <p className="text-xs font-bold text-white truncate">{badge.name}</p>
                         <p className="text-xs text-ink-300 truncate">

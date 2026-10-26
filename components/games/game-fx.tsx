@@ -10,6 +10,7 @@ import { GlitchText } from "@/components/reactbits/glitch-text";
 import { BlurText } from "@/components/reactbits/blur-text";
 import { cn } from "@/lib/utils";
 import { MatchCard } from "@/components/matchmaking/match-card";
+import { EmojiText } from "@/components/ui/emoji";
 
 /* Shared "Ma Sói style" presentation kit: announce overlays, VS intro, narrator voice. */
 
@@ -62,9 +63,9 @@ export function GameFxOverlay({ fx, onDone }: { fx: GameFx | null; onDone: () =>
             transition={{ type: "spring", stiffness: 260, damping: 18 }}
             className="relative flex flex-col items-center gap-2 text-center"
           >
-            {fx.icon && <span className="text-7xl drop-shadow-[0_0_30px_var(--g)]" style={{ ["--g" as string]: tone.glow }}>{fx.icon}</span>}
+            {fx.icon && <span className="text-7xl drop-shadow-[0_0_30px_var(--g)]" style={{ ["--g" as string]: tone.glow }}><EmojiText>{fx.icon}</EmojiText></span>}
             <GlitchText text={fx.title} glowColor={tone.glow} className="text-5xl sm:text-7xl" speed="medium" />
-            {fx.subtitle && <p className="max-w-[80vw] text-sm font-semibold text-white/80 sm:text-base">{fx.subtitle}</p>}
+            {fx.subtitle && <p className="max-w-[80vw] text-sm font-semibold text-white/80 sm:text-base"><EmojiText>{fx.subtitle}</EmojiText></p>}
           </motion.div>
         </motion.div>
       )}

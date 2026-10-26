@@ -3,6 +3,7 @@
 import React from "react";
 import { Role } from "@/lib/games/werewolf-engine";
 import { cn } from "@/lib/utils";
+import { Emoji } from "@/components/ui/emoji";
 
 export interface RoleTheme {
   name: string;
@@ -358,7 +359,7 @@ export function CardBackArt({ className }: { className?: string }) {
       {/* Central Gothic Werewolf Wax Seal */}
       <div className="relative size-24 sm:size-28 rounded-full border-[3px] border-amber-600/60 bg-gradient-to-br from-red-950 via-red-900 to-black shadow-[0_0_35px_rgba(220,38,38,0.4)] grid place-items-center">
         <div className="absolute inset-1 rounded-full border border-amber-400/30" />
-        <span className="text-4xl sm:text-5xl filter drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">🐺</span>
+        <span className="text-4xl sm:text-5xl filter drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"><Emoji e="🐺" /></span>
       </div>
 
     </div>

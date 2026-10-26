@@ -23,6 +23,7 @@ import { WerewolfRoundtable } from "./werewolf-roundtable";
 import { WerewolfActionFxOverlay, WerewolfFxEvent, FxType } from "./werewolf-action-fx";
 import { useWerewolfVoice, WerewolfMicButton } from "./werewolf-voice";
 import { SeatCard } from "./werewolf-seat";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 /* Ma Sói online: phòng chờ + bàn chơi. Mọi trạng thái đến từ server (lib/werewolf-online.ts). */
 
@@ -349,7 +350,7 @@ function WaitingRoom({ r, onLeave, onExit }: { r: RoomApi; onLeave: () => void; 
           <div className="mt-5 flex flex-wrap gap-1.5">
             {(Object.entries(counts) as [Role, number][]).map(([role, n]) => (
               <span key={role} className="chip">
-                {ROLE_INFO[role].emoji} {ROLE_INFO[role].name}
+                <Emoji e={ROLE_INFO[role].emoji} /> {ROLE_INFO[role].name}
                 {n > 1 && <span className="text-ink-300">×{n}</span>}
               </span>
             ))}
@@ -768,11 +769,11 @@ function OnlineTable({ r, onLeave }: { r: RoomApi; onLeave: () => void }) {
           <div className="space-y-2">
             <div className={cn("flex flex-wrap items-center gap-2 rounded-2xl border p-2 pl-2.5 backdrop-blur-xl transition-colors duration-700", isNight ? "border-violet-400/25 bg-[#120d24]/85" : "border-amber-300/30 bg-[#1f1608]/85")}>
               <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl", isNight ? "bg-violet-500/25 text-violet-200" : "bg-amber-400/25 text-amber-200")}>
-                {isNight ? <Moon className="size-5" /> : room.phase === "over" ? <span className="text-xl">🏁</span> : <Sun className="size-5" />}
+                {isNight ? <Moon className="size-5" /> : room.phase === "over" ? <span className="text-xl"><Emoji e="🏁" /></span> : <Sun className="size-5" />}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-white/50">{room.phase === "over" ? "Kết thúc" : isNight ? `Đêm ${room.day}` : `Ngày ${room.day}`}</p>
-                <p className="truncate text-sm font-extrabold text-white sm:text-base">{prompt}</p>
+                <p className="truncate text-sm font-extrabold text-white sm:text-base"><EmojiText>{prompt}</EmojiText></p>
               </div>
               {showClock && (
                 <span className={cn("flex items-center gap-1 rounded-xl px-2.5 py-1.5 font-mono text-sm font-extrabold", secondsLeft! <= 10 ? "animate-pulse bg-red-500/25 text-red-200" : "bg-white/10 text-white")}>
@@ -808,7 +809,7 @@ function OnlineTable({ r, onLeave }: { r: RoomApi; onLeave: () => void }) {
 
             {mySeat?.bot && room.phase !== "over" && (
               <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-300/30 bg-amber-400/10 px-4 py-2.5 text-sm font-semibold text-amber-100">
-                🤖 Bot đang chơi thay bạn.
+                <Emoji e="🤖" /> Bot đang chơi thay bạn.
                 <button type="button" className="btn-ghost ml-auto px-3 py-1.5 text-xs" onClick={() => void wwJoin(room.id, profile.username, profile.avatar).then(() => r.refresh())}>
                   Chơi tiếp
                 </button>
@@ -819,7 +820,7 @@ function OnlineTable({ r, onLeave }: { r: RoomApi; onLeave: () => void }) {
 
             {witchHealOpen && (
               <div className="flex flex-wrap items-center gap-2 rounded-2xl border-2 border-black bg-ink-100 px-4 py-2 text-black">
-                <span className="font-bold">🧪 Sói vừa cắn {victimName}.</span>
+                <span className="font-bold"><Emoji e="🧪" /> Sói vừa cắn {victimName}.</span>
                 <button
                   type="button"
                   className="rounded-xl bg-black px-3 py-1 text-xs font-bold text-white disabled:opacity-50"
@@ -841,7 +842,7 @@ function OnlineTable({ r, onLeave }: { r: RoomApi; onLeave: () => void }) {
             )}
             {seerPick !== null && seerResult !== undefined && night && (
               <div className={cn("flex items-center gap-3 rounded-2xl border px-4 py-2.5 font-bold", seerResult ? "border-red-400/50 bg-red-500/20 text-red-100" : "border-emerald-400/40 bg-emerald-500/15 text-emerald-100")}>
-                🔮 {seats.find((s) => s.seat === seerPick)?.name} {seerResult ? "🐺 SÓI" : "✅ Người tốt"}
+                <Emoji e="🔮" /> {seats.find((s) => s.seat === seerPick)?.name} <EmojiText>{seerResult ? "🐺 SÓI" : "✅ Người tốt"}</EmojiText>
               </div>
             )}
           </div>
@@ -916,7 +917,7 @@ function OnlineTable({ r, onLeave }: { r: RoomApi; onLeave: () => void }) {
                     transition={{ type: "spring", stiffness: 140, damping: 16 }}
                     className="font-display text-5xl font-black text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.6)] sm:text-7xl"
                   >
-                    {phaseBanner.text}
+                    <EmojiText>{phaseBanner.text}</EmojiText>
                   </motion.p>
                 </motion.div>
               )}
@@ -931,7 +932,7 @@ function OnlineTable({ r, onLeave }: { r: RoomApi; onLeave: () => void }) {
         <LogPanel
           r={r}
           canChat={canChat}
-          placeholder={canChat ? (night ? "Nhắn riêng bầy Sói…" : voice.isMicOn ? "🎤 …" : "Nói gì đó…") : "🔒"}
+          placeholder={canChat ? (night ? "Nhắn riêng bầy Sói…" : voice.isMicOn ? "…" : "Nói gì đó…") : "Chat đã khoá"}
           chat={chat}
           setChat={setChat}
           mic={<WerewolfMicButton voice={voice} disabled={room.phase !== "discussion" || !meAlive} />}
@@ -1019,7 +1020,7 @@ function LogPanel({
                       mine ? "rounded-br-md" : "rounded-bl-md"
                     )}
                   >
-                    {l.text}
+                    <EmojiText>{l.text}</EmojiText>
                   </div>
                 </div>
               </motion.div>
@@ -1028,20 +1029,20 @@ function LogPanel({
           if (l.kind === "death") {
             return (
               <motion.p key={l.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 rounded-xl border-l-2 border-pop-red bg-pop-red/10 px-3 py-2.5 text-sm font-medium text-[#ffb3bb]">
-                {l.text}
+                <EmojiText>{l.text}</EmojiText>
               </motion.p>
             );
           }
           if (l.kind === "private") {
             return (
               <motion.p key={l.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2.5 text-sm font-medium text-violet-100">
-                <span className="mr-1 text-xs font-bold uppercase tracking-wider text-violet-300">Chỉ bạn thấy</span> {l.text}
+                <span className="mr-1 text-xs font-bold uppercase tracking-wider text-violet-300">Chỉ bạn thấy</span> <EmojiText>{l.text}</EmojiText>
               </motion.p>
             );
           }
           return (
             <motion.p key={l.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 px-2 text-center text-xs leading-relaxed text-ink-400">
-              {l.text}
+              <EmojiText>{l.text}</EmojiText>
             </motion.p>
           );
         })}

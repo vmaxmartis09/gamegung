@@ -29,6 +29,7 @@ import {
 import { fetchLeaderboardFromSupabase, SupabaseLeaderboardItem } from "@/lib/supabase-game";
 import { SpotlightCard } from "@/components/reactbits/spotlight-card";
 import { cn } from "@/lib/utils";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 interface RankingModalProps {
   isOpen: boolean;
@@ -228,10 +229,10 @@ export function RankingModal({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between pb-1">
                     <p className="text-xs font-mono text-ink-400">
-                      Bảng xếp hạng tài sản Lúa 🌾 trong toàn công ty
+                      Bảng xếp hạng tài sản Lúa <Emoji e="🌾" /> trong toàn công ty
                     </p>
                     <span className="text-xs font-mono text-accent">
-                      Đơn vị: Lúa (🌾)
+                      Đơn vị: Lúa (<Emoji e="🌾" />)
                     </span>
                   </div>
 
@@ -249,7 +250,7 @@ export function RankingModal({
                       >
                         <div className="flex items-center gap-3.5">
                           <span className="w-8 text-center font-bold text-sm font-mono text-ink-300">
-                            {getRankMedal(idx)}
+                            <EmojiText>{getRankMedal(idx)}</EmojiText>
                           </span>
                           <UserAvatar src={player.avatar} name={player.username} className="w-10 h-10 rounded-full border border-ink-700 bg-ink-950" />
                           <div>
@@ -272,7 +273,7 @@ export function RankingModal({
                         <div className="text-right">
                           <div className="flex items-baseline justify-end gap-1 font-mono font-bold text-base text-accent">
                             <span>{player.lua.toLocaleString()}</span>
-                            <span className="text-sm">🌾</span>
+                            <span className="text-sm"><Emoji e="🌾" /></span>
                           </div>
                           <span className="text-xs font-mono text-ink-500">
                             Hạng #{idx + 1}
@@ -349,12 +350,12 @@ export function RankingModal({
                               >
                                 <div className="flex items-center gap-3.5">
                                   <span className="w-8 text-center font-bold text-sm font-mono text-ink-300">
-                                    {getRankMedal(idx)}
+                                    <EmojiText>{getRankMedal(idx)}</EmojiText>
                                   </span>
                                   <div className="relative">
                                     <UserAvatar src={player.avatar} name={player.username} className="w-10 h-10 rounded-full border border-ink-700 bg-ink-950" />
                                     <span className="absolute -bottom-1 -right-1 text-xs">
-                                      {tier.icon}
+                                      <EmojiText>{tier.icon}</EmojiText>
                                     </span>
                                   </div>
                                   <div>
@@ -391,7 +392,7 @@ export function RankingModal({
                                     </span>
                                   </div>
                                   <p className="text-xs font-mono text-ink-500">
-                                    Hạng #{idx + 1} • {player.lua} 🌾
+                                    Hạng #{idx + 1} • {player.lua} <Emoji e="🌾" />
                                   </p>
                                 </div>
                               </div>
@@ -463,7 +464,7 @@ export function RankingModal({
                             key={b.id}
                             className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-ink-800 border border-ink-700 text-xs text-white"
                           >
-                            <span>{b.icon}</span>
+                            <span><EmojiText>{b.icon}</EmojiText></span>
                             <span className="font-medium text-xs">{b.name}</span>
                             <button
                               type="button"
@@ -498,7 +499,7 @@ export function RankingModal({
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-2xl p-2 rounded-xl bg-ink-800/80 border border-ink-700/60 flex items-center justify-center">
-                                {badge.icon}
+                                <EmojiText>{badge.icon}</EmojiText>
                               </span>
                               {isUnlocked ? (
                                 <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-white/15 text-white border border-white/30">
@@ -556,7 +557,7 @@ export function RankingModal({
               <span className="font-mono">
                 Số dư hiện tại:{" "}
                 <span className="text-accent font-bold">
-                  {currentUser.lua.toLocaleString()} 🌾 Lúa
+                  {currentUser.lua.toLocaleString()} <Emoji e="🌾" /> Lúa
                 </span>
               </span>
               <button

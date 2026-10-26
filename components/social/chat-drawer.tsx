@@ -39,6 +39,7 @@ import { isAccountId, syncProfileToSupabase, uploadAvatarImage } from "@/lib/sup
 import { uploadChatFile } from "@/lib/chat-upload";
 import { cn } from "@/lib/utils";
 import { BetModal } from "./bet-modal";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 const REACTIONS = ["🔥", "😂", "👏", "⚔️", "🌾"];
 const QUICK_EMOJIS = ["☕", "♟️", "🐺", "⚔️", "🔥", "🏆", "🌾", "😂", "👏", "🎯", "⚡", "🎲", "😎", "💀", "🫡", "🤝"];
@@ -217,7 +218,7 @@ function DrawerHeader({ tab, setTab, onCollapse }: { tab: Tab; setTab: (t: Tab) 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span className="truncate text-xs font-semibold text-white group-hover:underline">{me.username}</span>
-              <span className="shrink-0 text-[10px] text-neutral-400 font-mono">🌾 {me.lua.toLocaleString("vi-VN")}</span>
+              <span className="shrink-0 text-[10px] text-neutral-400 font-mono"><Emoji e="🌾" /> {me.lua.toLocaleString("vi-VN")}</span>
             </div>
             <p className="truncate text-[10px] text-neutral-400">{me.title}</p>
           </div>
@@ -269,7 +270,7 @@ function DrawerHeader({ tab, setTab, onCollapse }: { tab: Tab; setTab: (t: Tab) 
               />
             )}
             <span className="relative flex items-center gap-1.5">
-              {t.icon}
+              <EmojiText>{t.icon}</EmojiText>
               {t.label}
               {t.badge > 0 && <span className="grid min-w-4 place-items-center rounded-full bg-white px-1 text-[9px] font-bold text-black">{t.badge}</span>}
             </span>
@@ -387,8 +388,8 @@ const MessageRow = memo(function MessageRow({
   if (msg.senderId === "system") {
     return (
       <div className="my-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-center">
-        <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-ink-300">⚖️ Trọng tài</p>
-        <p className="mt-1 text-xs text-ink-100">{msg.content}</p>
+        <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-ink-300"><Emoji e="⚖️" /> Trọng tài</p>
+        <p className="mt-1 text-xs text-ink-100"><EmojiText>{msg.content}</EmojiText></p>
       </div>
     );
   }
@@ -416,7 +417,7 @@ const MessageRow = memo(function MessageRow({
           >
             {REACTIONS.map((e) => (
               <button key={e} type="button" onClick={() => toggleReaction(msg.channelId, msg.id, e)} className="rounded-lg px-1 text-sm transition-transform hover:scale-125">
-                {e}
+                <Emoji e={e} />
               </button>
             ))}
             {msg.content && (
@@ -444,7 +445,7 @@ const MessageRow = memo(function MessageRow({
               grouped && (isMe ? "rounded-tr-2xl" : "rounded-tl-2xl")
             )}
           >
-            {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
+            {msg.content && <p className="whitespace-pre-wrap"><EmojiText>{msg.content}</EmojiText></p>}
             {msg.betChallenge && <BetCard msg={msg} isMe={isMe} />}
             {msg.attachment && <Attachment att={msg.attachment} onPreview={onPreview} />}
           </div>
@@ -461,7 +462,7 @@ const MessageRow = memo(function MessageRow({
                   users.includes(myId) ? "border-accent/50 bg-accent/10 text-white" : "border-white/10 bg-white/[0.03] text-ink-300"
                 )}
               >
-                {emoji} {users.length}
+                <Emoji e={emoji} /> {users.length}
               </button>
             ))}
           </div>
@@ -510,7 +511,7 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
           </p>
         </div>
         <div className="text-right">
-          <p className="font-display text-base font-extrabold text-white">{bet.stake} 🌾</p>
+          <p className="font-display text-base font-extrabold text-white">{bet.stake} <Emoji e="🌾" /></p>
           <p className="text-[10px] text-ink-400">Thưởng {bet.stake * 2}</p>
         </div>
       </div>
@@ -562,7 +563,7 @@ function BetCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
           <span className="text-[11px] text-ink-500">{bet.status === "cancelled" ? "Kèo đã huỷ" : "Kèo đã kết thúc"}</span>
         )}
       </div>
-      {err && <p className="px-3 pb-2 text-[11px] text-pop-red">{err}</p>}
+      {err && <p className="px-3 pb-2 text-[11px] text-pop-red"><EmojiText>{err}</EmojiText></p>}
     </div>
   );
 }
@@ -653,7 +654,7 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
         <div className="mb-2 flex flex-wrap gap-1 rounded-2xl border border-white/[0.06] bg-ink-900 p-2">
           {QUICK_EMOJIS.map((e) => (
             <button key={e} type="button" onClick={() => setText((t) => t + e)} className="grid size-8 place-items-center rounded-lg text-lg hover:bg-white/[0.06]">
-              {e}
+              <Emoji e={e} />
             </button>
           ))}
         </div>
@@ -677,7 +678,7 @@ function Composer({ channelId, onBet }: { channelId: string; onBet: () => void }
           </button>
         </div>
       )}
-      {err && <p className="mb-2 text-[11px] text-pop-red">{err}</p>}
+      {err && <p className="mb-2 text-[11px] text-pop-red"><EmojiText>{err}</EmojiText></p>}
 
       <div className="flex items-end gap-1 rounded-2xl border border-white/10 bg-ink-850/80 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-[border-color,box-shadow] duration-200 focus-within:border-accent/50 focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
         <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.txt,.csv,.zip,.docx,.xlsx,.pptx" onChange={onFile} />
@@ -920,7 +921,7 @@ function ProfilePanel() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-wider text-neutral-400">Số dư Credit</p>
-            <p className="font-display text-2xl font-medium tabular text-white">{lua.toLocaleString("vi-VN")} 🌾</p>
+            <p className="font-display text-2xl font-medium tabular text-white">{lua.toLocaleString("vi-VN")} <Emoji e="🌾" /></p>
           </div>
           <div className="flex flex-col items-end gap-1.5">
             <button
@@ -939,7 +940,7 @@ function ProfilePanel() {
             </button>
           </div>
         </div>
-        {claimMsg && <p className="mt-2 text-xs font-semibold text-white">{claimMsg}</p>}
+        {claimMsg && <p className="mt-2 text-xs font-semibold text-white"><EmojiText>{claimMsg}</EmojiText></p>}
         {transactions.length > 0 && (
           <div className="mt-3 divide-y divide-white/[0.06] border-t border-white/[0.06]">
             {transactions.slice(0, 3).map((t) => (
@@ -960,7 +961,7 @@ function ProfilePanel() {
       <div className={cn(card, "p-3.5")}>
         <div className="flex items-baseline justify-between">
           <p className={cn("text-sm font-semibold", tier.color)}>
-            {tier.icon} {tier.name}
+            <EmojiText>{tier.icon}</EmojiText> {tier.name}
           </p>
           <p className="font-mono text-xs text-neutral-300">{score} ELO</p>
         </div>
@@ -984,7 +985,7 @@ function ProfilePanel() {
             return (
               <div key={r.label} className="flex items-center gap-2 px-3 py-2 text-xs">
                 <span className="min-w-0 flex-1 truncate font-medium text-white">{r.label}</span>
-                <span className={cn("shrink-0", t.color)}>{t.icon}</span>
+                <span className={cn("shrink-0", t.color)}><EmojiText>{t.icon}</EmojiText></span>
                 <span className="w-10 shrink-0 text-right font-mono text-neutral-200">{r.elo}</span>
                 <span className="w-20 shrink-0 text-right font-mono text-[11px] text-neutral-400">
                   {r.s.wins}T · {r.s.losses}B · {r.s.draws}H
@@ -1003,7 +1004,7 @@ function ProfilePanel() {
           { label: "Ghép trận", icon: <Swords className="size-3.5" />, to: "matchmaking" as const },
         ].map((b) => (
           <button key={b.to} type="button" onClick={() => open(b.to)} className={cn(card, "flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium text-neutral-200 hover:bg-white/[0.08] hover:text-white transition-colors")}>
-            {b.icon} {b.label}
+            <EmojiText>{b.icon}</EmojiText> {b.label}
           </button>
         ))}
       </div>
@@ -1085,7 +1086,7 @@ function DmList({ myId, onOpen }: { myId: string; onOpen: () => void }) {
               </div>
               <p className={cn("truncate text-xs", n ? "font-semibold text-white" : "text-ink-400")}>
                 {last.senderId === myId ? "Bạn: " : ""}
-                {last.content || "📎 Tệp đính kèm"}
+                <EmojiText>{last.content || "📎 Tệp đính kèm"}</EmojiText>
               </p>
             </div>
             {n > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1 text-[10px] font-bold text-black">{n}</span>}
@@ -1137,7 +1138,7 @@ function OnlineList({ onOpenDm }: { onOpenDm: () => void }) {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold">{p.username}</p>
                     <p className="truncate text-xs text-ink-400">
-                      {p.status === "in-game" && p.currentGame ? `🎮 ${p.currentGame}` : p.title}
+                      <EmojiText>{p.status === "in-game" && p.currentGame ? `🎮 ${p.currentGame}` : p.title}</EmojiText>
                       {p.status === "away" && ` · vắng ${relativeTime(p.awaySince ?? p.lastSeen)}`}
                     </p>
                   </div>

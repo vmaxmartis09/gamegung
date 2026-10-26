@@ -5,6 +5,7 @@ import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Trophy } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
+import { EmojiText } from "@/components/ui/emoji";
 
 /**
  * Thẻ người chơi cho màn ghép trận: bố cục hồ sơ (chân dung + tia sáng, tên, chỉ số, nhãn dưới)
@@ -102,7 +103,7 @@ export function MatchCard({ tone, name, avatar, elo, tier, footer, searching, cl
           <div className="mt-1.5 flex items-center gap-3 text-xs font-semibold text-ink-200">
             {tier && (
               <span className="flex items-center gap-1">
-                <span aria-hidden>{tier.icon}</span>
+                <span aria-hidden><EmojiText>{tier.icon}</EmojiText></span>
                 <span className="truncate">{tier.name}</span>
               </span>
             )}

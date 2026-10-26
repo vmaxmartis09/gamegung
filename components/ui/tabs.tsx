@@ -3,6 +3,7 @@
 import * as React from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { EmojiText } from "@/components/ui/emoji";
 
 export interface TabItem<T extends string = string> {
   id: T;
@@ -86,7 +87,7 @@ export function Tabs<T extends string = string>({ items, value, onChange, varian
             )}
             <span className="relative flex items-center gap-2">
               {item.icon}
-              {item.label}
+              <EmojiText>{item.label}</EmojiText>
               {item.badge != null && <span className="rounded-full bg-white/[0.08] px-1.5 text-xs font-medium tabular text-ink-200">{item.badge}</span>}
             </span>
           </button>

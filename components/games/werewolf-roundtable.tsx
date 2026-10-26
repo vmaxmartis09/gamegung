@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { CenterFlow, CenterFlowNode } from "@/components/reactbits/center-flow";
 import { playNarratorVoice, stopNarratorVoice } from "@/lib/narrator-audio";
 import { SeatCard } from "./werewolf-seat";
+import { EmojiText } from "@/components/ui/emoji";
 
 export interface WerewolfRoundtableProps {
   state: WState;
@@ -121,7 +122,7 @@ export function WerewolfRoundtable({
         <motion.div animate={{ scale: [1, 1.12, 1], opacity: isNight ? [0.35, 0.6, 0.35] : [0.6, 0.95, 0.6] }} transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }} className={cn("absolute inset-5 rounded-full blur-2xl", isNight ? "bg-violet-600/60" : "bg-amber-500/70")} />
 
         <div className={cn("relative z-10 grid size-[68px] place-items-center rounded-[22px] border text-3xl shadow-2xl sm:size-[76px]", isNight ? "border-violet-300/50 bg-gradient-to-br from-violet-950 to-slate-950 shadow-violet-900/60" : "border-amber-300/60 bg-gradient-to-br from-amber-900 to-orange-950 shadow-amber-900/60")}>
-          <span className="select-none">{isNight ? "🌙" : "🔥"}</span>
+          <span className="select-none"><EmojiText>{isNight ? "🌙" : "🔥"}</EmojiText></span>
           {isNarratorSpeaking && <span className="absolute inset-0 animate-ping rounded-[22px] border-2 border-amber-300/70" />}
           <button
             type="button"

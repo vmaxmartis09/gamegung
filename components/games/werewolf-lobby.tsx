@@ -9,6 +9,7 @@ import { WerewolfRoleGallery } from "./werewolf-role-gallery";
 import { StakePicker } from "./shared";
 import { useCooldown } from "@/lib/cooldown-store";
 import { cn } from "@/lib/utils";
+import { Emoji } from "@/components/ui/emoji";
 
 /* --------------------------------- Setup model -------------------------------- */
 
@@ -94,7 +95,7 @@ function RoleThumb({ role, size = 36 }: { role: Role; size?: number }) {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt="" className="h-full w-full object-contain p-0.5" />
       ) : (
-        <span style={{ fontSize: size * 0.55 }}>{ROLE_INFO[role].emoji}</span>
+        <span style={{ fontSize: size * 0.55 }}><Emoji e={ROLE_INFO[role].emoji} /></span>
       )}
     </span>
   );
@@ -247,7 +248,7 @@ export function WerewolfLobby({
           </div>
           {onPreviewRoulette && (
             <button type="button" onClick={onPreviewRoulette} className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/80 transition hover:bg-white/10">
-              ✨ Thử vòng quay thẻ
+              <Emoji e="✨" /> Thử vòng quay thẻ
             </button>
           )}
         </div>
@@ -317,7 +318,7 @@ export function WerewolfLobby({
                     {setup.mode === "random" && (
                       <div>
                         <div className="flex items-center justify-between">
-                          <p className="label mb-0">👥</p>
+                          <p className="label mb-0"><Emoji e="👥" /></p>
                           <span className="font-display text-xl font-black text-white">{randomSize}</span>
                         </div>
                         <input
@@ -347,7 +348,7 @@ export function WerewolfLobby({
                     {setup.mode === "custom" && (
                       <div>
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                          <p className="label mb-0">👥 {setup.roles.length}</p>
+                          <p className="label mb-0"><Emoji e="👥" /> {setup.roles.length}</p>
                           <div className="flex gap-1.5 text-xs font-bold">
                             <button type="button" onClick={() => setSetup({ ...setup, roles: randomRoles(Math.max(MIN_PLAYERS, setup.roles.length)) })} className="flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1.5 text-white/80 hover:bg-white/20">
                               <Shuffle className="size-3.5" /> Trộn
@@ -405,7 +406,7 @@ export function WerewolfLobby({
               {/* Chọn vai của tôi */}
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
                 <div className="mb-3 flex items-center justify-between">
-                  <p className="label mb-0">🎭</p>
+                  <p className="label mb-0"><Emoji e="🎭" /></p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -443,15 +444,15 @@ export function WerewolfLobby({
               <Donut wolves={wolves} village={village} hidden={hidden} />
               <div className="flex-1 space-y-2 text-sm">
                 <div className="font-display text-lg font-extrabold text-white">{mode.name}</div>
-                <div className="flex items-center justify-between"><span className="text-[#f87171]">🐺</span><span className="font-bold text-white">{hidden ? "?" : wolves}</span></div>
-                <div className="flex items-center justify-between"><span className="text-[#4ade80]">🏘️</span><span className="font-bold text-white">{hidden ? "?" : village}</span></div>
-                <div className="flex items-center justify-between"><span className="text-white/55">🎭</span><span className="font-bold text-white">{setup.myRole === "random" ? "Ngẫu nhiên" : ROLE_INFO[setup.myRole].name}</span></div>
+                <div className="flex items-center justify-between"><span className="text-[#f87171]"><Emoji e="🐺" /></span><span className="font-bold text-white">{hidden ? "?" : wolves}</span></div>
+                <div className="flex items-center justify-between"><span className="text-[#4ade80]"><Emoji e="🏘️" /></span><span className="font-bold text-white">{hidden ? "?" : village}</span></div>
+                <div className="flex items-center justify-between"><span className="text-white/55"><Emoji e="🎭" /></span><span className="font-bold text-white">{setup.myRole === "random" ? "Ngẫu nhiên" : ROLE_INFO[setup.myRole].name}</span></div>
               </div>
             </div>
 
             <div className="mt-4 border-t border-white/10 pt-3">
                             {hidden ? (
-                <p className="rounded-xl border border-dashed border-white/15 bg-white/[0.03] py-4 text-center text-xs text-white/50">🎲 Bộ vai bí mật</p>
+                <p className="rounded-xl border border-dashed border-white/15 bg-white/[0.03] py-4 text-center text-xs text-white/50"><Emoji e="🎲" /> Bộ vai bí mật</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {distinct.map((r) => (
@@ -470,9 +471,9 @@ export function WerewolfLobby({
             </div>
 
 
-            {cooldown.active && <p className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/60">⏳ {cooldown.reason || "Đang nghỉ giữa trận"}</p>}
+            {cooldown.active && <p className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/60"><Emoji e="⏳" /> {cooldown.reason || "Đang nghỉ giữa trận"}</p>}
 
-            {error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-200">⚠ {error}</p>}
+            {error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-200"><Emoji e="⚠" /> {error}</p>}
 
             <button
               type="button"

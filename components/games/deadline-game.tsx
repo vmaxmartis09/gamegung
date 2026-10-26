@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { MatchResultModal } from "./match-result-modal";
 import { GameFxOverlay, MatchIntro, NarratorButton, useFxQueue, useNarrator } from "./game-fx";
 import { GameHeader, Segmented, StakePicker, useGameSession, useMatchSettlement } from "./shared";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 const DEPT_ICON: Record<Dept, typeof Code2> = { tech: Code2, sales: TrendingUp, hr: Heart, design: PenTool };
 const TURN_MS = 25_000;
@@ -430,7 +431,7 @@ export function DeadlineGame() {
       <MatchIntro open={intro} title="Deadline Rush" subtitle="Bàn đã chia bài" players={s.players.map((p) => ({ name: p.name, avatar: p.avatar }))} onDone={() => setIntro(false)} />
       <GameHeader game="uno" subtitle={`Ván ${s.round}${s.target ? ` · đến ${s.target}` : ""}`}>
         <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
-        {stake > 0 && <span className="chip">{stake} 🌾</span>}
+        {stake > 0 && <span className="chip">{stake} <Emoji e="🌾" /></span>}
       </GameHeader>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -509,7 +510,7 @@ export function DeadlineGame() {
           <div className="mb-3 flex min-h-[40px] flex-wrap items-center justify-center gap-2">
             {roundOver ? (
               <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-2 font-bold text-black">
-                🏁 {s.players[s.winner!].name} hết bài!
+                <Emoji e="🏁" /> {s.players[s.winner!].name} hết bài!
                 {!over && (
                   <button type="button" className="rounded-xl bg-black px-3 py-1 text-sm text-white" onClick={nextRound}>
                     Ván tiếp
@@ -648,7 +649,7 @@ export function DeadlineGame() {
 function Rule({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
     <li className="flex items-center gap-2.5 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
-      <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-white text-black">{icon}</span>
+      <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-white text-black"><EmojiText>{icon}</EmojiText></span>
       {text}
     </li>
   );

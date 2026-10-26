@@ -24,6 +24,7 @@ import { BorderBeam } from "@/components/reactbits/border-beam";
 import { BlurText } from "@/components/reactbits/blur-text";
 import { GradientText } from "@/components/reactbits/gradient-text";
 import { cn } from "@/lib/utils";
+import { Emoji } from "@/components/ui/emoji";
 
 const TITLES = [
   "Đại Kiện Tướng Bàn Trà",
@@ -175,7 +176,7 @@ export function AuthScreen() {
           </h1>
           <p className="mt-6 max-w-md text-base leading-relaxed text-ink-200">
             5 game đối kháng cho dân văn phòng — cờ vua, cờ tướng, ma sói, game bài, arcade. Xếp hạng ELO, cược Lúa
-            🌾, chat realtime với cả công ty.
+            <Emoji e="🌾" />, chat realtime với cả công ty.
           </p>
         </div>
       </section>

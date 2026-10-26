@@ -8,6 +8,7 @@ import { GameType } from "@/lib/ranking-system";
 import { cn } from "@/lib/utils";
 import { ShinyText } from "@/components/reactbits/shiny-text";
 import { BorderBeam } from "@/components/reactbits/border-beam";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 interface BetModalProps {
   isOpen: boolean;
@@ -90,7 +91,7 @@ export function BetModal({
                     <span>MỜI CHƠI</span>
                   </h3>
                   <p className="text-xs font-mono text-ink-400">
-                    Đối kháng trực tiếp & thưởng Lúa 🌾
+                    Đối kháng trực tiếp & thưởng Lúa <Emoji e="🌾" />
                   </p>
                 </div>
               </div>
@@ -127,7 +128,7 @@ export function BetModal({
                           : "border-white/10 bg-white/[0.02] text-ink-400 hover:border-white/20"
                       )}
                     >
-                      <span className="text-xl">{g.icon}</span>
+                      <span className="text-xl"><EmojiText>{g.icon}</EmojiText></span>
                       <span className="text-xs font-mono">{g.label}</span>
                     </button>
                   ))}
@@ -138,10 +139,10 @@ export function BetModal({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-mono font-semibold uppercase tracking-wider text-ink-400">
-                    Mức Cược Lúa 🌾
+                    Mức Cược Lúa <Emoji e="🌾" />
                   </label>
                   <span className="text-xs font-mono text-accent font-bold">
-                    Ví: {currentUser.lua.toLocaleString()} 🌾
+                    Ví: {currentUser.lua.toLocaleString()} <Emoji e="🌾" />
                   </span>
                 </div>
 
@@ -161,7 +162,7 @@ export function BetModal({
                           : "border-white/10 bg-white/[0.03] text-ink-300 hover:bg-white/[0.07]"
                       )}
                     >
-                      {amt} 🌾
+                      {amt} <Emoji e="🌾" />
                     </button>
                   ))}
                 </div>
@@ -180,7 +181,7 @@ export function BetModal({
                     placeholder="Mức cược tùy chỉnh..."
                   />
                   <span className="absolute right-3.5 top-2 text-xs font-mono text-accent font-bold">
-                    🌾 LÚA
+                    <Emoji e="🌾" /> LÚA
                   </span>
                 </div>
               </div>
@@ -211,11 +212,11 @@ export function BetModal({
                   onChange={(e) => setTargetId(e.target.value)}
                   className="w-full bg-[#121318] border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-white transition-colors font-mono"
                 >
-                  <option value="">📢 Kênh chung (ai cũng nhận được)</option>
-                  {dmTarget && <option value={dmTarget.id}>⚔️ Mời riêng: {dmTarget.username}</option>}
+                  <option value="">Kênh chung (ai cũng nhận được)</option>
+                  {dmTarget && <option value={dmTarget.id}>Mời riêng: {dmTarget.username}</option>}
                   {friends.map((f) => (
                     <option key={f.id} value={f.id}>
-                      ⚔️ Thách đấu riêng: {f.username} ({f.title})
+                      Thách đấu riêng: {f.username} ({f.title})
                     </option>
                   ))}
                 </select>
@@ -223,16 +224,16 @@ export function BetModal({
 
               {/* Escrow Note (Compact) */}
               <div className="p-2.5 rounded-xl bg-accent/5 border border-accent/20 text-xs font-mono text-ink-300 flex items-center gap-2">
-                <span className="text-accent">⚖️</span>
+                <span className="text-accent"><Emoji e="⚖️" /></span>
                 <span>
-                  Trọng tài tạm giữ <strong>{stake} 🌾</strong>. Hoàn trả 100% nếu hủy kèo.
+                  Trọng tài tạm giữ <strong>{stake} <Emoji e="🌾" /></strong>. Hoàn trả 100% nếu hủy kèo.
                 </span>
               </div>
 
               {error && (
                 <p className="text-xs text-rose-400 font-mono flex items-center gap-1.5">
                   <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
-                  {error}
+                  <EmojiText>{error}</EmojiText>
                 </p>
               )}
 
@@ -251,7 +252,7 @@ export function BetModal({
                   className="px-5 py-2 rounded-xl bg-accent hover:bg-accent text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-accent/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Swords className="w-3.5 h-3.5" />
-                  <span>Xác Nhận ({stake} 🌾)</span>
+                  <span>Xác Nhận ({stake} <Emoji e="🌾" />)</span>
                 </button>
               </div>
             </form>

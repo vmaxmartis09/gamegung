@@ -26,6 +26,7 @@ import {
   RoleCardIllustration,
   CardBackArt,
 } from "./werewolf-card-art";
+import { Emoji } from "@/components/ui/emoji";
 
 export interface WerewolfRoleRandomizerProps {
   isOpen: boolean;
@@ -119,7 +120,7 @@ export function WerewolfRoleRandomizer({
           content: isBack ? (
             <div className="relative h-44 sm:h-52 w-full p-2 bg-gradient-to-b from-[#141210] to-[#070605] flex flex-col items-center justify-center border border-amber-500/20 rounded-xl overflow-hidden shadow-lg">
               <div className="size-12 rounded-full border border-amber-600/40 bg-red-950/80 grid place-items-center text-xl">
-                🐺
+                <Emoji e="🐺" />
               </div>
               <p className="mt-2 font-mono text-xs uppercase tracking-[0.2em] text-amber-300/70 font-bold">
                 BẢN MỆNH
@@ -135,7 +136,7 @@ export function WerewolfRoleRandomizer({
             >
               <div className="flex items-center justify-between text-xs font-bold">
                 <span className="flex items-center gap-1 text-xs" style={{ color: curTheme.accentColor }}>
-                  {curTheme.emoji} {curTheme.name}
+                  <Emoji e={curTheme.emoji} /> {curTheme.name}
                 </span>
                 <span className="text-xs px-1.5 py-0.5 rounded bg-black/50 text-white/70">
                   {curTheme.teamLabel}
@@ -315,7 +316,7 @@ export function WerewolfRoleRandomizer({
         <div className="relative z-30 flex items-center justify-between p-4 sm:p-6 max-w-5xl mx-auto w-full">
           <div className="flex items-center gap-2">
             <span className="grid size-8 place-items-center rounded-xl bg-white/10 text-lg">
-              🐺
+              <Emoji e="🐺" />
             </span>
             <div>
               <h2 className="font-display text-sm sm:text-base font-extrabold tracking-wide uppercase text-white">
@@ -517,7 +518,7 @@ export function WerewolfRoleRandomizer({
                     {/* Role Header */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">{theme.emoji}</span>
+                        <span className="text-2xl"><Emoji e={theme.emoji} /></span>
                         <div>
                           <h3 className="font-display text-xl font-black text-white leading-tight">
                             {theme.name}
@@ -552,7 +553,7 @@ export function WerewolfRoleRandomizer({
                       {role === "wolf" && (
                         <div className="border-t border-red-500/30 pt-2 text-xs">
                           <span className="font-bold text-red-400 flex items-center gap-1">
-                            🐺
+                            <Emoji e="🐺" />
                           </span>
                           {wolfAllies.length > 0 ? (
                             <div className="mt-1 flex flex-wrap gap-1.5 items-center">

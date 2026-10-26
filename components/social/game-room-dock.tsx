@@ -7,6 +7,7 @@ import { useGameRoom } from "@/lib/game-room";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { GAME_BY_ID, type GameId } from "@/components/art/game-art";
 import { cn } from "@/lib/utils";
+import { Emoji } from "@/components/ui/emoji";
 
 /** Phòng chat + thoại realtime của từng game, nằm góc trái dưới trang game. */
 export function GameRoomDock({ game }: { game: string }) {
@@ -80,7 +81,7 @@ export function GameRoomDock({ game }: { game: string }) {
 
             {/* chat */}
             <div ref={listRef} className="flex-1 space-y-1.5 overflow-y-auto px-3 py-2.5 no-scrollbar">
-              {room.messages.length === 0 && <p className="pt-8 text-center text-xs text-ink-500">💬</p>}
+              {room.messages.length === 0 && <p className="pt-8 text-center text-xs text-ink-500"><Emoji e="💬" /></p>}
               {room.messages.map((m) => {
                 const mine = m.from === room.me.id;
                 return (

@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Skull, Heart, Shield, Crosshair } from "lucide-react";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 export type FxType =
   | "claw"
@@ -107,7 +108,7 @@ export function WerewolfActionFxOverlay({
               className="mt-4 rounded-2xl bg-black/90 border-2 border-red-500/80 px-6 py-2.5 text-center shadow-[0_0_35px_rgba(239,68,68,0.6)]"
             >
               <p className="font-mono text-xs uppercase tracking-[0.2em] text-red-400 font-bold">
-                🐺 BẦY SÓI RA TAY
+                <Emoji e="🐺" /> BẦY SÓI RA TAY
               </p>
               <p className="font-display text-lg font-black text-white">
                 Mục tiêu: {currentFx.targetName || "Con mồi"}
@@ -162,7 +163,7 @@ export function WerewolfActionFxOverlay({
               className="mt-6 rounded-2xl bg-black/90 border-2 border-purple-500/80 px-6 py-2.5 text-center shadow-[0_0_35px_rgba(168,85,247,0.6)]"
             >
               <p className="font-mono text-xs uppercase tracking-[0.2em] text-purple-400 font-bold">
-                🧪 BÌNH THUỐC ĐỘC CỦA PHÙ THỦY
+                <Emoji e="🧪" /> BÌNH THUỐC ĐỘC CỦA PHÙ THỦY
               </p>
               <p className="font-display text-lg font-black text-white">
                 Đầu độc {currentFx.targetName || "Nạn nhân"}!
@@ -212,7 +213,7 @@ export function WerewolfActionFxOverlay({
               className="mt-6 rounded-2xl bg-black/90 border-2 border-emerald-500/80 px-6 py-2.5 text-center shadow-[0_0_35px_rgba(16,185,129,0.6)]"
             >
               <p className="font-mono text-xs uppercase tracking-[0.2em] text-emerald-400 font-bold">
-                🧪 BÌNH TIÊN DƯỢC CỨU SỐNG
+                <Emoji e="🧪" /> BÌNH TIÊN DƯỢC CỨU SỐNG
               </p>
               <p className="font-display text-lg font-black text-white">
                 Cứu sống {currentFx.targetName || "Người bị cắn"} khỏi tử thần!
@@ -245,7 +246,7 @@ export function WerewolfActionFxOverlay({
               className="relative size-36 rounded-full border-4 border-indigo-400 bg-indigo-950/90 shadow-[0_0_70px_rgba(99,102,241,0.9)] grid place-items-center"
             >
               <span className="text-6xl animate-pulse">
-                {currentFx.seerResultIsWolf ? "🐺" : "🔮"}
+                <EmojiText>{currentFx.seerResultIsWolf ? "🐺" : "🔮"}</EmojiText>
               </span>
             </motion.div>
 
@@ -256,12 +257,12 @@ export function WerewolfActionFxOverlay({
               className="mt-6 rounded-2xl bg-black/90 border-2 border-indigo-500 px-6 py-2.5 text-center shadow-[0_0_35px_rgba(99,102,241,0.6)]"
             >
               <p className="font-mono text-xs uppercase tracking-[0.2em] text-indigo-300 font-bold">
-                🔮 TIÊN TRI KHAI NHÃN
+                <Emoji e="🔮" /> TIÊN TRI KHAI NHÃN
               </p>
               <p className="font-display text-xl font-black text-white mt-1">
                 {currentFx.targetName}:{" "}
                 <span className={currentFx.seerResultIsWolf ? "text-red-400" : "text-emerald-400"}>
-                  {currentFx.seerResultIsWolf ? "LÀ SÓI! 🐺" : "LÀ DÂN LÀNH ✅"}
+                  <EmojiText>{currentFx.seerResultIsWolf ? "LÀ SÓI! 🐺" : "LÀ DÂN LÀNH ✅"}</EmojiText>
                 </span>
               </p>
             </motion.div>
@@ -294,7 +295,7 @@ export function WerewolfActionFxOverlay({
               className="mt-6 rounded-2xl bg-black/90 border-2 border-emerald-500 px-6 py-2.5 text-center shadow-[0_0_35px_rgba(16,185,129,0.6)]"
             >
               <p className="font-mono text-xs uppercase tracking-[0.2em] text-emerald-400 font-bold">
-                🛡️ LÁ CHẮN BẢO VỆ
+                <Emoji e="🛡️" /> LÁ CHẮN BẢO VỆ
               </p>
               <p className="font-display text-lg font-black text-white">
                 Đã che chở an toàn cho {currentFx.targetName || "Mục tiêu"}!
@@ -329,7 +330,7 @@ export function WerewolfActionFxOverlay({
               className="mt-6 rounded-2xl bg-black/90 border-2 border-pink-500 px-6 py-2.5 text-center shadow-[0_0_35px_rgba(236,72,153,0.6)]"
             >
               <p className="font-mono text-xs uppercase tracking-[0.2em] text-pink-400 font-bold">
-                💘 MŨI TÊN TÌNH DUYÊN
+                <Emoji e="💘" /> MŨI TÊN TÌNH DUYÊN
               </p>
               <p className="font-display text-lg font-black text-white">
                 Hai trái tim đã được gắn kết sinh tử có nhau!
@@ -364,7 +365,7 @@ export function WerewolfActionFxOverlay({
               className="mt-6 rounded-2xl bg-black/90 border-2 border-amber-500 px-6 py-2.5 text-center shadow-[0_0_35px_rgba(245,158,11,0.6)]"
             >
               <p className="font-mono text-xs uppercase tracking-[0.2em] text-amber-400 font-bold">
-                🏹 PHÁT BẮN PHỤC HẬN CỦA THỢ SĂN
+                <Emoji e="🏹" /> PHÁT BẮN PHỤC HẬN CỦA THỢ SĂN
               </p>
               <p className="font-display text-lg font-black text-white">
                 Bắn hạ {currentFx.targetName || "Kẻ thù"}!
@@ -389,7 +390,7 @@ export function WerewolfActionFxOverlay({
               transition={{ duration: 0.5, type: "spring" }}
               className="relative size-36 rounded-full border-4 border-zinc-200 bg-black/95 shadow-[0_0_60px_rgba(255,255,255,0.7)] grid place-items-center text-6xl"
             >
-              🪢
+              <Emoji e="🪢" />
             </motion.div>
 
             <motion.div
@@ -399,7 +400,7 @@ export function WerewolfActionFxOverlay({
               className="mt-6 rounded-2xl bg-black/90 border-2 border-white px-6 py-2.5 text-center shadow-[0_0_35px_rgba(255,255,255,0.4)]"
             >
               <p className="font-mono text-xs uppercase tracking-[0.2em] text-white/80 font-bold">
-                ⚖️ BẢN ÁN CỦA DÂN LÀNG
+                <Emoji e="⚖️" /> BẢN ÁN CỦA DÂN LÀNG
               </p>
               <p className="font-display text-lg font-black text-white">
                 {currentFx.targetName} bị treo cổ theo phán quyết số đông!

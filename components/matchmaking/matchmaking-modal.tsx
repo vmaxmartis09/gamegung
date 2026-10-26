@@ -25,6 +25,7 @@ import { isAccountId, pickBotOpponent, MatchmakingOpponent } from "@/lib/supabas
 import { joinMatchQueue, opponentOf } from "@/lib/online-match";
 import { cn } from "@/lib/utils";
 import { MatchCard } from "./match-card";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 interface MatchmakingModalProps {
   isOpen: boolean;
@@ -272,7 +273,7 @@ export function MatchmakingModal({
                                 : "bg-ink-900/60 border-ink-800 hover:border-ink-700 text-ink-300"
                             )}
                           >
-                            <span className="text-2xl mb-1">{g.icon}</span>
+                            <span className="text-2xl mb-1"><EmojiText>{g.icon}</EmojiText></span>
                             <div>
                               <p className="text-xs font-bold leading-tight">{g.name}</p>
                               <p
@@ -294,12 +295,12 @@ export function MatchmakingModal({
                   <div>
                     <div className="flex items-center justify-between mb-2.5">
                       <label className="text-xs font-semibold uppercase tracking-wider text-ink-400">
-                        2. Chọn Mức Cược (Lúa 🌾)
+                        2. Chọn Mức Cược (Lúa <Emoji e="🌾" />)
                       </label>
                       <span className="text-xs font-mono text-ink-400">
                         Ví của bạn:{" "}
                         <strong className="text-amber-300">
-                          {currentUser.lua.toLocaleString()} 🌾
+                          {currentUser.lua.toLocaleString()} <Emoji e="🌾" />
                         </strong>
                       </span>
                     </div>
@@ -323,7 +324,7 @@ export function MatchmakingModal({
                                 : "bg-ink-950 border-ink-900 text-ink-600 cursor-not-allowed"
                             )}
                           >
-                            {amt === 0 ? "Free" : `${amt} 🌾`}
+                            <EmojiText>{amt === 0 ? "Free" : `${amt} 🌾`}</EmojiText>
                           </button>
                         );
                       })}
@@ -334,7 +335,7 @@ export function MatchmakingModal({
                   <div className="p-3.5 rounded-2xl bg-ink-900/50 border border-ink-800 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full border border-ink-700 bg-ink-950 flex items-center justify-center text-xl">
-                        {currentTier.icon}
+                        <EmojiText>{currentTier.icon}</EmojiText>
                       </div>
                       <div>
                         <p className="text-xs font-bold text-white">{currentTier.name}</p>
@@ -346,7 +347,7 @@ export function MatchmakingModal({
                     <div className="text-right">
                       <p className="text-[10px] text-ink-400 font-mono uppercase">Tổng Giải Thưởng</p>
                       <p className="text-sm font-black font-mono text-amber-300">
-                        {selectedStake === 0 ? "Giao hữu" : `${selectedStake * 2} Lúa 🌾`}
+                        <EmojiText>{selectedStake === 0 ? "Giao hữu" : `${selectedStake * 2} Lúa 🌾`}</EmojiText>
                       </p>
                     </div>
                   </div>
@@ -363,7 +364,7 @@ export function MatchmakingModal({
                   {errorMsg && (
                     <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
                       <ShieldAlert className="w-4 h-4 shrink-0" />
-                      <span>{errorMsg}</span>
+                      <span><EmojiText>{errorMsg}</EmojiText></span>
                     </div>
                   )}
 
@@ -457,14 +458,14 @@ export function MatchmakingModal({
                     <div>
                       <span className="text-ink-400 block text-[10px]">MỨC CƯỢC</span>
                       <span className="font-bold text-white">
-                        {selectedStake === 0 ? "Giao hữu" : `${selectedStake} 🌾`}
+                        <EmojiText>{selectedStake === 0 ? "Giao hữu" : `${selectedStake} 🌾`}</EmojiText>
                       </span>
                     </div>
                     <div className="h-6 w-px bg-ink-800" />
                     <div>
                       <span className="text-ink-400 block text-[10px]">TỔNG GIẢI THƯỞNG</span>
                       <span className="font-bold text-amber-300">
-                        {selectedStake === 0 ? "Vinh quang" : `${selectedStake * 2} 🌾`}
+                        <EmojiText>{selectedStake === 0 ? "Vinh quang" : `${selectedStake * 2} 🌾`}</EmojiText>
                       </span>
                     </div>
                   </div>

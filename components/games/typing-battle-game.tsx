@@ -40,6 +40,7 @@ import { MatchResultModal } from "./match-result-modal";
 import { MatchIntro, NarratorButton, useNarrator } from "./game-fx";
 import { GameHeader, Segmented, StakePicker, useMatchSettlement } from "./shared";
 import { CylinderText, CylinderWords, FocusFrame, TextLoop } from "@/components/reactbits";
+import { EmojiText } from "@/components/ui/emoji";
 
 /* --------------------------------- Hằng số --------------------------------- */
 
@@ -374,7 +375,7 @@ function ItemCard({ it, g, floating = true }: { it: Item; g: Game; floating?: bo
     >
       {!floating && mine && <FocusFrame inset={4} className="size-3 border-info" />}
       <div className="flex items-center gap-2 text-xs">
-        <span aria-hidden className="text-sm leading-none grayscale">{def.icon}</span>
+        <span aria-hidden className="text-sm leading-none grayscale"><EmojiText>{def.icon}</EmojiText></span>
         <span className="min-w-0 flex-1 truncate font-medium text-ink-300">{def.name}</span>
         <span className={cn("shrink-0 font-mono tabular-nums", pct < 25 ? "text-danger" : "text-ink-500")}>{Math.ceil(left)}s</span>
       </div>
@@ -491,7 +492,7 @@ function SkillSlots({ f, keys, small }: { f: Fighter; keys: string[]; small?: bo
             )}
           >
             <span className="absolute left-1 top-0.5 font-mono text-xs leading-none text-ink-400">{keys[i]}</span>
-            {def && <span className={cn("mt-1", !partner && "grayscale")}>{def.icon}</span>}
+            {def && <span className={cn("mt-1", !partner && "grayscale")}><EmojiText>{def.icon}</EmojiText></span>}
           </div>
         );
       })}
@@ -627,7 +628,7 @@ function FusionBanner({ b, names }: { b: Banner; names: [string, string] }) {
       >
         <span className="text-xs font-medium uppercase tracking-[0.2em] text-ink-400">Hợp thể · {names[b.owner]}</span>
         <div className="my-3 flex items-center gap-3">
-          <span className="text-3xl grayscale">{fu.icon}</span>
+          <span className="text-3xl grayscale"><EmojiText>{fu.icon}</EmojiText></span>
           <span className="font-display text-3xl font-bold text-ink-100">{fu.name}</span>
         </div>
         <p className="text-sm leading-relaxed text-ink-300">{fu.desc}</p>
@@ -646,7 +647,7 @@ function ActivateBanner({ b, names }: { b: Banner; names: [string, string] }) {
       exit={{ opacity: 0, y: -8, transition: { duration: 0.2 } }}
     >
       <div className="flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900 px-4 py-1.5 text-sm text-ink-300">
-        <span aria-hidden>{def.icon}</span>
+        <span aria-hidden><EmojiText>{def.icon}</EmojiText></span>
         <span style={{ color: P_COL[b.owner] }}>{names[b.owner]}</span> dùng <span className="font-semibold text-ink-100">{def.name}</span>
       </div>
     </motion.div>
@@ -1212,7 +1213,7 @@ function Seat({ avatar, name, label, status, accent, children }: { avatar?: stri
       <div className="min-w-0 flex-1">
         <p className="font-mono text-xs uppercase tracking-widest text-ink-500">{label}</p>
         <p className="truncate font-display text-base font-semibold text-ink-100">{name}</p>
-        {status && <p className="mt-0.5 text-sm text-ink-400">{status}</p>}
+        {status && <p className="mt-0.5 text-sm text-ink-400"><EmojiText>{status}</EmojiText></p>}
       </div>
       {children}
     </div>
@@ -1311,7 +1312,7 @@ function TypingLobby({
         <div className="my-3 flex items-center gap-3">
           <span className="h-px flex-1 bg-ink-700" />
           <span className="rounded-full border border-ink-700 px-3 py-1 font-mono text-xs uppercase tracking-widest text-ink-400">
-            VS · {stake > 0 ? `cược ${stake} 🌾` : "không cược"}
+            VS · <EmojiText>{stake > 0 ? `cược ${stake} 🌾` : "không cược"}</EmojiText>
           </span>
           <span className="h-px flex-1 bg-ink-700" />
         </div>

@@ -11,6 +11,7 @@ import { usePresenceStore, locationFromPath, AWAY_HIDDEN_MS, AWAY_IDLE_MS } from
 import { supabase } from "@/lib/supabase";
 import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
+import { Emoji } from "@/components/ui/emoji";
 
 // Only signed-out visitors need the sign-up screen (avatar picker, forms).
 const AuthScreen = dynamic(() => import("./auth-screen").then((m) => m.AuthScreen), { ssr: false, loading: () => <BlackHoleLoading /> });
@@ -265,7 +266,7 @@ function WelcomeBack() {
               <MessageSquare className="size-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold">Welcome back! 👋</p>
+              <p className="text-sm font-bold">Welcome back! <Emoji e="👋" /></p>
               <p className="text-xs text-ink-300">
                 {snapshot.missed} tin nhắn mới trong {snapshot.minutes} phút bạn Away.
               </p>

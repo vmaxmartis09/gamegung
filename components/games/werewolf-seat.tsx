@@ -6,6 +6,7 @@ import { Mic, MicOff, Skull } from "lucide-react";
 import { ROLE_INFO, Role } from "@/lib/games/werewolf-engine";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 export interface SeatCardProps {
   name: string;
@@ -120,10 +121,10 @@ export function SeatCard({
       {targetable && <span className="pointer-events-none absolute inset-0 rounded-[22px] ring-1 ring-inset ring-white/40" />}
 
       {/* badges */}
-      {hasVoted && <span className="absolute right-1.5 top-1.5 z-20 grid size-6 place-items-center rounded-full bg-indigo-500 text-[11px] shadow" title="Đã bỏ phiếu kín">🗳️</span>}
-      {lover && alive && <span className="absolute left-1.5 top-1.5 z-20 grid size-5 place-items-center rounded-full bg-pink-500 text-[10px] shadow">💘</span>}
+      {hasVoted && <span className="absolute right-1.5 top-1.5 z-20 grid size-6 place-items-center rounded-full bg-indigo-500 text-[11px] shadow" title="Đã bỏ phiếu kín"><Emoji e="🗳️" /></span>}
+      {lover && alive && <span className="absolute left-1.5 top-1.5 z-20 grid size-5 place-items-center rounded-full bg-pink-500 text-[10px] shadow"><Emoji e="💘" /></span>}
       {votes > 0 && <span className="absolute right-1.5 top-1.5 z-20 grid size-6 place-items-center rounded-full bg-white text-xs font-black text-black shadow">{votes}</span>}
-      {seerMark !== undefined && alive && <span className="absolute left-1.5 top-1.5 z-20 text-base">{seerMark ? "🐺" : "✅"}</span>}
+      {seerMark !== undefined && alive && <span className="absolute left-1.5 top-1.5 z-20 text-base"><EmojiText>{seerMark ? "🐺" : "✅"}</EmojiText></span>}
 
       {/* avatar */}
       <div className="relative">
@@ -142,10 +143,10 @@ export function SeatCard({
       <div className="mt-1 flex min-h-[20px] flex-wrap items-center justify-center gap-1">
         {roleInfo ? (
           <span className="rounded-full px-2 py-0.5 text-xs font-bold text-black" style={{ background: roleInfo.color }}>
-            {roleInfo.emoji} {roleInfo.name}
+            <Emoji e={roleInfo.emoji} /> {roleInfo.name}
           </span>
         ) : packmate ? (
-          <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-bold text-red-300">🐺 Bầy Sói</span>
+          <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-bold text-red-300"><Emoji e="🐺" /> Bầy Sói</span>
         ) : null}
         {tags}
       </div>

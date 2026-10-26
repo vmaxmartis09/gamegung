@@ -9,6 +9,7 @@ import { soundManager } from "@/lib/audio";
 import { MatchSettlementResult, useAppStore } from "@/lib/store";
 import { GameIcon, GAME_BY_ID } from "@/components/art/game-art";
 import { cn } from "@/lib/utils";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 interface MatchResultModalProps {
   isOpen: boolean;
@@ -71,7 +72,7 @@ export function MatchResultModal({ isOpen, onClose, onPlayAgain, resultData, rea
               <X className="size-4" />
             </button>
             <div className={cn("relative px-6 pb-6 pt-8 text-center", copy.tone)}>
-              <div className="mx-auto mb-3 grid size-20 place-items-center rounded-[28px] border-[3px] border-black bg-white text-5xl shadow-brutal">{copy.emoji}</div>
+              <div className="mx-auto mb-3 grid size-20 place-items-center rounded-[28px] border-[3px] border-black bg-white text-5xl shadow-brutal"><Emoji e={copy.emoji} /></div>
               <h2 className="font-display text-4xl font-extrabold tracking-tight">{copy.title}</h2>
               <p className="mt-1 text-sm font-semibold opacity-80">{reason ?? copy.sub}</p>
             </div>
@@ -90,7 +91,7 @@ export function MatchResultModal({ isOpen, onClose, onPlayAgain, resultData, rea
                   <p className="text-xs text-ink-400">Mới: {resultData.newPlayerElo}</p>
                 </div>
                 <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-                  <p className="eyebrow text-xs">Lúa 🌾</p>
+                  <p className="eyebrow text-xs">Lúa <Emoji e="🌾" /></p>
                   <p className={cn("mt-1 font-display text-3xl font-extrabold tabular", resultData.luaChange > 0 ? "text-white" : resultData.luaChange < 0 ? "text-pop-red" : "text-white")}>
                     {resultData.luaChange > 0 ? "+" : ""}
                     {resultData.luaChange}
@@ -105,7 +106,7 @@ export function MatchResultModal({ isOpen, onClose, onPlayAgain, resultData, rea
                   <div className="mt-2 flex flex-wrap gap-2">
                     {resultData.newBadges.map((b) => (
                       <span key={b.id} className="chip border-pop-violet/30 text-white">
-                        {b.icon} {b.name}
+                        <EmojiText>{b.icon}</EmojiText> {b.name}
                       </span>
                     ))}
                   </div>

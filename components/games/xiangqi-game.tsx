@@ -23,6 +23,7 @@ import { MatchResultModal } from "./match-result-modal";
 import { NarratorButton, useNarrator } from "./game-fx";
 import HoldButton from "@/components/kokonut/hold-button";
 import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useGameSession, useMatchOpponent, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 const TIME_CONTROLS = [
   { id: "5+3", base: 300, inc: 3, label: "5+3", kind: "Nhanh" },
@@ -684,7 +685,7 @@ export function XiangqiGame() {
     >
       <GameHeader game="xiangqi" subtitle="Luật WXF · chống chiếu dai">
         <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
-        {phase !== "setup" && <span className={cn("chip", rated && "border-lime-400/40 text-lime-300")}>{rated ? `Xếp hạng${stake ? ` · ${stake} 🌾` : ""}` : "Tập luyện"}</span>}
+        {phase !== "setup" && <span className={cn("chip", rated && "border-lime-400/40 text-lime-300")}><EmojiText>{rated ? `Xếp hạng${stake ? ` · ${stake} 🌾` : ""}` : "Tập luyện"}</EmojiText></span>}
       </GameHeader>
 
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-3 lg:gap-6 overflow-y-auto lg:overflow-hidden pb-1">
@@ -839,10 +840,10 @@ export function XiangqiGame() {
                   <StakePicker value={stake} onChange={(v) => { setInviteErr(null); setStake(v); }} disabled={!!fb.pending || !!fb.friend} />
                   <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-2.5 text-xs">
                     {fb.friend ? (
-                      <p>✅ <b>{fb.friend.name}</b> đã nhận kèo {fb.bet?.stake ?? 0} 🌾 — cả hai bấm Bắt đầu để vào bàn.</p>
+                      <p><Emoji e="✅" /> <b>{fb.friend.name}</b> đã nhận kèo {fb.bet?.stake ?? 0} <Emoji e="🌾" /> — cả hai bấm Bắt đầu để vào bàn.</p>
                     ) : fb.pending ? (
                       <div className="flex items-center justify-between gap-2">
-                        <span className="min-w-0">⏳ Chờ bạn bè nhận kèo {fb.pending.stake}&nbsp;🌾</span>
+                        <span className="min-w-0"><Emoji e="⏳" /> Chờ bạn bè nhận kèo {fb.pending.stake}&nbsp;<Emoji e="🌾" /></span>
                         <button type="button" className="btn-ghost shrink-0 whitespace-nowrap px-2 py-1" onClick={() => fb.cancel(fb.pending!.id)}>Huỷ kèo</button>
                       </div>
                     ) : (

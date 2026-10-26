@@ -11,6 +11,7 @@ import { describeEnd, openBetMatch, opponentOf, slotOf, useOnlineMatch } from "@
 import { MatchResultModal } from "./match-result-modal";
 import { NarratorButton, useNarrator } from "./game-fx";
 import { ConfirmDialog, GameHeader, OnlineStatus, PlayerCard, Segmented, StakePicker, useFriendBet, useMatchOpponent, useMatchSettlement, useToast, waitForBetOpponent } from "./shared";
+import { Emoji, EmojiText } from "@/components/ui/emoji";
 
 const N = 15;
 const NO_CLOCK_MS = 24 * 3600 * 1000;
@@ -425,7 +426,7 @@ export function CaroGame() {
     <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col px-3 py-3">
       <GameHeader game="caro" subtitle="5 quân liền nhau là thắng">
         <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
-        {phase !== "setup" && <span className={cn("chip", rated && "border-lime-400/40 text-lime-300")}>{rated ? `Xếp hạng${stake ? ` · ${stake} 🌾` : ""}` : "Tập luyện"}</span>}
+        {phase !== "setup" && <span className={cn("chip", rated && "border-lime-400/40 text-lime-300")}><EmojiText>{rated ? `Xếp hạng${stake ? ` · ${stake} 🌾` : ""}` : "Tập luyện"}</EmojiText></span>}
       </GameHeader>
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_300px]">
         <div className="flex min-w-0 flex-col items-center justify-center gap-2">
@@ -512,10 +513,10 @@ export function CaroGame() {
                   <StakePicker value={stake} onChange={(v) => { setInviteErr(null); setStake(v); }} disabled={!!fb.pending || !!fb.friend} />
                   <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-2.5 text-xs">
                     {fb.friend ? (
-                      <p>✅ <b>{fb.friend.name}</b> đã nhận kèo {fb.bet?.stake ?? 0} 🌾 — cả hai bấm Bắt đầu để vào bàn.</p>
+                      <p><Emoji e="✅" /> <b>{fb.friend.name}</b> đã nhận kèo {fb.bet?.stake ?? 0} <Emoji e="🌾" /> — cả hai bấm Bắt đầu để vào bàn.</p>
                     ) : fb.pending ? (
                       <div className="flex items-center justify-between gap-2">
-                        <span className="min-w-0">⏳ Chờ bạn bè nhận kèo {fb.pending.stake}&nbsp;🌾</span>
+                        <span className="min-w-0"><Emoji e="⏳" /> Chờ bạn bè nhận kèo {fb.pending.stake}&nbsp;<Emoji e="🌾" /></span>
                         <button type="button" className="btn-ghost shrink-0 whitespace-nowrap px-2 py-1" onClick={() => fb.cancel(fb.pending!.id)}>Huỷ kèo</button>
                       </div>
                     ) : (
