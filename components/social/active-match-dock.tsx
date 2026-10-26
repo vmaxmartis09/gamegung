@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { openBetLobby } from "@/lib/bet-nav";
+import { betHref, openBetLobby } from "@/lib/bet-nav";
 import { currentRound, roomOf, useBetRounds } from "@/lib/bet-rounds";
 import { AnimatePresence, motion } from "framer-motion";
 import { Eye, X } from "lucide-react";
@@ -26,7 +25,10 @@ const DISMISS_KEY = "oa-dock-dismissed-v1";
 const SERVER_GAMES = new Set(["chess", "xiangqi", "caro"]);
 
 type Peek = Record<string, { status: string; winner: string | null; updated_at?: string }>;
-type Entry = { id: string; game: GameId; title: string; detail: string; href: string; watch: boolean };
+type Entry = { id: string; game: GameId; title: string; detail: string; href: string; watch: boolean; at: number };
+
+/** Ván đã vào mà máy này không theo dõi được (máy khác / dữ liệu cũ): quá lâu thì thôi không nhắc. */
+const STALE_GAME_MS = 30 * 60 * 1000;
 
 function readDismissed(): string[] {
   try {
@@ -131,37 +133,65 @@ export function ActiveMatchDock() {
   }, [myId]);
 
   const entries = useMemo<Entry[]>(() => {
+    const now = Date.now();
+    const rounds = useBetRounds.getState().rounds;
     const out: Entry[] = [];
     for (const b of myBets(messages, myId)) {
-      if (Date.now() - b.createdAt > MAX_AGE_MS) continue;
+      if (now - b.createdAt > MAX_AGE_MS) continue;
       const meta = GAME_BY_ID[b.gameType as GameId];
-      if (!meta) continue;
+      // Chỉ game có phòng chờ kèo mới vào lại được (Ma Sói, Deadline Rush thì không).
+      const lobbyHref = betHref(b);
+      if (!meta || !lobbyHref) continue;
+      const r = rounds[b.id];
       const room = roomOf(b.id, currentRound(b.id));
-      const tracked = !!useBetRounds.getState().rounds[b.id];
       // Kèo nhiều ván: hết ván vẫn còn phòng chờ, nên chỉ coi là xong khi kèo đã chốt.
-      const finished = b.status === "completed" || (!tracked && peek[room]?.status === "finished");
-      const live = (b.status === "accepted" || b.status === "in_game") && !finished;
+      const finished = b.status === "completed" || (!r && peek[room]?.status === "finished");
+      // Kèo đã quá hạn nhưng server chưa kịp cập nhật: đừng nhắc nữa.
+      const expired =
+        (b.status === "accepted" && now > (b.acceptedAt ?? b.createdAt) + LOBBY_TIMEOUT_MS) ||
+        (b.status === "in_game" && !r && now > (b.startedAt ?? b.acceptedAt ?? b.createdAt) + STALE_GAME_MS) ||
+        (b.status === "in_game" && r && !r.active && now > (r.endedAt ?? 0) + LOBBY_TIMEOUT_MS);
+      const live = (b.status === "accepted" || b.status === "in_game") && !finished && !expired;
       // Ván đã xong: chỉ xem lại được với game có bàn trên server.
-      if (!live && !(finished && SERVER_GAMES.has(b.gameType) && peek[room])) continue;
+      const canWatch = finished && SERVER_GAMES.has(b.gameType) && !!peek[room];
+      if (!live && !canWatch) continue;
       const other = b.creatorId === myId ? b.opponentName : b.creatorName;
+      const between = live && r && !r.active;
       out.push({
         id: `bet:${b.id}`,
         game: b.gameType as GameId,
         title: meta.name,
-        detail: `${live ? "" : "Đã xong · "}vs ${other ?? "đối thủ"} · ${b.stake} Lúa`,
-        href: live ? `${meta.href}?stake=${b.stake}&bet=${encodeURIComponent(b.id)}` : `${meta.href}?match=${encodeURIComponent(room)}&watch=1`,
+        detail: `${live ? (between ? "Ở phòng chờ · " : "") : "Đã xong · "}vs ${other ?? "đối thủ"} · ${b.stake} Lúa`,
+        href: live ? lobbyHref : `${meta.href}?match=${encodeURIComponent(room)}&watch=1`,
         watch: !live,
+        at: live ? 2e13 + (b.startedAt ?? b.acceptedAt ?? b.createdAt) : b.createdAt,
       });
     }
     for (const s of sessionsFor(myId, rawSessions)) {
-      out.push({ id: `solo:${s.game}`, game: s.game, title: GAME_BY_ID[s.game].name, detail: s.label, href: GAME_BY_ID[s.game].href, watch: false });
+      out.push({ id: `solo:${s.game}`, game: s.game, title: GAME_BY_ID[s.game].name, detail: s.label, href: GAME_BY_ID[s.game].href, watch: false, at: 1e13 + s.savedAt });
     }
-    return out.filter((e) => !dismissed.includes(e.id));
+    // Ưu tiên: kèo đang chơi (mới nhất) > ván chơi một mình > ván đã xong; mỗi game một thẻ.
+    out.sort((x, y) => y.at - x.at);
+    const seenGame = new Set<string>();
+    return out.filter((e) => {
+      if (dismissed.includes(e.id) || seenGame.has(e.game)) return false;
+      seenGame.add(e.game);
+      return true;
+    });
   }, [messages, rawSessions, myId, dismissed, peek]);
 
   // Đang ở trang của game đó (trang game có thể xoá ?bet khỏi URL khi vào bàn): không nhắc game đó nữa.
   const here = (e: Entry) => pathname === e.href.split("?")[0];
-  const shown = entries.filter((e) => !here(e)).slice(0, 2);
+  // Chỉ một thẻ, kèm số việc dở khác.
+  const pending = entries.filter((e) => !here(e));
+  const shown = pending.slice(0, 1);
+  const more = pending.length - shown.length;
+
+  // Trang game chỉ đọc ?bet / ?match lúc mở: cùng trang thì tải lại để vào đúng bàn.
+  const go = (href: string) => {
+    if (window.location.pathname === href.split("?")[0]) window.location.assign(href);
+    else router.push(href);
+  };
 
   const dismiss = (id: string) => {
     const next = [...dismissed, id].slice(-50);
@@ -194,15 +224,16 @@ export function ActiveMatchDock() {
                 {e.watch ? "Ván đã xong" : "Đang chơi dở"} · {e.title}
               </p>
               <p className="truncate text-[11px] text-ink-300">{e.detail}</p>
+              {more > 0 && <p className="text-[10px] text-ink-500">+{more} ván dở khác</p>}
             </div>
             {e.watch ? (
-              <Link href={e.href} className="btn-ghost flex shrink-0 items-center gap-1 px-2.5 py-1 text-[11px]">
+              <button type="button" onClick={() => go(e.href)} className="btn-ghost flex shrink-0 items-center gap-1 px-2.5 py-1 text-[11px]">
                 <Eye className="size-3.5" /> Xem
-              </Link>
+              </button>
             ) : (
-              <Link href={e.href} className="btn-accent shrink-0 px-2.5 py-1 text-[11px]">
+              <button type="button" onClick={() => go(e.href)} className="btn-accent shrink-0 px-2.5 py-1 text-[11px]">
                 Vào lại
-              </Link>
+              </button>
             )}
             <button type="button" onClick={() => dismiss(e.id)} aria-label="Ẩn" title="Ẩn" className="grid size-6 shrink-0 place-items-center rounded-md text-ink-400 transition hover:bg-white/10 hover:text-white">
               <X className="size-3.5" />
