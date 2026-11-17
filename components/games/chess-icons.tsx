@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useId } from "react";
 
 /**
  * World-class luxury Staunton chess piece vectors.
@@ -19,6 +19,9 @@ export const ChessIcon = memo(function ChessIcon({
 }) {
   const t = type.toLowerCase() as PieceType;
   const isWhite = color === "w";
+  const rawId = useId();
+  const gradId = `cg-${isWhite ? "w" : "b"}-${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const fill = `url(#${gradId})`;
 
   return (
     <svg
@@ -32,31 +35,30 @@ export const ChessIcon = memo(function ChessIcon({
       }}
     >
       <defs>
-        {/* Luxury Ivory/Pearl gradient for White pieces */}
-        <linearGradient id="cg-white-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="70%" stopColor="#f3f4f6" />
-          <stop offset="100%" stopColor="#e5e7eb" />
-        </linearGradient>
-
-        {/* Luxury Obsidian/Onyx gradient for Black pieces */}
-        <linearGradient id="cg-black-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#2c3138" />
-          <stop offset="40%" stopColor="#181a1f" />
-          <stop offset="100%" stopColor="#0f1115" />
-        </linearGradient>
+        {isWhite ? (
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="70%" stopColor="#f3f4f6" />
+            <stop offset="100%" stopColor="#e5e7eb" />
+          </linearGradient>
+        ) : (
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#2c3138" />
+            <stop offset="40%" stopColor="#181a1f" />
+            <stop offset="100%" stopColor="#0f1115" />
+          </linearGradient>
+        )}
       </defs>
 
-      {isWhite ? renderWhitePiece(t) : renderBlackPiece(t)}
+      {isWhite ? renderWhitePiece(t, fill) : renderBlackPiece(t, fill)}
     </svg>
   );
 });
 
 /* --------------------------------- WHITE --------------------------------- */
 
-function renderWhitePiece(t: PieceType) {
+function renderWhitePiece(t: PieceType, fill: string) {
   const stroke = "#1e293b";
-  const fill = "url(#cg-white-grad)";
 
   switch (t) {
     case "p":
@@ -135,10 +137,9 @@ function renderWhitePiece(t: PieceType) {
 
 /* --------------------------------- BLACK --------------------------------- */
 
-function renderBlackPiece(t: PieceType) {
+function renderBlackPiece(t: PieceType, fill: string) {
   const outerStroke = "#090a0f";
   const detailStroke = "#f1f5f9";
-  const fill = "url(#cg-black-grad)";
 
   switch (t) {
     case "p":

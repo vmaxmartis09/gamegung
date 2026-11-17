@@ -42,6 +42,7 @@ const TIME_CONTROLS = [
   { id: "1+0", base: 60, inc: 0, label: "1+0", kind: "Bullet" },
   { id: "3+2", base: 180, inc: 2, label: "3+2", kind: "Blitz" },
   { id: "5+0", base: 300, inc: 0, label: "5+0", kind: "Blitz" },
+  { id: "5+3", base: 300, inc: 3, label: "5+3", kind: "Blitz" },
   { id: "10+0", base: 600, inc: 0, label: "10+0", kind: "Rapid" },
   { id: "15+10", base: 900, inc: 10, label: "15+10", kind: "Rapid" },
   { id: "inf", base: 0, inc: 0, label: "∞", kind: "Không giờ" },
@@ -1030,7 +1031,7 @@ export function ChessGame() {
               )}
               <div>
                 <span className="label">Thời gian</span>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
                   {TIME_CONTROLS.map((t) => (
                     <button
                       key={t.id}
@@ -1330,6 +1331,21 @@ const Board = memo(function Board({
       role="grid"
       aria-label="Bàn cờ vua"
     >
+      {/* Permanent master gradient defs to guarantee pieces never lose gradient fill */}
+      <svg className="hidden" aria-hidden="true">
+        <defs>
+          <linearGradient id="cg-white-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="70%" stopColor="#f3f4f6" />
+            <stop offset="100%" stopColor="#e5e7eb" />
+          </linearGradient>
+          <linearGradient id="cg-black-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#2c3138" />
+            <stop offset="40%" stopColor="#181a1f" />
+            <stop offset="100%" stopColor="#0f1115" />
+          </linearGradient>
+        </defs>
+      </svg>
       <div
         className="grid h-full w-full grid-cols-8 grid-rows-8"
         // One seamless checker layer: no hairline gaps between 64 fractional-pixel cells.
