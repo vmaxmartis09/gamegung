@@ -1,29 +1,8 @@
+
 import type { Metadata, Viewport } from "next";
-import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthGate } from "@/components/auth/auth-gate";
 import { AppShell } from "@/components/layout/app-shell";
-
-const body = Inter({
-  subsets: ["latin", "vietnamese"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-body",
-  display: "swap",
-});
-
-const display = Plus_Jakarta_Sans({
-  subsets: ["latin", "vietnamese"],
-  weight: ["500", "600", "700", "800"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-const mono = JetBrains_Mono({
-  subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600"],
-  variable: "--font-mono",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Office Arena — Esports giờ nghỉ trưa",
@@ -37,9 +16,25 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="vi" className={`dark ${body.variable} ${display.variable} ${mono.variable}`}>
+    <html lang="vi" className="dark">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body className="min-h-screen bg-background font-sans text-ink-100 antialiased">
         <AuthGate>
           <AppShell>{children}</AppShell>
