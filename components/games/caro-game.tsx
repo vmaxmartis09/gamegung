@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Flag, Play, Undo2 } from "lucide-react";
+import { AnimatePresence, motion, useMotionValue, animate } from "framer-motion";
+import { Flag, Play, Undo2, Focus, LocateFixed, ZoomIn, ZoomOut, Hand } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/lib/store";
 import { soundManager } from "@/lib/audio";
@@ -15,7 +15,15 @@ import { Emoji, EmojiText } from "@/components/ui/emoji";
 import { BetLobby, type BetOpp } from "./bet-lobby";
 import { currentRound, rejoinTable, roomOf, useBetRounds } from "@/lib/bet-rounds";
 
-const N = 15;
+export const BOARD_SIZES = [
+  { value: 15, label: "15×15", hint: "Cổ điển" },
+  { value: 25, label: "25×25", hint: "Rộng" },
+  { value: 35, label: "35×35", hint: "Vô hạn" },
+] as const;
+
+export const DEFAULT_BOARD_SIZE = 25;
+export const CELL_SIZE = 42; // px - keeps the comfortable cell touch size
+
 const NO_CLOCK_MS = 24 * 3600 * 1000;
 type Side = 1 | 2; // 1 = X (đi trước), 2 = O
 type Cell = 0 | Side;
@@ -33,8 +41,9 @@ interface Settings {
   level: Level;
   color: Side | 0;
   ranked: boolean;
+  boardSize: number;
 }
-const DEFAULTS: Settings = { mode: "friend", level: "medium", color: 1, ranked: true };
+const DEFAULTS: Settings = { mode: "friend", level: "medium", color: 1, ranked: true, boardSize: DEFAULT_BOARD_SIZE };
 
 interface PvpInfo {
   /** Chỉ xem (khán giả hoặc trận đã xong): không gửi nước, không tính kèo. */
@@ -49,13 +58,13 @@ interface PvpInfo {
   elo?: number;
 }
 
-function buildBoard(moves: number[]): Cell[] {
+function buildBoard(moves: number[], N: number): Cell[] {
   const b: Cell[] = Array(N * N).fill(0);
   moves.forEach((m, i) => (b[m] = i % 2 === 0 ? 1 : 2));
   return b;
 }
 
-function winLine(b: Cell[], idx: number): number[] | null {
+function winLine(b: Cell[], idx: number, N: number): number[] | null {
   const p = b[idx];
   if (!p) return null;
   const x = idx % N, y = (idx / N) | 0;
@@ -74,7 +83,7 @@ function winLine(b: Cell[], idx: number): number[] | null {
   return null;
 }
 
-function scoreCell(b: Cell[], idx: number, p: Cell): number {
+function scoreCell(b: Cell[], idx: number, p: Cell, N: number): number {
   const x = idx % N, y = (idx / N) | 0;
   let total = 0;
   for (const [dx, dy] of DIRS) {
@@ -97,7 +106,7 @@ function scoreCell(b: Cell[], idx: number, p: Cell): number {
   return total;
 }
 
-function aiMove(b: Cell[], me: Side, level: Level): number {
+function aiMove(b: Cell[], me: Side, level: Level, N: number): number {
   const opp: Side = me === 1 ? 2 : 1;
   const empty: number[] = [];
   const near: number[] = [];
@@ -114,13 +123,13 @@ function aiMove(b: Cell[], me: Side, level: Level): number {
       }
     if (close) near.push(i);
   }
-  if (!any) return 7 * N + 7;
+  if (!any) return ((N / 2) | 0) * N + ((N / 2) | 0);
   const cand = near.length ? near : empty;
   if (level === "easy" && Math.random() < 0.35) return cand[(Math.random() * cand.length) | 0];
   const defend = level === "easy" ? 0.6 : level === "medium" ? 0.9 : 1.1;
   let best = cand[0], bestScore = -1;
   for (const i of cand) {
-    const s = scoreCell(b, i, me) * 1.05 + scoreCell(b, i, opp) * defend + Math.random() * 2;
+    const s = scoreCell(b, i, me, N) * 1.05 + scoreCell(b, i, opp, N) * defend + Math.random() * 2;
     if (s > bestScore) { bestScore = s; best = i; }
   }
   return best;
@@ -180,6 +189,7 @@ export function CaroGame() {
   const [winner, setWinner] = useState<Cell>(0);
   const [stake, setStake] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
+  const [hoverCoord, setHoverCoord] = useState<{ col: number; row: number } | null>(null);
   const [confirm, setConfirm] = useState<"resign" | "new" | null>(null);
   const [inviteErr, setInviteErr] = useState<string | null>(null);
   const [pvp, setPvp] = useState<PvpInfo | null>(null);
@@ -189,6 +199,122 @@ export function CaroGame() {
   const movesRef = useRef<number[]>([]);
   movesRef.current = moves;
   const pendingMove = useRef(false);
+
+  // Board dimensions: PvP defaults to 25 to guarantee sync, otherwise respects user settings
+  const N = pvp ? 25 : (settings.boardSize || DEFAULT_BOARD_SIZE);
+
+  // Viewport, Dragging & Zoom state
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const [zoom, setZoom] = useState(1);
+  const [viewportSize, setViewportSize] = useState({ w: 600, h: 600 });
+  const isDraggingRef = useRef(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!viewportRef.current) return;
+    const updateSize = () => {
+      if (!viewportRef.current) return;
+      const rect = viewportRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setViewportSize({ w: rect.width, h: rect.height });
+      }
+    };
+    updateSize();
+    const ro = new ResizeObserver(updateSize);
+    ro.observe(viewportRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const scaledBoardW = N * CELL_SIZE * zoom;
+  const scaledBoardH = N * CELL_SIZE * zoom;
+
+  const dragConstraints = useMemo(() => {
+    const vw = viewportSize.w || 600;
+    const vh = viewportSize.h || 600;
+    return {
+      left: scaledBoardW > vw ? vw - scaledBoardW : (vw - scaledBoardW) / 2,
+      right: scaledBoardW > vw ? 0 : (vw - scaledBoardW) / 2,
+      top: scaledBoardH > vh ? vh - scaledBoardH : (vh - scaledBoardH) / 2,
+      bottom: scaledBoardH > vh ? 0 : (vh - scaledBoardH) / 2,
+    };
+  }, [scaledBoardW, scaledBoardH, viewportSize]);
+
+  const centerOnCell = useCallback(
+    (idx: number, smooth = true) => {
+      if (!viewportRef.current) return;
+      const vw = viewportSize.w || 600;
+      const vh = viewportSize.h || 600;
+      const col = idx % N;
+      const row = (idx / N) | 0;
+      const cellCenterX = (col + 0.5) * CELL_SIZE * zoom;
+      const cellCenterY = (row + 0.5) * CELL_SIZE * zoom;
+
+      let targetX = vw / 2 - cellCenterX;
+      let targetY = vh / 2 - cellCenterY;
+
+      const scaledW = N * CELL_SIZE * zoom;
+      const scaledH = N * CELL_SIZE * zoom;
+
+      if (scaledW > vw) {
+        const minX = vw - scaledW;
+        targetX = Math.max(minX, Math.min(0, targetX));
+      } else {
+        targetX = (vw - scaledW) / 2;
+      }
+
+      if (scaledH > vh) {
+        const minY = vh - scaledH;
+        targetY = Math.max(minY, Math.min(0, targetY));
+      } else {
+        targetY = (vh - scaledH) / 2;
+      }
+
+      if (smooth) {
+        animate(x, targetX, { duration: 0.22, ease: [0.16, 1, 0.3, 1] });
+        animate(y, targetY, { duration: 0.22, ease: [0.16, 1, 0.3, 1] });
+      } else {
+        x.set(targetX);
+        y.set(targetY);
+      }
+    },
+    [N, zoom, viewportSize, x, y]
+  );
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerStartRef.current = { x: e.clientX, y: e.clientY };
+    isDraggingRef.current = false;
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!pointerStartRef.current) return;
+    const dist = Math.hypot(e.clientX - pointerStartRef.current.x, e.clientY - pointerStartRef.current.y);
+    if (dist > 5) {
+      isDraggingRef.current = true;
+    }
+  };
+
+  const handlePointerUp = () => {
+    pointerStartRef.current = null;
+    setTimeout(() => {
+      isDraggingRef.current = false;
+    }, 100);
+  };
+
+  const hoshiIndices = useMemo(() => {
+    const set = new Set<number>();
+    const mid = (N / 2) | 0;
+    const q1 = Math.max(2, Math.round(N * 0.18));
+    const q2 = N - 1 - q1;
+    const coords = [q1, mid, q2];
+    for (const r of coords) {
+      for (const c of coords) {
+        set.add(r * N + c);
+      }
+    }
+    return set;
+  }, [N]);
 
   useEffect(() => {
     const s = parseInt(new URLSearchParams(window.location.search).get("stake") || "", 10);
@@ -206,7 +332,7 @@ export function CaroGame() {
   }, [isFriend, fb.bet, stake]);
   const waitingOpp = isFriend && !fb.friend;
 
-  const board = useMemo(() => buildBoard(moves), [moves]);
+  const board = useMemo(() => buildBoard(moves, N), [moves, N]);
   const turn: Side = moves.length % 2 === 0 ? 1 : 2;
   const level = LEVELS[settings.level];
   const isAi = settings.mode === "ai";
@@ -254,8 +380,8 @@ export function CaroGame() {
       const cur = movesRef.current;
       if (cur.includes(idx) || finishedRef.current) return;
       const next = [...cur, idx];
-      const b = buildBoard(next);
-      const line = winLine(b, idx);
+      const b = buildBoard(next, N);
+      const line = winLine(b, idx, N);
       const full = next.length === N * N;
       const mover: Side = cur.length % 2 === 0 ? 1 : 2;
       movesRef.current = next;
@@ -273,15 +399,21 @@ export function CaroGame() {
       if (line) finish(mover, "Đủ 5 quân liền", line);
       else if (full) finish(0, "Kín bàn", null);
     },
-    [sound, finish]
+    [N, sound, finish]
   );
+
+  const handleCellClick = (idx: number) => {
+    if (isDraggingRef.current) return;
+    play(idx);
+  };
 
   // AI reply
   useEffect(() => {
     if (!aiTurn) return;
-    const t = setTimeout(() => play(aiMove(buildBoard(movesRef.current), turn, settings.level)), 450 + Math.random() * 350);
+    const t = setTimeout(() => play(aiMove(buildBoard(movesRef.current, N), turn, settings.level, N)), 450 + Math.random() * 350);
     return () => clearTimeout(t);
-  }, [aiTurn, turn, settings.level, play]);
+  }, [aiTurn, turn, settings.level, play, N]);
+
 
   // Reconcile with the server row (realtime, poll, or my own move's reply).
   const loadedMatch = useRef<string | null>(null);
@@ -314,12 +446,12 @@ export function CaroGame() {
     if (r.status === "finished" && !finishedRef.current) {
       const end = describeEnd(r, myId);
       const lastMove = remote[remote.length - 1];
-      const line = lastMove !== undefined && end.outcome !== "draw" && end.outcome !== "abort" ? winLine(buildBoard(remote), lastMove) : null;
+      const line = lastMove !== undefined && end.outcome !== "draw" && end.outcome !== "abort" ? winLine(buildBoard(remote, N), lastMove, N) : null;
       const w: Cell = end.outcome === "draw" || end.outcome === "abort" ? 0 : end.outcome === "win" ? mine : mine === 1 ? 2 : 1;
       finish(w, end.reason, line, end.outcome !== "abort" && !first);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [online.row]);
+  }, [online.row, N]);
 
   useEffect(() => {
     if (online.error) showToast(online.error, "bad", 5000);
@@ -335,6 +467,12 @@ export function CaroGame() {
     setMySide(side);
     resetSettlement();
     setPhase("playing");
+    setZoom(1);
+
+    // Center viewport on board center
+    const centerIdx = ((N / 2) | 0) * N + ((N / 2) | 0);
+    setTimeout(() => centerOnCell(centerIdx, false), 60);
+
     // Vào lại ván đang dở: chơi tiếp, không đọc lại lời mở ván.
     if (!quietStart.current) narrator.say("Bắt đầu ván đấu! Chúc bạn may mắn.", "gm_start");
     quietStart.current = false;
@@ -352,6 +490,7 @@ export function CaroGame() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundOver]);
+
   // Vào lại ván đã bắt đầu: vào thẳng bàn; lần đầu: qua phòng chờ.
   const startBetPvp = (bo: BetOpp) => (bo.inGame && rejoinTable(bo.room) ? void launchBetPvp(bo) : setLobby(bo));
 
@@ -462,61 +601,222 @@ export function CaroGame() {
     const pts = win.map((i) => ({ x: (i % N) + 0.5, y: ((i / N) | 0) + 0.5 }));
     pts.sort((a, b) => a.x - b.x || a.y - b.y);
     return [pts[0], pts[pts.length - 1]];
-  }, [win]);
+  }, [win, N]);
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col px-3 py-3">
-      <GameHeader game="caro" subtitle="5 quân liền nhau là thắng">
+      <GameHeader game="caro" subtitle="5 quân liền nhau là thắng · Kéo thả tự do">
         <NarratorButton enabled={narrator.enabled} onClick={narrator.toggle} />
-        {phase !== "setup" && <span className={cn("chip", rated && "border-lime-400/40 text-lime-300")}><EmojiText>{rated ? `Xếp hạng${stake ? ` · ${stake} 🌾` : ""}` : "Tập luyện"}</EmojiText></span>}
+        {phase !== "setup" && (
+          <span className={cn("chip", rated && "border-lime-400/40 text-lime-300")}>
+            <EmojiText>{rated ? `Xếp hạng${stake ? ` · ${stake} 🌾` : ""}` : "Tập luyện"}</EmojiText>
+          </span>
+        )}
       </GameHeader>
+
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_300px]">
         <div className="flex min-w-0 flex-col items-center justify-center gap-2">
           {phase !== "setup" && (
-            <PlayerCard className="w-full max-w-[640px]" name={playerFor(mySide === 1 ? 2 : 1).name} avatar={playerFor(mySide === 1 ? 2 : 1).avatar} rating={playerFor(mySide === 1 ? 2 : 1).rating} active={playing && turn !== mySide} thinking={aiTurn} accent="lime" />
+            <PlayerCard
+              className="w-full max-w-[640px]"
+              name={playerFor(mySide === 1 ? 2 : 1).name}
+              avatar={playerFor(mySide === 1 ? 2 : 1).avatar}
+              rating={playerFor(mySide === 1 ? 2 : 1).rating}
+              active={playing && turn !== mySide}
+              thinking={aiTurn}
+              accent="lime"
+            />
           )}
+
+          {/* Draggable & Zoomable Viewport */}
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="relative aspect-square w-full max-w-[min(100%,640px)] overflow-hidden rounded-2xl border border-white/10 bg-[#0e2038] shadow-[0_20px_60px_-20px_rgba(0,0,0,.8)]"
+            ref={viewportRef}
+            className="relative aspect-square w-full max-w-[min(100%,640px)] overflow-hidden rounded-2xl border border-white/10 bg-[#0e2038] shadow-[0_20px_60px_-20px_rgba(0,0,0,.8)] select-none touch-none"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
           >
-            <div className="grid h-full w-full" style={{ gridTemplateColumns: `repeat(${N}, 1fr)` }} onMouseLeave={() => setHover(null)}>
-              {board.map((c, i) => {
-                const canPlay = myTurn && !c;
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    disabled={!canPlay}
-                    onMouseEnter={() => canPlay && setHover(i)}
-                    onClick={() => play(i)}
-                    aria-label={`Hàng ${((i / N) | 0) + 1}, cột ${(i % N) + 1}`}
-                    className={cn(
-                      "relative grid aspect-square place-items-center border border-white/[0.07] transition-colors",
-                      canPlay && "cursor-pointer hover:bg-white/[0.08]",
-                      winSet.has(i) && "bg-lime-400/20"
-                    )}
-                  >
-                    {i === last && !winSet.has(i) && (
-                      <motion.span className="absolute inset-[12%] rounded-full border-2 border-[#d9b870]" initial={{ scale: 1.8, opacity: 0 }} animate={{ scale: 1, opacity: 0.85 }} transition={{ duration: 0.35 }} />
-                    )}
-                    {c ? <Mark side={c} win={winSet.has(i)} /> : hover === i && canPlay ? <span className="size-[55%] opacity-30"><Mark side={turn} /></span> : null}
-                  </button>
-                );
-              })}
+            {/* Top-left HUD: size & hover coordinates */}
+            <div className="pointer-events-none absolute top-3 left-3 z-20 flex items-center gap-2 rounded-lg border border-white/10 bg-black/60 px-2.5 py-1 text-[11px] font-mono text-ink-300 backdrop-blur-md shadow-sm">
+              <span className="font-bold text-white/90">{N}×{N}</span>
+              {hoverCoord && (
+                <>
+                  <span className="text-white/20">|</span>
+                  <span className="text-lime-300">Cột {hoverCoord.col + 1}, Hàng {hoverCoord.row + 1}</span>
+                </>
+              )}
             </div>
-            {winCenter && (
-              <svg viewBox={`0 0 ${N} ${N}`} className="pointer-events-none absolute inset-0 size-full">
-                <motion.line
-                  x1={winCenter[0].x} y1={winCenter[0].y} x2={winCenter[1].x} y2={winCenter[1].y}
-                  stroke="#a3e635" strokeWidth="0.22" strokeLinecap="round"
-                  initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 0.9 }} transition={{ duration: 0.6, delay: 0.2 }}
-                />
-              </svg>
-            )}
+
+            {/* Top-right Drag indicator hint */}
+            <div className="pointer-events-none absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/50 px-2.5 py-1 text-[11px] text-ink-300 backdrop-blur-md shadow-sm">
+              <Hand className="size-3.5 text-lime-400" />
+              <span>Kéo để di chuyển</span>
+            </div>
+
+            {/* Draggable Board Content */}
+            <motion.div
+              drag
+              dragConstraints={dragConstraints}
+              dragElastic={0}
+              dragMomentum={false}
+              style={{
+                x,
+                y,
+                scale: zoom,
+                transformOrigin: "0 0",
+                width: N * CELL_SIZE,
+                height: N * CELL_SIZE,
+              }}
+              className="absolute cursor-grab active:cursor-grabbing"
+              onMouseLeave={() => {
+                setHover(null);
+                setHoverCoord(null);
+              }}
+            >
+              <div
+                className="grid h-full w-full bg-[#0e2038]"
+                style={{
+                  gridTemplateColumns: `repeat(${N}, ${CELL_SIZE}px)`,
+                  gridTemplateRows: `repeat(${N}, ${CELL_SIZE}px)`,
+                  width: N * CELL_SIZE,
+                  height: N * CELL_SIZE,
+                }}
+              >
+                {board.map((c, i) => {
+                  const canPlay = myTurn && !c;
+                  const col = i % N;
+                  const row = (i / N) | 0;
+                  const isHoshi = hoshiIndices.has(i);
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={!canPlay && !c}
+                      onMouseEnter={() => {
+                        setHoverCoord({ col, row });
+                        if (canPlay) setHover(i);
+                      }}
+                      onClick={() => handleCellClick(i)}
+                      aria-label={`Hàng ${row + 1}, cột ${col + 1}`}
+                      className={cn(
+                        "relative grid place-items-center border border-white/[0.07] transition-colors",
+                        canPlay && "cursor-pointer hover:bg-white/[0.08]",
+                        winSet.has(i) && "bg-lime-400/25"
+                      )}
+                      style={{ width: CELL_SIZE, height: CELL_SIZE }}
+                    >
+                      {/* Subtle Hoshi landmark dot */}
+                      {isHoshi && !c && (
+                        <span className="pointer-events-none absolute size-1.5 rounded-full bg-white/20" />
+                      )}
+
+                      {/* Latest move highlight indicator */}
+                      {i === last && !winSet.has(i) && (
+                        <motion.span
+                          className="absolute inset-[10%] rounded-full border-2 border-[#d9b870] shadow-[0_0_10px_rgba(217,184,112,0.6)]"
+                          initial={{ scale: 1.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 0.9 }}
+                          transition={{ duration: 0.35 }}
+                        />
+                      )}
+
+                      {/* Placed mark or hover preview */}
+                      {c ? (
+                        <Mark side={c} win={winSet.has(i)} />
+                      ) : hover === i && canPlay ? (
+                        <span className="size-[55%] opacity-35">
+                          <Mark side={turn} />
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Dynamic Win Line */}
+              {winCenter && (
+                <svg
+                  viewBox={`0 0 ${N * CELL_SIZE} ${N * CELL_SIZE}`}
+                  className="pointer-events-none absolute inset-0 size-full"
+                  style={{ width: N * CELL_SIZE, height: N * CELL_SIZE }}
+                >
+                  <motion.line
+                    x1={winCenter[0].x * CELL_SIZE}
+                    y1={winCenter[0].y * CELL_SIZE}
+                    x2={winCenter[1].x * CELL_SIZE}
+                    y2={winCenter[1].y * CELL_SIZE}
+                    stroke="#a3e635"
+                    strokeWidth={Math.max(4, CELL_SIZE * 0.16)}
+                    strokeLinecap="round"
+                    initial={{ pathLength: 0, opacity: 0 }}
+                    animate={{ pathLength: 1, opacity: 0.95 }}
+                    transition={{ duration: 0.6, delay: 0.2 }}
+                  />
+                </svg>
+              )}
+            </motion.div>
+
+            {/* Floating Navigation & Zoom Bar */}
+            <div className="pointer-events-none absolute bottom-3 right-3 z-20 flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/60 p-1.5 backdrop-blur-md shadow-xl">
+              <button
+                type="button"
+                onClick={() => centerOnCell(((N / 2) | 0) * N + ((N / 2) | 0))}
+                title="Về trung tâm bàn cờ"
+                className="pointer-events-auto flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-ink-300 hover:bg-white/15 hover:text-white transition-colors"
+              >
+                <LocateFixed className="size-4" />
+              </button>
+              {moves.length > 0 && last !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => centerOnCell(last)}
+                  title="Về quân cờ vừa đánh"
+                  className="pointer-events-auto flex size-8 items-center justify-center rounded-lg border border-lime-400/30 bg-lime-400/10 text-lime-300 hover:bg-lime-400/20 transition-colors"
+                >
+                  <Focus className="size-4" />
+                </button>
+              )}
+              <div className="h-4 w-px bg-white/15" />
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.max(0.65, +(z - 0.15).toFixed(2)))}
+                title="Thu nhỏ bàn cờ"
+                disabled={zoom <= 0.65}
+                className="pointer-events-auto flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-ink-300 hover:bg-white/15 hover:text-white transition-colors disabled:opacity-30"
+              >
+                <ZoomOut className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoom(1)}
+                title="Đặt lại tỉ lệ (100%)"
+                className="pointer-events-auto px-1.5 py-1 text-[11px] font-mono font-medium text-ink-300 hover:text-white transition-colors"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.min(1.35, +(z + 0.15).toFixed(2)))}
+                title="Phóng to bàn cờ"
+                disabled={zoom >= 1.35}
+                className="pointer-events-auto flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-ink-300 hover:bg-white/15 hover:text-white transition-colors disabled:opacity-30"
+              >
+                <ZoomIn className="size-4" />
+              </button>
+            </div>
           </motion.div>
+
           {phase !== "setup" && (
-            <PlayerCard className="w-full max-w-[640px]" name={playerFor(mySide).name} avatar={playerFor(mySide).avatar} rating={playerFor(mySide).rating} active={playing && turn === mySide} accent="red" />
+            <PlayerCard
+              className="w-full max-w-[640px]"
+              name={playerFor(mySide).name}
+              avatar={playerFor(mySide).avatar}
+              rating={playerFor(mySide).rating}
+              active={playing && turn === mySide}
+              accent="red"
+            />
           )}
         </div>
 
@@ -525,21 +825,61 @@ export function CaroGame() {
             <div className="panel space-y-3 p-4">
               <div>
                 <span className="label">Chế độ</span>
-                <Segmented value={settings.mode} onChange={(v) => update({ mode: v })} options={[{ value: "friend", label: "Mời bạn" }, { value: "ai", label: "Đấu AI" }, { value: "local", label: "2 người 1 máy" }]} />
+                <Segmented
+                  value={settings.mode}
+                  onChange={(v) => update({ mode: v })}
+                  options={[
+                    { value: "friend", label: "Mời bạn" },
+                    { value: "ai", label: "Đấu AI" },
+                    { value: "local", label: "2 người 1 máy" },
+                  ]}
+                />
               </div>
+
+              <div>
+                <span className="label">Kích thước bàn cờ</span>
+                <Segmented<number>
+                  value={settings.boardSize}
+                  onChange={(v) => update({ boardSize: v as number })}
+                  options={BOARD_SIZES.map((s) => ({ value: s.value, label: s.label, hint: s.hint }))}
+                />
+              </div>
+
               {isAi && (
                 <>
                   <div>
                     <span className="label">Cấp AI</span>
-                    <Segmented value={settings.level} onChange={(v) => update({ level: v })} options={(Object.keys(LEVELS) as Level[]).map((k) => ({ value: k, label: LEVELS[k].label, hint: `~${LEVELS[k].elo} ELO` }))} />
+                    <Segmented
+                      value={settings.level}
+                      onChange={(v) => update({ level: v })}
+                      options={(Object.keys(LEVELS) as Level[]).map((k) => ({ value: k, label: LEVELS[k].label, hint: `~${LEVELS[k].elo} ELO` }))}
+                    />
                   </div>
                   <div>
                     <span className="label">Quân của bạn</span>
-                    <Segmented<number> value={settings.color} onChange={(v) => update({ color: v as Side | 0 })} options={[{ value: 1, label: "✕ đi trước" }, { value: 2, label: "◯ đi sau" }, { value: 0, label: "Ngẫu nhiên" }]} />
+                    <Segmented<number>
+                      value={settings.color}
+                      onChange={(v) => update({ color: v as Side | 0 })}
+                      options={[
+                        { value: 1, label: "✕ đi trước" },
+                        { value: 2, label: "◯ đi sau" },
+                        { value: 0, label: "Ngẫu nhiên" },
+                      ]}
+                    />
                   </div>
                   <div>
                     <span className="label">Loại ván</span>
-                    <Segmented value={settings.ranked ? "r" : "t"} onChange={(v) => { update({ ranked: v === "r" }); if (v === "t") setStake(0); }} options={[{ value: "r", label: "Xếp hạng" }, { value: "t", label: "Tập luyện" }]} />
+                    <Segmented
+                      value={settings.ranked ? "r" : "t"}
+                      onChange={(v) => {
+                        update({ ranked: v === "r" });
+                        if (v === "t") setStake(0);
+                      }}
+                      options={[
+                        { value: "r", label: "Xếp hạng" },
+                        { value: "t", label: "Tập luyện" },
+                      ]}
+                    />
                   </div>
                   <StakePicker
                     value={stake}
@@ -550,6 +890,7 @@ export function CaroGame() {
                   />
                 </>
               )}
+
               {isFriend && (
                 <>
                   <StakePicker value={stake} onChange={(v) => { setInviteErr(null); setStake(v); }} disabled={!!fb.pending || !!fb.friend} />
@@ -571,6 +912,7 @@ export function CaroGame() {
                   </div>
                 </>
               )}
+
               <button type="button" onClick={start} disabled={waitingOpp} className="btn-lime w-full py-2.5 font-bold disabled:opacity-50">
                 <Play className="size-4" /> {waitingOpp ? "Chờ đối thủ nhận kèo" : "Bắt đầu"}
               </button>
